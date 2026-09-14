@@ -10,7 +10,7 @@ import { getMarketingNavUser } from '@/lib/auth/nav-user';
 const founders = [
   {
     name: 'David Mbaimbai',
-    role: 'Co-Founder',
+    role: 'Founder',
     photo: '/images/team/david-mbaimbai.jpeg',
   },
   {

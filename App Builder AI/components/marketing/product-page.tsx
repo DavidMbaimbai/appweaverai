@@ -23,6 +23,8 @@ export type ProductPageContent = {
   faqs?: ProductPageFaq[];
   ctaLabel?: string;
   ctaHref?: string;
+  /** Renders a custom CTA (e.g. a form/modal trigger) instead of ctaHref/ctaLabel. */
+  ctaSlot?: React.ReactNode;
 };
 
 /**
@@ -38,6 +40,7 @@ export async function ProductPage({
   faqs,
   ctaLabel = 'Start building for free',
   ctaHref = '/?autostart=1',
+  ctaSlot,
 }: ProductPageContent) {
   const initialUser = await getMarketingNavUser();
 
@@ -55,9 +58,11 @@ export async function ProductPage({
           <p className="max-w-[620px] font-display text-lg leading-snug text-text-dim">
             {description}
           </p>
-          <Button href={ctaHref} className="mt-2 h-[45px] px-6">
-            {ctaLabel}
-          </Button>
+          {ctaSlot ?? (
+            <Button href={ctaHref} className="mt-2 h-[45px] px-6">
+              {ctaLabel}
+            </Button>
+          )}
         </Container>
 
         <Container className="mt-16 grid grid-cols-1 gap-4 tablet-up:mt-20 tablet-up:grid-cols-2">

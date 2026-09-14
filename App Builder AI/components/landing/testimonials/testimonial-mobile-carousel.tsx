@@ -2,10 +2,14 @@
 
 import { Container } from '@/components/ui/container';
 import { InfiniteCarousel } from '@/components/ui/infinite-carousel';
-import { testimonials } from '@/lib/landing-data';
+import type { Testimonial } from '@/lib/types';
 import { MobileTestimonialCard } from './testimonial-cards';
 
-export function TeststimonialMobileCarousel() {
+export function TeststimonialMobileCarousel({
+  testimonials,
+}: {
+  testimonials: Testimonial[];
+}) {
   return (
     <section id="testimonials" className="pt-[84] pb-12 desktop:hidden">
       <Container>

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { TestimonialBubbleNav } from './bubble-nav';
 import { ChevronIcon } from '@/components/ui/chevron-icon';
 import { Container } from '@/components/ui/container';
-import { testimonials } from '@/lib/landing-data';
+import type { Testimonial } from '@/lib/types';
 import { LAYOUT_WIDTH_VARS, useLayoutScale } from '@/lib/use-layout-scale';
 import {
   SlideGrid,
@@ -24,13 +24,17 @@ function NavArrow({ direction }: { direction: 'left' | 'right' }) {
   );
 }
 
-export function TestmonialDesktopCarousel() {
+export function TestmonialDesktopCarousel({
+  testimonials,
+}: {
+  testimonials: Testimonial[];
+}) {
   const count = testimonials.length;
   const { shellRef, scale } = useLayoutScale(LAYOUT_WIDTH_VARS.pageContent);
 
   const slides = useMemo(
     () => [testimonials[count - 1], ...testimonials, testimonials[0]],
-    [count],
+    [count, testimonials],
   );
 
   const [position, setPosition] = useState(1);

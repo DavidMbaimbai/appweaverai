@@ -14,6 +14,14 @@ export const metadata: Metadata = {
     description: 'Turn ideas into apps in minutes - no coding needed.',
     type: 'website',
   },
+  icons: {
+    icon: [
+      { url: '/icon.svg?v=2', type: 'image/svg+xml' },
+      { url: '/icon.png?v=2', type: 'image/png' },
+    ],
+    shortcut: '/favicon.ico?v=2',
+    apple: '/apple-icon.png?v=2',
+  },
 };
 
 export default function RootLayout({

@@ -6,6 +6,7 @@ import {
 import { listAuditLogs } from '@/lib/admin/queries/audit';
 import { requireAdmin } from '@/lib/auth/require-admin';
 import { Input } from '@/components/ui/input';
+import { formatLocationFromJson } from '@/lib/geo/ip-lookup';
 
 export default async function AdminAuditLogsPage({
   searchParams,
@@ -60,6 +61,7 @@ export default async function AdminAuditLogsPage({
               <th className="px-4 py-2.5 font-medium">Target</th>
               <th className="px-4 py-2.5 font-medium">Admin</th>
               <th className="px-4 py-2.5 font-medium">Result</th>
+              <th className="px-4 py-2.5 font-medium">Location</th>
               <th className="px-4 py-2.5 font-medium">When</th>
             </tr>
           </thead>
@@ -80,6 +82,9 @@ export default async function AdminAuditLogsPage({
                   <StatusPill tone={log.result === 'SUCCESS' ? 'success' : 'danger'}>
                     {log.result}
                   </StatusPill>
+                </td>
+                <td className="px-4 py-2.5 text-app-text-secondary">
+                  {formatLocationFromJson(log.after) ?? '—'}
                 </td>
                 <td className="px-4 py-2.5 text-app-text-secondary">
                   {formatDateTime(log.createdAt)}

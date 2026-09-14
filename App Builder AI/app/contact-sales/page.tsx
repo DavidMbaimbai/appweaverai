@@ -1,4 +1,5 @@
 import { ProductPage } from '@/components/marketing/product-page';
+import { SalesContactCta } from '@/components/marketing/sales-contact-cta';
 
 export default function ContactSalesPage() {
   return (
@@ -28,8 +29,7 @@ export default function ContactSalesPage() {
             "A member of our team will follow up with next steps after you reach out.",
         },
       ]}
-      ctaLabel="Email sales"
-      ctaHref="mailto:sales@appweaver.ai"
+      ctaSlot={<SalesContactCta label="Email sales" />}
     />
   );
 }

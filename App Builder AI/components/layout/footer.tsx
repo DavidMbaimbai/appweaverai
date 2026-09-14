@@ -3,8 +3,16 @@ import { AppWeaverLogo } from '../ui/appweaver-logo';
 import { Container } from '@/components/ui/container';
 import { footerColumns } from '@/lib/landing-data';
 import { FooterClock } from './footer-clock';
+import { RotatingGlobe } from './rotating-globe';
+import { getRecentVerificationLocations } from '@/lib/admin/queries/verification-locations';
 
-export function Footer() {
+export async function Footer() {
+  const locations = await getRecentVerificationLocations().catch(() => []);
+  const points = locations.map((location) => ({
+    lat: location.lat,
+    lon: location.lon,
+  }));
+
   return (
     <div className="border-t border-border-light/60 bg-background">
       <Container as="footer" className="py-14">
@@ -18,27 +26,7 @@ export function Footer() {
             </Link>
 
             <div className="mt-8 flex items-center gap-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-border-light bg-surface-white text-text-muted">
-                <svg
-                  width="20"
-                  height="20"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  aria-hidden="true">
-                  <circle
-                    cx="12"
-                    cy="12"
-                    r="9"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                  />
-                  <path
-                    d="M2 12h20M12 2a15 15 0 014 10 15 15 0 01-4 10 15 15 0 01-4-10A15 15 0 0112 2z"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                  />
-                </svg>
-              </span>
+              <RotatingGlobe size={40} points={points} />
               <FooterClock />
             </div>
             <p className="mt-4 text-sm text-text-muted">

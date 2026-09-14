@@ -8,6 +8,8 @@ import { CloseIcon, EyeIcon, EyeOffIcon } from './auth-icons';
 import { useAuthModal } from './auth-modal-provider';
 import { OAuthButton } from './oauth-button';
 import { useRouter } from 'next/navigation';
+import { AppWeaverLogo } from '../ui/appweaver-logo';
+import { recordEmailVerifiedAction } from '@/lib/auth/actions';
 
 const DEFAULT_CALLBACK_URL = '/app';
 
@@ -114,6 +116,9 @@ export function AuthModal() {
   const [otp, setOtp] = useState('');
   const [isResending, setIsResending] = useState(false);
   const [resendMessage, setResendMessage] = useState<string | null>(null);
+  // Shows a branded "thank you" confirmation once the code is accepted,
+  // right before redirecting into the app.
+  const [verificationSuccess, setVerificationSuccess] = useState(false);
 
   const copy = modeCopy[mode];
   const alternateMode: AuthMode = mode === 'login' ? 'register' : 'login';
@@ -182,6 +187,7 @@ export function AuthModal() {
       setOtp('');
       setIsResending(false);
       setResendMessage(null);
+      setVerificationSuccess(false);
     };
 
     reset();
@@ -272,8 +278,19 @@ export function AuthModal() {
       otp,
       fetchOptions: {
         onSuccess: () => {
-          router.push(getCallbackUrl());
-          router.refresh();
+          setIsLoading(false);
+          setVerificationSuccess(true);
+
+          // Best-effort: record where this verification happened (for the
+          // Admin Console's Audit Logs / Security Events and the public
+          // "recent verifications" map). Never blocks the redirect.
+          void recordEmailVerifiedAction();
+
+          const target = getCallbackUrl();
+          window.setTimeout(() => {
+            router.push(target);
+            router.refresh();
+          }, 2200);
         },
         onError: (ctx) => {
           setIsLoading(false);
@@ -308,6 +325,52 @@ export function AuthModal() {
 
   if (!isOpen) return null;
 
+  if (verificationSuccess) {
+    return (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+        <div className="absolute inset-0 bg-[#191818]/45 backdrop-blur-[2px]" />
+
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Account verified"
+          className="relative w-full max-w-auth-modal overflow-hidden rounded-[24px] border border-[#e3e2dd] bg-surface-white p-8 text-center shadow-[0_24px_80px_rgba(0,0,0,0.18)] auth-modal-panel">
+          <div className="mx-auto flex justify-center">
+            <AppWeaverLogo />
+          </div>
+
+          <div className="mx-auto mt-6 flex h-16 w-16 items-center justify-center rounded-full bg-appweaver-orange/10">
+            <svg
+              viewBox="0 0 24 24"
+              fill="none"
+              className="h-8 w-8 text-appweaver-orange"
+              aria-hidden="true">
+              <path
+                d="M5 12.5L9.5 17L19 7"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          </div>
+
+          <h2 className="mt-5 font-display text-[26px] font-normal leading-tight tracking-[-0.04em] text-text-agent-heading">
+            You&apos;re all set{name ? `, ${name.split(' ')[0]}` : ''}!
+          </h2>
+          <p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-text-muted">
+            Thanks for verifying your email — your AppWeaver AI account is
+            ready. Taking you to your dashboard now&hellip;
+          </p>
+
+          <div className="mx-auto mt-6 h-1 w-40 overflow-hidden rounded-full bg-pricing-surface">
+            <div className="h-full w-full origin-left animate-auth-success-progress rounded-full bg-appweaver-orange" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (pendingVerificationEmail) {
     return (
       <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -326,6 +389,9 @@ export function AuthModal() {
           className="relative max-h-auth-modal w-full max-w-auth-modal overflow-y-auto rounded-[24px] border border-[#e3e2dd] bg-surface-white shadow-[0_24px_80px_rgba(0,0,0,0.18)] auth-modal-panel">
           <div className="flex items-start justify-between gap-4 border-b border-black/[0.06] px-6 pb-5 pt-6">
             <div>
+              <div className="mb-3">
+                <AppWeaverLogo size="compact" />
+              </div>
               <h2
                 id={titleId}
                 className="font-display text-[28px] font-normal leading-tight tracking-[-0.04em] text-text-agent-heading">

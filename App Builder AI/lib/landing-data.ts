@@ -151,7 +151,7 @@ export const heroTaglines = [
   "Your first prompt is free. No credit consumption.",
 ];
 
-const AVATAR_BASE = "https://ui-avatars.com/api/?background=random&size=256&name=";
+export const AVATAR_BASE = "https://ui-avatars.com/api/?background=random&size=256&name=";
 
 export const agentFeatures: AgentFeature[] = [
   {

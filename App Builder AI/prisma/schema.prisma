@@ -371,6 +371,11 @@ model Artifact {
   /// Live URL after the project is published (artifacts share one deployment).
   publishedUrl    String?        @map("published_url")
   sortOrder       Int            @default(0) @map("sort_order")
+  /// When set, this artifact is a plain-code program in this language
+  /// (e.g. "python", "java", "go") run via a sandboxed Docker container
+  /// instead of the browser iframe preview used for web stacks. See
+  /// lib/code-run/languages.ts for the supported id list.
+  codingLanguage  String?        @map("coding_language")
   createdAt       DateTime       @default(now()) @map("created_at")
   updatedAt       DateTime       @updatedAt @map("updated_at")
 
@@ -605,6 +610,7 @@ model AdminAuditLog {
 enum SecurityEventType {
   LOGIN_FAILURE
   LOGIN_SUCCESS
+  EMAIL_VERIFIED
   BRUTE_FORCE_SUSPECTED
   UNUSUAL_ACCESS
   RATE_LIMIT_VIOLATION
@@ -639,6 +645,58 @@ model SecurityEvent {
   @@index([type, createdAt])
   @@index([subjectType, subjectId])
   @@map("security_events")
+}
+
+enum FeedbackStatus {
+  NEW
+  READ
+  RESOLVED
+}
+
+/// Star-rating product review left by a signed-in customer after using the
+/// app (no admin FK relation, mirroring AdminAuditLog/SecurityEvent — kept
+/// intentionally decoupled from User so a deleted account never blocks
+/// reading historical feedback).
+model ProductReview {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  userEmail String?  @map("user_email")
+  rating    Int
+  comment   String?  @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@index([userId])
+  @@map("product_reviews")
+}
+
+/// Free-form message sent to the company from inside the app (e.g. a
+/// "Send feedback" widget). Reviewed by admins in the Admin Console, who
+/// may reply — the response is shown back to the user in the same widget.
+model FeedbackMessage {
+  id                 String         @id @default(cuid())
+  userId             String?        @map("user_id")
+  userEmail          String?        @map("user_email")
+  message            String         @db.Text
+  status             FeedbackStatus @default(NEW)
+  response           String?        @db.Text
+  respondedAt        DateTime?      @map("responded_at")
+  respondedBy        String?        @map("responded_by")
+  /// Human-readable name of the detected language of `message` (e.g. "Spanish").
+  /// Null/omitted when the message is already in English.
+  language           String?        @map("language")
+  /// Auto-translated English version of `message`, shown to admins when
+  /// `language` isn't English.
+  translatedMessage  String?        @db.Text @map("translated_message")
+  /// Auto-translated version of `response` in the user's original
+  /// `language`, shown/emailed back to the user instead of the English reply.
+  translatedResponse String?        @db.Text @map("translated_response")
+  createdAt          DateTime       @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@index([status])
+  @@index([userId])
+  @@map("feedback_messages")
 }
 
 enum AiUsageStatus {

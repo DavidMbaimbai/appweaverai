@@ -33,6 +33,7 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   },
   { label: 'Security', href: '/admin/security', permission: 'security:read' },
   { label: 'Audit Logs', href: '/admin/audit-logs', permission: 'audit:read' },
+  { label: 'Feedback', href: '/admin/feedback', permission: 'feedback:read' },
   { label: 'Settings', href: '/admin/settings', permission: 'settings:read' },
 ];
 

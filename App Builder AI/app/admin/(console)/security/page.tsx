@@ -7,6 +7,7 @@ import {
 import { listSecurityEvents } from '@/lib/admin/queries/security';
 import { requireAdmin } from '@/lib/auth/require-admin';
 import { Select } from '@/components/ui/select';
+import { formatLocationFromJson } from '@/lib/geo/ip-lookup';
 
 const SEVERITY_TONE = {
   INFO: 'neutral',
@@ -69,6 +70,7 @@ export default async function AdminSecurityPage({
               <th className="px-4 py-2.5 font-medium">Severity</th>
               <th className="px-4 py-2.5 font-medium">Type</th>
               <th className="px-4 py-2.5 font-medium">Message</th>
+              <th className="px-4 py-2.5 font-medium">Location</th>
               <th className="px-4 py-2.5 font-medium">When</th>
             </tr>
           </thead>
@@ -85,6 +87,9 @@ export default async function AdminSecurityPage({
                 </td>
                 <td className="px-4 py-2.5 text-app-text-secondary">
                   {event.message}
+                </td>
+                <td className="px-4 py-2.5 text-app-text-secondary">
+                  {formatLocationFromJson(event.metadata) ?? '—'}
                 </td>
                 <td className="px-4 py-2.5 text-app-text-secondary">
                   {formatDateTime(event.createdAt)}

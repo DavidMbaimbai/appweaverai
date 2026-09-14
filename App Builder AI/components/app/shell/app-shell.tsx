@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { AppWorkspace } from '@/lib/app-types';
 import { AppSidebar } from './app-sidebar';
 import { CommandPalette } from './command-pallete';
+import { FeedbackWidget } from '@/components/app/feedback/feedback-widget';
 
 type AppSheellProps = {
   children: React.ReactNode;
@@ -60,6 +61,8 @@ export function AppShell({
         open={commandOpen}
         onClose={() => setCommandOpen(false)}
       />
+
+      <FeedbackWidget />
     </div>
   );
 }

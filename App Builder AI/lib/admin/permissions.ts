@@ -28,6 +28,8 @@ export const ADMIN_PERMISSIONS = [
   'settings:read',
   'settings:write',
   'exports:read',
+  'feedback:read',
+  'feedback:write',
 ] as const;
 
 export type AdminPermission = (typeof ADMIN_PERMISSIONS)[number];
@@ -58,6 +60,8 @@ const ROLE_PERMISSIONS: Record<AdminRole, Set<AdminPermission>> = {
     'security:read',
     'settings:read',
     'exports:read',
+    'feedback:read',
+    'feedback:write',
   ]),
   FINANCE_ADMIN: new Set<AdminPermission>([
     'dashboard:read',
@@ -79,6 +83,8 @@ const ROLE_PERMISSIONS: Record<AdminRole, Set<AdminPermission>> = {
     'projects:write',
     'subscriptions:read',
     'ai_usage:read',
+    'feedback:read',
+    'feedback:write',
   ]),
   ANALYTICS_VIEWER: READ_ONLY_PERMISSIONS,
   SECURITY_ADMIN: new Set<AdminPermission>([

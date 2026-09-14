@@ -1,11 +1,14 @@
 import { TestmonialDesktopCarousel } from './testimonial-desktop-carousel';
 import { TeststimonialMobileCarousel } from './testimonial-mobile-carousel';
+import { getFeaturedTestimonials } from '@/lib/reviews/queries';
 
-export function TestimonialSection() {
+export async function TestimonialSection() {
+  const testimonials = await getFeaturedTestimonials();
+
   return (
     <>
-      <TeststimonialMobileCarousel />
-      <TestmonialDesktopCarousel />
+      <TeststimonialMobileCarousel testimonials={testimonials} />
+      <TestmonialDesktopCarousel testimonials={testimonials} />
     </>
   );
 }

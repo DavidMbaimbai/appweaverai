@@ -6,6 +6,7 @@ import { prisma } from './prisma';
 import { provisionNewUser } from './auth/provision-user';
 import { recordAuthActivity } from './auth/record-auth-activity';
 import { sendEmail } from './email';
+import { renderBrandedEmail, highlightCodeHtml } from './email-templates';
 
 const useDatabase = Boolean(process.env.DATABASE_URL);
 
@@ -102,7 +103,15 @@ export const auth = betterAuth({
         await sendEmail({
           to: email,
           subject: `${otp} is your AppWeaver AI verification code`,
-          html: `<p>Your AppWeaver AI verification code is:</p><p style="font-size:28px;font-weight:700;letter-spacing:4px;">${otp}</p><p>This code expires in 10 minutes.</p>`,
+          html: renderBrandedEmail({
+            previewText: `Your AppWeaver AI verification code is ${otp}`,
+            heading: 'Verify your email',
+            bodyHtml: `
+              <p style="margin:0 0 4px;">Enter this code to finish signing in to AppWeaver AI:</p>
+              ${highlightCodeHtml(otp)}
+              <p style="margin:12px 0 0;color:#696c74;font-size:13px;">This code expires in 10 minutes. If you didn't request this, you can safely ignore this email.</p>
+            `,
+          }),
           text: `Your AppWeaver AI verification code is ${otp}. It expires in 10 minutes.`,
         });
       },
