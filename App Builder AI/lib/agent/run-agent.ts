@@ -133,6 +133,7 @@ type ToolContext = {
   planCompleted?: boolean;
   lastFileStreamEmit: Map<string, number>;
   onEvent?: (event: AgentStreamEvent) => void;
+  usage: { inputTokens: number; outputTokens: number };
 };
 
 type StreamingToolBlock = {
@@ -554,7 +555,11 @@ async function streamAssistantTurn(
     }
   });
 
-  return stream.finalMessage();
+  return stream.finalMessage().then((message) => {
+    ctx.usage.inputTokens += message.usage?.input_tokens ?? 0;
+    ctx.usage.outputTokens += message.usage?.output_tokens ?? 0;
+    return message;
+  });
 }
 
 function buildUserMessageParam(
@@ -727,16 +732,20 @@ export async function runAgentLoop({
     buildValid: false,
     lastFileStreamEmit: new Map(),
     onEvent,
+    usage: { inputTokens: 0, outputTokens: 0 },
   };
 
   onEvent?.({ type: 'status', phase: 'working', actionCount: 0 });
 
   const client = getAnthropicClient();
+  const runStartedAt = Date.now();
   let summary = '';
   let turn = 0;
   let continueNudges = 0;
   let hitTurnLimit = false;
+  let runError: unknown;
 
+  try {
   while (turn < agentLimits.maxTurns) {
     turn += 1;
 
@@ -909,4 +918,90 @@ export async function runAgentLoop({
     planQuestion: ctx.planQuestion,
     planCompleted: ctx.planCompleted,
   };
+  } catch (error) {
+    runError = error;
+    throw error;
+  } finally {
+    void recordAgentAiUsage({
+      conversationId,
+      projectId,
+      model: agentLimits.model,
+      usage: ctx.usage,
+      latencyMs: Date.now() - runStartedAt,
+      failed: Boolean(runError),
+    });
+  }
 }
+
+/**
+ * Rough per-model pricing used only for admin cost dashboards
+ * (ADM-060/062/063). Not used for billing.
+ */
+const MODEL_PRICING_PER_MILLION_TOKENS_CENTS: Record<
+  string,
+  { input: number; output: number }
+> = {
+  'claude-sonnet-4-5': { input: 300, output: 1500 },
+  'claude-opus-4-1': { input: 1500, output: 7500 },
+  'claude-3-5-haiku-latest': { input: 80, output: 400 },
+};
+
+function estimateAiCostCents(
+  model: string,
+  inputTokens: number,
+  outputTokens: number,
+) {
+  const pricing =
+    Object.entries(MODEL_PRICING_PER_MILLION_TOKENS_CENTS).find(([key]) =>
+      model.includes(key),
+    )?.[1] ?? MODEL_PRICING_PER_MILLION_TOKENS_CENTS['claude-sonnet-4-5'];
+
+  return Math.round(
+    (inputTokens / 1_000_000) * pricing.input +
+      (outputTokens / 1_000_000) * pricing.output,
+  );
+}
+
+async function recordAgentAiUsage({
+  conversationId,
+  projectId,
+  model,
+  usage,
+  latencyMs,
+  failed,
+}: {
+  conversationId: string;
+  projectId: string;
+  model: string;
+  usage: { inputTokens: number; outputTokens: number };
+  latencyMs: number;
+  failed: boolean;
+}) {
+  try {
+    const conversation = await prisma.agentConversation.findUnique({
+      where: { id: conversationId },
+      select: { userId: true },
+    });
+
+    await prisma.aiUsageEvent.create({
+      data: {
+        userId: conversation?.userId,
+        projectId,
+        provider: 'anthropic',
+        model,
+        inputTokens: usage.inputTokens,
+        outputTokens: usage.outputTokens,
+        estimatedCostCents: estimateAiCostCents(
+          model,
+          usage.inputTokens,
+          usage.outputTokens,
+        ),
+        latencyMs,
+        status: failed ? 'FAILURE' : 'SUCCESS',
+      },
+    });
+  } catch (error) {
+    console.error('Failed to record AI usage telemetry:', error);
+  }
+}
+

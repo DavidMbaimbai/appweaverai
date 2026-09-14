@@ -6,13 +6,10 @@ import { PricingSection } from '@/components/landing/pricing/section';
 import { TestimonialSection } from '@/components/landing/testimonials/section';
 import { Footer } from '@/components/layout/footer';
 import { Navbar } from '@/components/layout/navbar';
-import { getCachedSession } from '@/lib/auth/cached';
+import { getMarketingNavUser } from '@/lib/auth/nav-user';
 
 export default async function HomePage() {
-  const session = await getCachedSession();
-  const initialUser = session?.user
-    ? { name: session.user.name, email: session.user.email }
-    : null;
+  const initialUser = await getMarketingNavUser();
   return (
     <>
       <Navbar initialUser={initialUser} />

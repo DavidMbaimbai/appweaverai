@@ -11,31 +11,31 @@ export function AgentSection() {
     <section className="py-12 desktop:py-20">
       <Container className="below-desktop:!px-4">
         <div className="text-center mobile:flex mobile:flex-col mobile:items-center mobile:gap-4">
-          <h1 className="font-display text-[48px] font-normal leading-[48px] tracking-[-2.88px] text-text-agent-heading desktop:text-[68.92px] desktop:leading-none desktop:tracking-[-4.14px]">
-            Meet <span className="text-replit-orange">Agent 4</span>
+          <p className="font-display text-sm font-medium uppercase tracking-[0.2em] text-replit-orange">
+            The Agent
+          </p>
+          <h1 className="mt-3 font-display text-[40px] font-normal leading-[40px] tracking-[-2px] text-text-agent-heading desktop:text-[56px] desktop:leading-[1.05] desktop:tracking-[-2.8px]">
+            Your build partner, start to launch
           </h1>
-          <p className="font-display text-2xl leading-[19.92px] tracking-[-0.96px] text-text-dim mobile:mt-0 desktop:mt-4 desktop:text-[28px] desktop:leading-tight desktop:tracking-[-0.04em]">
-            Creativity runs on AppWeaver AI
+          <p className="font-display text-lg leading-snug tracking-[-0.02em] text-text-dim mobile:mt-0 desktop:mt-4 desktop:text-xl">
+            Four ways the AppWeaver AI agent keeps a project moving without you
+            juggling ten tools to do it.
           </p>
         </div>
 
-        <div className="mt-6 flex flex-col gap-4 tablet-up:gap-6 desktop:mt-8 desktop:gap-4">
-          <div className="contents tablet-up:grid tablet-up:grid-cols-1 tablet-up:gap-4 desktop:grid-cols-[minmax(0,799fr)_minmax(0,533fr)]">
-            <FeatureCard feature={canvas} />
-            <FeatureCard feature={parallel} />
-          </div>
-          <div className="contents tablet-up:grid tablet-up:grid-cols-1 tablet-up:gap-4 desktop:grid-cols-[minmax(0,533fr)_minmax(0,799fr)]">
-            <FeatureCard feature={artifacts} />
-            <FeatureCard feature={teams} />
-          </div>
+        <div className="mt-10 grid grid-cols-1 gap-5 tablet-up:grid-cols-2 desktop:mt-12 desktop:gap-6">
+          <FeatureCard feature={canvas} />
+          <FeatureCard feature={parallel} />
+          <FeatureCard feature={artifacts} />
+          <FeatureCard feature={teams} />
         </div>
 
         <div className="mt-8 flex flex-wrap items-center justify-center gap-8">
           <Button
-            href="/agen-4"
+            href="/agent"
             variant="outline"
             className="h-[45px] border-[1.5px] px-6">
-            Deep dive into Agent 4
+            See the Agent in depth
           </Button>
           <Link
             href="/docs"

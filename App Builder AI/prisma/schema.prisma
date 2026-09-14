@@ -12,8 +12,24 @@ datasource db {
   provider = "postgresql"
 }
 
-
 // Tables
+
+enum AdminRole {
+  SUPER_ADMIN
+  ADMIN
+  FINANCE_ADMIN
+  SUPPORT_ADMIN
+  ANALYTICS_VIEWER
+  SECURITY_ADMIN
+}
+
+enum AccountStatus {
+  ACTIVE
+  SUSPENDED
+  DISABLED
+  BANNED
+}
+
 model User {
   id            String   @id @default(cuid())
   name          String?
@@ -30,6 +46,19 @@ model User {
   subscriptionStatus   String? @map("subscription_status")
   subscriptionPlan     String  @default("free") @map("subscription_plan")
 
+  /// Admin Console: null means the user has no administrative access.
+  adminRole AdminRole? @map("admin_role")
+
+  accountStatus     AccountStatus @default(ACTIVE) @map("account_status")
+  statusReason      String?       @map("status_reason") @db.Text
+  statusChangedAt   DateTime?     @map("status_changed_at")
+  statusChangedById String?       @map("status_changed_by_id")
+  bannedAt          DateTime?     @map("banned_at")
+  banExpiresAt      DateTime?     @map("ban_expires_at")
+
+  /// AI usage credit balance available to the user (Admin Console: ADM-025).
+  creditBalance Int @default(0) @map("credit_balance")
+
   accounts Account[]
   sessions Session[]
 
@@ -44,6 +73,12 @@ model User {
   deploymentsCreated   Deployment[]            @relation("DeploymentCreator")
   settings             UserSettings?
 
+  aiUsageEvents     AiUsageEvent[]
+  creditAdjustments CreditAdjustment[] @relation("CreditAdjustmentTarget")
+  flags             UserFlag[]         @relation("FlaggedUser")
+
+  @@index([adminRole])
+  @@index([accountStatus])
   @@map("users")
 }
 
@@ -199,35 +234,51 @@ model WorkspaceInvitation {
 // https://docs.replit.com/references/projects-and-artifacts/projects
 // -----------------------------------------------------------------------------
 
+enum ProjectAdminStatus {
+  ACTIVE
+  SUSPENDED
+  ARCHIVED
+}
+
 model Project {
-  id          String   @id @default(cuid())
-  workspaceId String   @map("workspace_id")
+  id          String    @id @default(cuid())
+  workspaceId String    @map("workspace_id")
   name        String
   slug        String
-  description String?  @db.Text
-  iconUrl     String?  @map("icon_url")
-  createdById String   @map("created_by_id")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  description String?   @db.Text
+  iconUrl     String?   @map("icon_url")
+  createdById String    @map("created_by_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
   deletedAt   DateTime? @map("deleted_at")
 
-  workspace    Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  createdBy    User                    @relation("ProjectCreator", fields: [createdById], references: [id], onDelete: Restrict)
-  members      ProjectMember[]
-  invitations  ProjectInvitation[]
-  preferences  UserProjectPreference[]
-  artifacts    Artifact[]
-  files        ProjectFile[]
-  databases    ProjectDatabase[]
-  storage      ProjectStorage?
-  secrets      ProjectSecret[]
-  deployments  Deployment[]
+  /// Admin Console lifecycle controls (ADM-073, ADM-074).
+  adminStatus     ProjectAdminStatus @default(ACTIVE) @map("admin_status")
+  suspendedReason String?            @map("suspended_reason") @db.Text
+  suspendedAt     DateTime?          @map("suspended_at")
+  suspendedById   String?            @map("suspended_by_id")
+  archivedAt      DateTime?          @map("archived_at")
+
+  workspace     Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy     User                    @relation("ProjectCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  members       ProjectMember[]
+  invitations   ProjectInvitation[]
+  preferences   UserProjectPreference[]
+  artifacts     Artifact[]
+  files         ProjectFile[]
+  databases     ProjectDatabase[]
+  storage       ProjectStorage?
+  secrets       ProjectSecret[]
+  deployments   Deployment[]
   conversations AgentConversation[]
+  aiUsageEvents AiUsageEvent[]
+  flags         ProjectFlag[]
 
   @@unique([workspaceId, slug])
   @@index([workspaceId, updatedAt])
   @@index([workspaceId, deletedAt])
   @@index([createdById])
+  @@index([adminStatus])
   @@map("projects")
 }
 
@@ -274,13 +325,13 @@ model ProjectInvitation {
 
 /// Per-user project UI state: pins and recency (Replit "last opened by you").
 model UserProjectPreference {
-  id           String    @id @default(cuid())
-  userId       String    @map("user_id")
-  projectId    String    @map("project_id")
-  isPinned     Boolean   @default(false) @map("is_pinned")
-  lastOpenedAt DateTime? @map("last_opened_at")
+  id                   String    @id @default(cuid())
+  userId               String    @map("user_id")
+  projectId            String    @map("project_id")
+  isPinned             Boolean   @default(false) @map("is_pinned")
+  lastOpenedAt         DateTime? @map("last_opened_at")
   /// Last artifact tab the user had open in the project editor.
-  lastActiveArtifactId String? @map("last_active_artifact_id")
+  lastActiveArtifactId String?   @map("last_active_artifact_id")
 
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -326,7 +377,7 @@ model Artifact {
   createdAt       DateTime       @default(now()) @map("created_at")
   updatedAt       DateTime       @updatedAt @map("updated_at")
 
-  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   files   ProjectFile[]
 
   @@unique([projectId, slug])
@@ -521,4 +572,184 @@ model AgentMessage {
 
   @@index([conversationId, createdAt])
   @@map("agent_messages")
+}
+
+// -----------------------------------------------------------------------------
+// Admin Console — audit, security, AI cost telemetry, and governance
+// docs/ADMIN_CONSOLE_BACKLOG.md (EPIC 1, 7, 10, 12)
+// -----------------------------------------------------------------------------
+
+enum AuditResult {
+  SUCCESS
+  FAILURE
+}
+
+/// Immutable record of every privileged admin action (ADM-005). Never updated
+/// or deleted through normal admin APIs.
+model AdminAuditLog {
+  id            String      @id @default(cuid())
+  adminId       String?     @map("admin_id")
+  adminEmail    String?     @map("admin_email")
+  action        String
+  targetType    String      @map("target_type")
+  targetId      String?     @map("target_id")
+  before        Json?
+  after         Json?
+  result        AuditResult @default(SUCCESS)
+  reason        String?     @db.Text
+  correlationId String      @map("correlation_id")
+  ipAddress     String?     @map("ip_address")
+  createdAt     DateTime    @default(now()) @map("created_at")
+
+  @@index([adminId, createdAt])
+  @@index([targetType, targetId])
+  @@index([action, createdAt])
+  @@map("admin_audit_logs")
+}
+
+enum SecurityEventType {
+  LOGIN_FAILURE
+  LOGIN_SUCCESS
+  BRUTE_FORCE_SUSPECTED
+  UNUSUAL_ACCESS
+  RATE_LIMIT_VIOLATION
+  ACCOUNT_BANNED
+  ACCOUNT_SUSPENDED
+  PAYMENT_ANOMALY
+  ABUSE_SIGNAL
+  OTHER
+}
+
+enum SecurityEventSeverity {
+  INFO
+  WARNING
+  HIGH
+  CRITICAL
+}
+
+/// Common security event model (ADM-091) for authentication, abuse, and
+/// payment-related signals.
+model SecurityEvent {
+  id          String                @id @default(cuid())
+  type        SecurityEventType
+  severity    SecurityEventSeverity @default(INFO)
+  subjectType String                @map("subject_type")
+  subjectId   String?               @map("subject_id")
+  message     String                @db.Text
+  metadata    Json?
+  ipAddress   String?               @map("ip_address")
+  createdAt   DateTime              @default(now()) @map("created_at")
+
+  @@index([severity, createdAt])
+  @@index([type, createdAt])
+  @@index([subjectType, subjectId])
+  @@map("security_events")
+}
+
+enum AiUsageStatus {
+  SUCCESS
+  FAILURE
+}
+
+/// Per-request AI telemetry (ADM-060). Prompt content is intentionally not
+/// stored here.
+model AiUsageEvent {
+  id                 String        @id @default(cuid())
+  userId             String?       @map("user_id")
+  projectId          String?       @map("project_id")
+  provider           String
+  model              String
+  inputTokens        Int           @default(0) @map("input_tokens")
+  outputTokens       Int           @default(0) @map("output_tokens")
+  estimatedCostCents Int           @default(0) @map("estimated_cost_cents")
+  latencyMs          Int?          @map("latency_ms")
+  status             AiUsageStatus @default(SUCCESS)
+  errorCategory      String?       @map("error_category")
+  createdAt          DateTime      @default(now()) @map("created_at")
+
+  user    User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([projectId, createdAt])
+  @@index([provider, model, createdAt])
+  @@map("ai_usage_events")
+}
+
+/// Manual credit grants/resets by support staff (ADM-025).
+model CreditAdjustment {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  amount    Int
+  reason    String   @db.Text
+  adminId   String   @map("admin_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation("CreditAdjustmentTarget", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("credit_adjustments")
+}
+
+enum FlagStatus {
+  OPEN
+  INVESTIGATING
+  RESOLVED
+  DISMISSED
+}
+
+enum FlagSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+/// Internal review flag on a user account (ADM-027).
+model UserFlag {
+  id           String       @id @default(cuid())
+  userId       String       @map("user_id")
+  reason       String       @db.Text
+  severity     FlagSeverity @default(MEDIUM)
+  status       FlagStatus   @default(OPEN)
+  createdById  String       @map("created_by_id")
+  reviewerNote String?      @map("reviewer_note") @db.Text
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  user User @relation("FlaggedUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@map("user_flags")
+}
+
+/// Internal review flag on a project (ADM-075).
+model ProjectFlag {
+  id           String       @id @default(cuid())
+  projectId    String       @map("project_id")
+  reason       String       @db.Text
+  severity     FlagSeverity @default(MEDIUM)
+  status       FlagStatus   @default(OPEN)
+  createdById  String       @map("created_by_id")
+  reviewerNote String?      @map("reviewer_note") @db.Text
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, status])
+  @@map("project_flags")
+}
+
+/// Centralized, typed admin settings (ADM-110). Values are validated at the
+/// application layer before being written here.
+model AdminSetting {
+  key         String   @id
+  value       Json
+  description String?  @db.Text
+  updatedById String?  @map("updated_by_id")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("admin_settings")
 }

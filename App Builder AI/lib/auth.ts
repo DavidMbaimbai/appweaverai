@@ -27,6 +27,20 @@ export const auth = betterAuth({
     },
   },
 
+  /**
+   * Email + password is used exclusively by the Admin Console sign-in page
+   * (app/admin/login) — there is no public sign-up UI or endpoint for it.
+   * `disableSignUp` blocks the /sign-up/email API outright (sign-in only);
+   * admin accounts are provisioned directly (see
+   * lib/admin/bootstrap-seed-admin.ts), never through better-auth's sign-up
+   * flow. The customer-facing auth modal never calls signIn.email either —
+   * it only offers Google/GitHub.
+   */
+  emailAndPassword: {
+    enabled: true,
+    disableSignUp: true,
+  },
+
   user: {
     additionalFields: {
       username: {

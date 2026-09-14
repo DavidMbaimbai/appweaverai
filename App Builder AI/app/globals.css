@@ -96,27 +96,27 @@
   --app-editor-topbar-height: 48px;
   --app-content-max: 1440px;
 
-  /* App dark theme — warm obsidian with subtle depth */
-  --app-bg: #100e0c;
-  --app-sidebar-bg: #0b0a09;
-  --app-surface: #1a1815;
-  --app-surface-hover: #22201c;
-  --app-surface-active: #2b2823;
-  --app-border: #332f2a;
-  --app-border-subtle: #221f1b;
-  --app-text: #f5f2ed;
-  --app-text-secondary: #c4bdb4;
+  /* App light theme — warm cream, matches the marketing site palette */
+  --app-bg: #faf6f1;
+  --app-sidebar-bg: #f3efe9;
+  --app-surface: #ffffff;
+  --app-surface-hover: #f1efe9;
+  --app-surface-active: #e9e5dd;
+  --app-border: #e3e2dd;
+  --app-border-subtle: #ece9e3;
+  --app-text: #1a1918;
+  --app-text-secondary: #55524c;
   --app-text-muted: #8a8278;
-  --app-input-bg: #151310;
-  --app-input-border: #2e2a25;
-  --app-prompt-bg: #131110;
-  --app-chip-bg: #1c1a17;
-  --app-chip-border: #2e2a25;
-  --app-category-bg: #1a1815;
-  --app-category-border: #2e2a25;
-  --app-carousel-arrow: #1e1c19;
+  --app-input-bg: #ffffff;
+  --app-input-border: #e3e2dd;
+  --app-prompt-bg: #ffffff;
+  --app-chip-bg: #f3f1ec;
+  --app-chip-border: #e3e2dd;
+  --app-category-bg: #f3f1ec;
+  --app-category-border: #e3e2dd;
+  --app-carousel-arrow: #f1efe9;
   --app-accent-blue: #3d6fd4;
-  --app-glow: rgba(255, 60, 0, 0.04);
+  --app-glow: rgba(255, 60, 0, 0.05);
 }
 
 @theme inline {
@@ -268,8 +268,8 @@ summary {
 .app-theme {
   background: var(--app-bg);
   color: var(--app-text);
-  color-scheme: dark;
-  scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+  color-scheme: light;
+  scrollbar-color: rgba(0, 0, 0, 0.16) transparent;
   scrollbar-width: thin;
 }
 
@@ -283,14 +283,14 @@ summary {
 }
 
 .app-theme ::-webkit-scrollbar-thumb {
-  background-color: rgba(255, 255, 255, 0.14);
+  background-color: rgba(0, 0, 0, 0.14);
   border: 2px solid transparent;
   border-radius: 9999px;
   background-clip: padding-box;
 }
 
 .app-theme ::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(255, 255, 255, 0.24);
+  background-color: rgba(0, 0, 0, 0.24);
 }
 
 .app-theme ::-webkit-scrollbar-corner {
@@ -313,7 +313,7 @@ summary {
 }
 
 .app-theme select {
-  color-scheme: dark;
+  color-scheme: light;
 }
 
 @keyframes loading-block-pulse {

@@ -1,8 +1,10 @@
+import { notFound } from 'next/navigation';
+
 import { Container } from '@/components/ui/container';
 import { Button } from '@/components/ui/button';
 import { Footer } from '@/components/layout/footer';
 import { Navbar } from '@/components/layout/navbar';
-import { getCachedSession } from '@/lib/auth/cached';
+import { getMarketingNavUser } from '@/lib/auth/nav-user';
 
 /**
  * Generic fallback for every marketing/navigation link (e.g. /roles/founders,
@@ -24,10 +26,15 @@ export default async function MarketingFallbackPage({
   params: Promise<{ slug: string[] }>;
 }) {
   const { slug } = await params;
-  const session = await getCachedSession();
-  const initialUser = session?.user
-    ? { name: session.user.name, email: session.user.email }
-    : null;
+
+  // Never let this public, unauthenticated fallback stand in for a missing
+  // admin (or API) route — those must always 404 rather than render as a
+  // "coming soon" marketing page with no auth check.
+  if (slug[0] === 'admin' || slug[0] === 'api') {
+    notFound();
+  }
+
+  const initialUser = await getMarketingNavUser();
 
   const section = humanize(slug[0] ?? '');
   const title = humanize(slug[slug.length - 1] ?? '');

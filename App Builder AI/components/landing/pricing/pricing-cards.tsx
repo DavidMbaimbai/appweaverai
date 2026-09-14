@@ -170,10 +170,21 @@ export function PricingCard({
         <Link
           href={plan.ctaHref}
           className={cn(
-            'block rounded-full py-3 text-center text-sm font-medium transition-colors',
+            'flex items-center justify-center gap-2 rounded-full py-3 text-center text-sm font-medium transition-colors',
             accent.cta,
           )}>
           {plan.ctaLabel}
+          <svg
+            viewBox="0 0 20 20"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="h-4 w-4 shrink-0"
+            aria-hidden="true">
+            <path d="M4 10h12M11 5l5 5-5 5" />
+          </svg>
         </Link>
         {plan.secondaryCtaLabel && plan.secondaryCtaHref && (
           <Link

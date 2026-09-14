@@ -1,11 +1,12 @@
 'use client';
 
-import { pricingPlans } from '@/lib/landing-data';
+import { enterprisePlan, pricingPlans } from '@/lib/landing-data';
 import { useState } from 'react';
 import type { BillingPeriod } from '@/lib/types';
 import { cn } from '@/lib/utils';
 import { BillingToggle } from './pricing-billing-toggle';
 import { PricingCard } from './pricing-cards';
+import { EnterprisePlanCard } from './pricing-enterprise-card';
 
 export function PricingPlanClient({
   proMonthlyPrice,
@@ -35,10 +36,10 @@ export function PricingPlanClient({
         )}>
         <div className="below-desktop:text-center desktop:text-left">
           <h2 className="font-display text-[32px] font-normal leading-none tracking-[-0.04em] text-text-agent-heading desktop:text-[40px]">
-            Start Small, Scale Fast.
+            Build anything with AppWeaver AI.
           </h2>
           <p className="mt-2 text-lg text-text-dim">
-            Designed for Every Stage.
+            Start free. Upgrade when you&apos;re ready to scale.
           </p>
         </div>
         <BillingToggle period={period} onChange={setPeriod} />
@@ -53,6 +54,10 @@ export function PricingPlanClient({
         {plans.map((plan) => (
           <PricingCard plan={plan} key={plan.id} period={period} />
         ))}
+      </div>
+
+      <div className="mt-4">
+        <EnterprisePlanCard plan={enterprisePlan} />
       </div>
     </div>
   );
