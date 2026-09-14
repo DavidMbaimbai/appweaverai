@@ -5,6 +5,7 @@ import {
   detectProjectStack,
   type ProjectStack,
 } from '@/lib/preview/detect-preview-mode';
+import { getCodeLanguage } from '@/lib/code-run/languages';
 
 export const PLAN_MODE_ENABLED_MARKER = 'Plan mode is enabled';
 export const PLAN_MODE_SYSTEM_PROMPT = `${PLAN_MODE_ENABLED_MARKER}. You are in planning phase only — do not write code or files yet.`;
@@ -126,6 +127,7 @@ export function buildAgentSystemPrompt({
   planMode,
   attachmentContext,
   hasExistingFiles,
+  codingLanguage,
 }: {
   projectName: string;
   projectDescription: string | null;
@@ -136,7 +138,11 @@ export function buildAgentSystemPrompt({
   planMode: boolean;
   attachmentContext?: string;
   hasExistingFiles?: boolean;
+  /** Non-null when this artifact is a plain-code program (e.g. "python", "java") run in a
+   * sandboxed container instead of the browser preview — see lib/code-run/languages.ts. */
+  codingLanguage?: string | null;
 }) {
+  const codeLanguage = getCodeLanguage(codingLanguage);
   const stackRules = [
     'Stack selection rules:',
     '- Calculator / simple tools → vanilla static (index.html + script.js), no React.',
@@ -175,13 +181,28 @@ export function buildAgentSystemPrompt({
             'Wire up real interactivity (click handlers, state, keyboard support).',
           ].join('\n\n');
 
+  const effectiveBuildGuidance = codeLanguage
+    ? [
+        `This artifact is a PLAIN ${codeLanguage.label.toUpperCase()} PROGRAM — not a web app. It runs in a sandboxed container and its console output (stdout/stderr) IS the live preview; there is no browser/HTML preview for it.`,
+        codeLanguage.agentGuidance,
+        `Create/edit exactly the entry file \`${codeLanguage.entryFile}\` at the artifact root. Do not create index.html, CSS, or any web/browser files for this artifact.`,
+        hasExistingFiles
+          ? [
+              'IMPORTANT: This artifact already has files. The user is requesting changes — do NOT rebuild from scratch.',
+              EDIT_WORKFLOW,
+            ].join('\n')
+          : EDIT_WORKFLOW,
+      ].join('\n\n')
+    : buildGuidance;
+
   const parts = [
     `You are AppWeaver AI Agent, an AI coding assistant inside a project editor.`,
     `Help the user build real, polished artifacts using the provided tools.`,
     `Never output raw code, XML, or pseudo tool calls in chat text.`,
     `Use tools to read and write files, then call complete_build with a concise user-facing summary.`,
     `The complete_build summary MUST use markdown: a short intro paragraph, then **Design:** and **Functionality:** sections with bullet lists.`,
-    buildGuidance,
+    `Language: detect the human language the user is writing their request in and use that SAME language for all user-facing UI text you generate (labels, buttons, headings, placeholders, messages) as well as for your complete_build summary. Code (variable names, comments, technical identifiers) stays in English as usual — only user-visible copy follows the user's language. If the user explicitly asks for a different UI language than the one they're chatting in, follow their explicit instruction instead.`,
+    effectiveBuildGuidance,
     planMode ? PLAN_MODE_BLOCK : null,
     attachmentContext
       ? [
@@ -193,7 +214,7 @@ export function buildAgentSystemPrompt({
     `Project: ${projectName}`,
     `Description: ${projectDescription ?? 'No description'}`,
     `Active artifact: ${artifactName} (${artifactType})`,
-    `Detected stack: ${projectStack}`,
+    codeLanguage ? `Coding language: ${codeLanguage.label}` : `Detected stack: ${projectStack}`,
     `Artifact context:\n${artifactSnapshot}`,
   ].filter(Boolean);
 
