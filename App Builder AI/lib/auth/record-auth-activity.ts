@@ -21,6 +21,7 @@ export async function recordAuthActivity(input: {
     });
 
     const label = input.event === 'signup' ? 'signed up' : 'signed in';
+    const location = await lookupIpLocation(input.ipAddress);
 
     await recordAuditLog({
       adminId: input.userId,
@@ -28,8 +29,9 @@ export async function recordAuthActivity(input: {
       action: input.event === 'signup' ? 'auth.signup' : 'auth.login',
       targetType: 'User',
       targetId: input.userId,
+      after: location,
       result: 'SUCCESS',
-      ipAddress: input.ipAddress ?? null,
+      ipAddress: input.ipAddress ?? location?.ip ?? null,
     });
 
     await recordSecurityEvent({
@@ -37,8 +39,11 @@ export async function recordAuthActivity(input: {
       severity: 'INFO',
       subjectType: 'User',
       subjectId: input.userId,
-      message: `${user?.email ?? input.userId} ${label}`,
-      ipAddress: input.ipAddress ?? null,
+      message: location
+        ? `${user?.email ?? input.userId} ${label} from ${[location.city, location.country].filter(Boolean).join(', ') || 'an unknown location'}`
+        : `${user?.email ?? input.userId} ${label}`,
+      metadata: location,
+      ipAddress: input.ipAddress ?? location?.ip ?? null,
     });
   } catch (error) {
     console.error('Failed to record auth activity:', error);

@@ -10,6 +10,41 @@ import { renderBrandedEmail, highlightCodeHtml } from './email-templates';
 
 const useDatabase = Boolean(process.env.DATABASE_URL);
 
+/**
+ * Best-effort client IP extraction directly from request headers, used as a
+ * fallback for our own auth-activity logging (Admin Console Audit Logs /
+ * Security Events geo lookup). better-auth's own `session.ipAddress` refuses
+ * to resolve an IP from `x-forwarded-for` whenever the header carries more
+ * than one hop and no `trustedProxies` is configured (common behind a CDN /
+ * reverse proxy), leaving it as an empty string. That refusal is the right
+ * call for security-sensitive decisions (rate limiting), but for a purely
+ * informational "where did this login come from" display we can safely take
+ * the left-most (originating client) address instead.
+ */
+function getClientIpFromHeaders(
+  headers: Headers | Record<string, string | string[] | undefined> | undefined,
+): string | null {
+  if (!headers) return null;
+
+  const read = (key: string): string | null => {
+    if (typeof (headers as Headers).get === 'function') {
+      return (headers as Headers).get(key);
+    }
+    const value = (headers as Record<string, string | string[] | undefined>)[
+      key
+    ];
+    return Array.isArray(value) ? (value[0] ?? null) : (value ?? null);
+  };
+
+  const forwardedFor = read('x-forwarded-for');
+  if (forwardedFor) {
+    const first = forwardedFor.split(',')[0]?.trim();
+    if (first) return first;
+  }
+
+  return read('x-real-ip') ?? read('cf-connecting-ip') ?? null;
+}
+
 export const auth = betterAuth({
   baseURL: process.env.BETTER_AUTH_URL,
   secret: process.env.BETTER_AUTH_SECRET,
@@ -78,11 +113,14 @@ export const auth = betterAuth({
               after: async (session, context) => {
                 const path = context?.path ?? '';
                 const event = path.includes('sign-up') ? 'signup' : 'login';
+                const headerIp = getClientIpFromHeaders(
+                  context?.headers ?? context?.request?.headers,
+                );
 
                 await recordAuthActivity({
                   userId: session.userId,
                   event,
-                  ipAddress: session.ipAddress ?? null,
+                  ipAddress: session.ipAddress || headerIp || null,
                 });
               },
             },
@@ -98,6 +136,24 @@ export const auth = betterAuth({
       // to verify their address (see components/auth/auth-modal.tsx).
       sendVerificationOnSignUp: true,
       async sendVerificationOTP({ email, otp, type }) {
+        if (type === 'forget-password') {
+          await sendEmail({
+            to: email,
+            subject: `${otp} is your AppWeaver AI password reset code`,
+            html: renderBrandedEmail({
+              previewText: `Your AppWeaver AI password reset code is ${otp}`,
+              heading: 'Reset your password',
+              bodyHtml: `
+                <p style="margin:0 0 4px;">Enter this code to choose a new password for your AppWeaver AI account:</p>
+                ${highlightCodeHtml(otp)}
+                <p style="margin:12px 0 0;color:#696c74;font-size:13px;">This code expires in 10 minutes. If you didn't request this, you can safely ignore this email — your password won't change.</p>
+              `,
+            }),
+            text: `Your AppWeaver AI password reset code is ${otp}. It expires in 10 minutes.`,
+          });
+          return;
+        }
+
         if (type !== 'email-verification') return;
 
         await sendEmail({

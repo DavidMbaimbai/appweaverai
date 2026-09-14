@@ -120,6 +120,21 @@ export function AuthModal() {
   // right before redirecting into the app.
   const [verificationSuccess, setVerificationSuccess] = useState(false);
 
+  // Forgot-password flow: showForgotPassword displays the "enter your
+  // email" step; once a code has been requested, pendingResetEmail
+  // switches to the "enter code + new password" step (mirrors the
+  // sign-up email verification flow above).
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
+  const [pendingResetEmail, setPendingResetEmail] = useState<string | null>(
+    null,
+  );
+  const [resetOtp, setResetOtp] = useState('');
+  const [resetOtpVerified, setResetOtpVerified] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+
   const copy = modeCopy[mode];
   const alternateMode: AuthMode = mode === 'login' ? 'register' : 'login';
   const callbackUrl =
@@ -188,6 +203,14 @@ export function AuthModal() {
       setIsResending(false);
       setResendMessage(null);
       setVerificationSuccess(false);
+      setShowForgotPassword(false);
+      setForgotPasswordEmail('');
+      setPendingResetEmail(null);
+      setResetOtp('');
+      setResetOtpVerified(false);
+      setNewPassword('');
+      setConfirmNewPassword('');
+      setShowNewPassword(false);
     };
 
     reset();
@@ -323,6 +346,135 @@ export function AuthModal() {
     });
   }
 
+  function handleRequestPasswordReset(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+
+    if (!forgotPasswordEmail.trim()) {
+      setError('Enter your email address first.');
+      return;
+    }
+
+    setIsLoading(true);
+
+    void authClient.emailOtp.requestPasswordReset({
+      email: forgotPasswordEmail.trim(),
+      fetchOptions: {
+        onSuccess: () => {
+          setIsLoading(false);
+          setPendingResetEmail(forgotPasswordEmail.trim());
+        },
+        onError: (ctx) => {
+          setIsLoading(false);
+          setError(ctx.error.message ?? 'Could not send a reset code.');
+        },
+      },
+    });
+  }
+
+  function handleResendResetOtp() {
+    if (!pendingResetEmail) return;
+
+    setError(null);
+    setResendMessage(null);
+    setIsResending(true);
+
+    void authClient.emailOtp.requestPasswordReset({
+      email: pendingResetEmail,
+      fetchOptions: {
+        onSuccess: () => {
+          setIsResending(false);
+          setResetOtpVerified(false);
+          setResetOtp('');
+          setResendMessage('A new code has been sent to your email.');
+        },
+        onError: (ctx) => {
+          setIsResending(false);
+          setError(ctx.error.message ?? 'Could not resend the code.');
+        },
+      },
+    });
+  }
+
+  // Step 1 of the reset flow (after a code is requested): verify the code on
+  // its own before asking for a new password, so the two steps stay separate
+  // instead of one combined form.
+  function handleVerifyResetOtp(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!pendingResetEmail) return;
+
+    setError(null);
+    setIsLoading(true);
+
+    void authClient.emailOtp.checkVerificationOtp({
+      email: pendingResetEmail,
+      type: 'forget-password',
+      otp: resetOtp,
+      fetchOptions: {
+        onSuccess: () => {
+          setIsLoading(false);
+          setResetOtpVerified(true);
+        },
+        onError: (ctx) => {
+          setIsLoading(false);
+          setError(ctx.error.message ?? 'Invalid or expired code.');
+        },
+      },
+    });
+  }
+
+  // Step 2 of the reset flow: the code was already verified above, so this
+  // only needs to submit the new password.
+  function handleResetPassword(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!pendingResetEmail) return;
+
+    setError(null);
+
+    if (newPassword !== confirmNewPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+
+    setIsLoading(true);
+
+    void authClient.emailOtp.resetPassword({
+      email: pendingResetEmail,
+      otp: resetOtp,
+      password: newPassword,
+      fetchOptions: {
+        onSuccess: () => {
+          // Automatically sign the user in with their new password rather
+          // than bouncing them back to a plain login form.
+          void authClient.signIn.email({
+            email: pendingResetEmail,
+            password: newPassword,
+            callbackURL: getCallbackUrl(),
+            fetchOptions: {
+              onSuccess: () => {
+                router.push(getCallbackUrl());
+                router.refresh();
+              },
+              onError: () => {
+                setIsLoading(false);
+                setShowForgotPassword(false);
+                setPendingResetEmail(null);
+                setAuthMode('login');
+                setResendMessage(
+                  'Your password was reset. Please log in with your new password.',
+                );
+              },
+            },
+          });
+        },
+        onError: (ctx) => {
+          setIsLoading(false);
+          setError(ctx.error.message ?? 'Invalid or expired code.');
+        },
+      },
+    });
+  }
+
   if (!isOpen) return null;
 
   if (verificationSuccess) {
@@ -365,6 +517,321 @@ export function AuthModal() {
 
           <div className="mx-auto mt-6 h-1 w-40 overflow-hidden rounded-full bg-pricing-surface">
             <div className="h-full w-full origin-left animate-auth-success-progress rounded-full bg-appweaver-orange" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (pendingResetEmail && !resetOtpVerified) {
+    return (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+        <button
+          type="button"
+          aria-label="Close authentication modal"
+          className="absolute inset-0 bg-[#191818]/45 backdrop-blur-[2px]"
+          onClick={handleClose}
+        />
+
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
+          aria-describedby={descriptionId}
+          className="relative max-h-auth-modal w-full max-w-auth-modal overflow-y-auto rounded-[24px] border border-[#e3e2dd] bg-surface-white shadow-[0_24px_80px_rgba(0,0,0,0.18)] auth-modal-panel">
+          <div className="flex items-start justify-between gap-4 border-b border-black/[0.06] px-6 pb-5 pt-6">
+            <div>
+              <div className="mb-3">
+                <AppWeaverLogo size="compact" />
+              </div>
+              <h2
+                id={titleId}
+                className="font-display text-[28px] font-normal leading-tight tracking-[-0.04em] text-text-agent-heading">
+                Enter your code
+              </h2>
+              <p
+                id={descriptionId}
+                className="mt-1.5 text-sm leading-relaxed text-text-muted">
+                Enter the 8-digit code we sent to{' '}
+                <span className="font-medium text-text-secondary">
+                  {pendingResetEmail}
+                </span>
+                .
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleClose}
+              aria-label="Close"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-text-muted transition-colors hover:bg-pricing-surface hover:text-text-secondary">
+              <CloseIcon className="h-5 w-5" />
+            </button>
+          </div>
+
+          <div className="px-6 py-5">
+            {error && (
+              <p className="mb-3 rounded-xl bg-appweaver-orange/10 px-3 py-2 text-sm text-appweaver-orange">
+                {error}
+              </p>
+            )}
+            {resendMessage && (
+              <p className="mb-3 rounded-xl bg-pricing-surface px-3 py-2 text-sm text-text-secondary">
+                {resendMessage}
+              </p>
+            )}
+
+            <form className="space-y-4" onSubmit={handleVerifyResetOtp}>
+              <div className="space-y-1.5">
+                <label
+                  htmlFor="reset-otp"
+                  className="block text-sm font-medium text-text-secondary">
+                  Verification code
+                </label>
+                <input
+                  id="reset-otp"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={8}
+                  placeholder="12345678"
+                  value={resetOtp}
+                  onChange={(event) =>
+                    setResetOtp(
+                      event.target.value.replace(/\D/g, '').slice(0, 8),
+                    )
+                  }
+                  className="h-11 w-full rounded-xl border border-border-light bg-surface-white px-3.5 text-center text-lg tracking-[0.3em] text-text-primary placeholder:text-text-muted transition-[border-color,box-shadow] focus:border-appweaver-orange focus:outline-none focus:ring-2 focus:ring-appweaver-orange/20"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isLoading || resetOtp.length !== 8}
+                className="h-11 w-full rounded-full bg-appweaver-orange text-sm font-medium text-white transition-colors hover:bg-[#e03600] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-appweaver-orange focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60">
+                Continue
+              </button>
+            </form>
+          </div>
+
+          <div className="border-t border-black/[0.06] px-6 py-4 text-center text-sm text-text-muted">
+            Didn&apos;t get a code?{' '}
+            <button
+              type="button"
+              disabled={isResending}
+              onClick={handleResendResetOtp}
+              className="font-medium text-appweaver-orange transition-colors hover:text-[#e03600] disabled:opacity-60">
+              Resend code
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (pendingResetEmail && resetOtpVerified) {
+    return (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+        <button
+          type="button"
+          aria-label="Close authentication modal"
+          className="absolute inset-0 bg-[#191818]/45 backdrop-blur-[2px]"
+          onClick={handleClose}
+        />
+
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
+          aria-describedby={descriptionId}
+          className="relative max-h-auth-modal w-full max-w-auth-modal overflow-y-auto rounded-[24px] border border-[#e3e2dd] bg-surface-white shadow-[0_24px_80px_rgba(0,0,0,0.18)] auth-modal-panel">
+          <div className="flex items-start justify-between gap-4 border-b border-black/[0.06] px-6 pb-5 pt-6">
+            <div>
+              <div className="mb-3">
+                <AppWeaverLogo size="compact" />
+              </div>
+              <h2
+                id={titleId}
+                className="font-display text-[28px] font-normal leading-tight tracking-[-0.04em] text-text-agent-heading">
+                Choose a new password
+              </h2>
+              <p
+                id={descriptionId}
+                className="mt-1.5 text-sm leading-relaxed text-text-muted">
+                Code verified. Now set a new password for{' '}
+                <span className="font-medium text-text-secondary">
+                  {pendingResetEmail}
+                </span>
+                .
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleClose}
+              aria-label="Close"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-text-muted transition-colors hover:bg-pricing-surface hover:text-text-secondary">
+              <CloseIcon className="h-5 w-5" />
+            </button>
+          </div>
+
+          <div className="px-6 py-5">
+            {error && (
+              <p className="mb-3 rounded-xl bg-appweaver-orange/10 px-3 py-2 text-sm text-appweaver-orange">
+                {error}
+              </p>
+            )}
+
+            <form className="space-y-4" onSubmit={handleResetPassword}>
+              <div className="space-y-1.5">
+                <label
+                  htmlFor="reset-new-password"
+                  className="block text-sm font-medium text-text-secondary">
+                  New password
+                </label>
+                <div className="relative">
+                  <input
+                    id="reset-new-password"
+                    type={showNewPassword ? 'text' : 'password'}
+                    autoComplete="new-password"
+                    placeholder="Create a new password"
+                    value={newPassword}
+                    onChange={(event) => setNewPassword(event.target.value)}
+                    className={cn(
+                      'h-11 w-full rounded-xl border border-border-light bg-surface-white px-3.5 pr-11 text-sm text-text-primary placeholder:text-text-muted',
+                      'transition-[border-color,box-shadow] focus:border-appweaver-orange focus:outline-none focus:ring-2 focus:ring-appweaver-orange/20',
+                    )}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword((value) => !value)}
+                    aria-label={
+                      showNewPassword ? 'Hide password' : 'Show password'
+                    }
+                    className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-text-muted transition-colors hover:text-text-secondary">
+                    {showNewPassword ? (
+                      <EyeOffIcon className="h-5 w-5" />
+                    ) : (
+                      <EyeIcon className="h-5 w-5" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label
+                  htmlFor="reset-confirm-password"
+                  className="block text-sm font-medium text-text-secondary">
+                  Confirm new password
+                </label>
+                <input
+                  id="reset-confirm-password"
+                  type={showNewPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
+                  placeholder="Re-enter your new password"
+                  value={confirmNewPassword}
+                  onChange={(event) =>
+                    setConfirmNewPassword(event.target.value)
+                  }
+                  className={cn(
+                    'h-11 w-full rounded-xl border border-border-light bg-surface-white px-3.5 text-sm text-text-primary placeholder:text-text-muted',
+                    'transition-[border-color,box-shadow] focus:border-appweaver-orange focus:outline-none focus:ring-2 focus:ring-appweaver-orange/20',
+                  )}
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isLoading || !newPassword}
+                className="h-11 w-full rounded-full bg-appweaver-orange text-sm font-medium text-white transition-colors hover:bg-[#e03600] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-appweaver-orange focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60">
+                Reset password
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (showForgotPassword) {
+    return (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+        <button
+          type="button"
+          aria-label="Close authentication modal"
+          className="absolute inset-0 bg-[#191818]/45 backdrop-blur-[2px]"
+          onClick={handleClose}
+        />
+
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
+          aria-describedby={descriptionId}
+          className="relative max-h-auth-modal w-full max-w-auth-modal overflow-y-auto rounded-[24px] border border-[#e3e2dd] bg-surface-white shadow-[0_24px_80px_rgba(0,0,0,0.18)] auth-modal-panel">
+          <div className="flex items-start justify-between gap-4 border-b border-black/[0.06] px-6 pb-5 pt-6">
+            <div>
+              <div className="mb-3">
+                <AppWeaverLogo size="compact" />
+              </div>
+              <h2
+                id={titleId}
+                className="font-display text-[28px] font-normal leading-tight tracking-[-0.04em] text-text-agent-heading">
+                Reset your password
+              </h2>
+              <p
+                id={descriptionId}
+                className="mt-1.5 text-sm leading-relaxed text-text-muted">
+                Enter your account email and we&apos;ll send you an 8-digit
+                code to reset your password.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleClose}
+              aria-label="Close"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-text-muted transition-colors hover:bg-pricing-surface hover:text-text-secondary">
+              <CloseIcon className="h-5 w-5" />
+            </button>
+          </div>
+
+          <div className="px-6 py-5">
+            {error && (
+              <p className="mb-3 rounded-xl bg-appweaver-orange/10 px-3 py-2 text-sm text-appweaver-orange">
+                {error}
+              </p>
+            )}
+
+            <form
+              className="space-y-4"
+              onSubmit={handleRequestPasswordReset}>
+              <AuthField
+                id="forgot-password-email"
+                label="Email"
+                type="email"
+                autoComplete="email"
+                placeholder="you@company.com"
+                value={forgotPasswordEmail}
+                onChange={setForgotPasswordEmail}
+              />
+
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="h-11 w-full rounded-full bg-appweaver-orange text-sm font-medium text-white transition-colors hover:bg-[#e03600] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-appweaver-orange focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60">
+                Send reset code
+              </button>
+            </form>
+          </div>
+
+          <div className="border-t border-black/[0.06] px-6 py-4 text-center text-sm text-text-muted">
+            <button
+              type="button"
+              onClick={() => {
+                setError(null);
+                setShowForgotPassword(false);
+              }}
+              className="font-medium text-appweaver-orange transition-colors hover:text-[#e03600]">
+              Back to log in
+            </button>
           </div>
         </div>
       </div>
@@ -589,6 +1056,11 @@ export function AuthModal() {
                 {mode === 'login' && (
                   <button
                     type="button"
+                    onClick={() => {
+                      setError(null);
+                      setForgotPasswordEmail(email);
+                      setShowForgotPassword(true);
+                    }}
                     className="text-xs font-medium text-appweaver-orange transition-colors hover:text-[#e03600]">
                     Forgot password?
                   </button>
