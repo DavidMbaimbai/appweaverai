@@ -4,7 +4,7 @@ import {
 } from './hero-prompt-attachments';
 import { PromptAttachment } from './prompt-attachments';
 
-const STORAGE_KEY = 'replit-hero-prompt-draft';
+const STORAGE_KEY = 'appweaver-hero-prompt-draft';
 
 export type HeroPromptDraft = {
   value: string;

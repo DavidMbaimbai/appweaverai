@@ -41,7 +41,7 @@ export function BillingToggle({
             : 'text-text-muted',
         )}>
         Yearly
-        <span className="inline-flex items-center gap-1 text-xs text-replit-orange">
+        <span className="inline-flex items-center gap-1 text-xs text-appweaver-orange">
           <svg
             width="12"
             height="12"

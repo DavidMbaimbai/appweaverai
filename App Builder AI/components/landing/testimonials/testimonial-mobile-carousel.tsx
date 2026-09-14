@@ -9,7 +9,7 @@ export function TeststimonialMobileCarousel() {
   return (
     <section id="testimonials" className="pt-[84] pb-12 desktop:hidden">
       <Container>
-        <p className="text-xs font-semibold uppercase tracking-widest text-replit-orange">
+        <p className="text-xs font-semibold uppercase tracking-widest text-appweaver-orange">
           Endrosed by innovators
         </p>
         <h2 className="mt-2 font-display text-[32px] leading-[32px] font-normal tracking-[-0.04em] text-text-agent-heading">

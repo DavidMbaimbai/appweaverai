@@ -27,7 +27,7 @@ export function DocsSidebar({ activeSlug }: { activeSlug?: string }) {
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Search docs..."
           aria-label="Search documentation"
-          className="w-full rounded-lg border border-border-light bg-surface-white px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-replit-orange/40"
+          className="w-full rounded-lg border border-border-light bg-surface-white px-3 py-2 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-appweaver-orange/40"
         />
 
         <div className="mt-6 max-h-[70vh] space-y-6 overflow-y-auto pr-1">
@@ -50,7 +50,7 @@ export function DocsSidebar({ activeSlug }: { activeSlug?: string }) {
                         className={cn(
                           'block rounded-md px-2.5 py-1.5 text-sm transition-colors',
                           activeSlug === article.slug
-                            ? 'bg-[#fdf1ea] text-replit-orange font-medium'
+                            ? 'bg-[#fdf1ea] text-appweaver-orange font-medium'
                             : 'text-text-secondary hover:bg-surface-dim hover:text-text-primary',
                         )}>
                         {article.title}

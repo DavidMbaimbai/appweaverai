@@ -1,7 +1,15 @@
 import Link from 'next/link';
 import type { BillingPeriod, PricingPlan } from '@/lib/types';
+import type { PaidPlanId } from '@/lib/stripe';
 import { cn } from '@/lib/utils';
 import { ProSeatSelect } from './pricing-pro-seat-select';
+import { PricingCheckoutButton } from './pricing-checkout-button';
+
+const PAID_PLAN_IDS: PaidPlanId[] = ['builder', 'pro', 'business'];
+
+function isPaidPlanId(id: string): id is PaidPlanId {
+  return (PAID_PLAN_IDS as string[]).includes(id);
+}
 
 function SparkleIcon({ className }: { className?: string }) {
   return (
@@ -82,10 +90,10 @@ const ACCENT_STYLES: Record<
   { border: string; bg: string; icon: string; cta: string }
 > = {
   orange: {
-    border: 'border-replit-orange',
+    border: 'border-appweaver-orange',
     bg: 'bg-[#fdf1ea]',
-    icon: 'text-replit-orange',
-    cta: 'bg-replit-orange text-white hover:bg-replit-orange/90',
+    icon: 'text-appweaver-orange',
+    cta: 'bg-appweaver-orange text-white hover:bg-appweaver-orange/90',
   },
   blue: {
     border: 'border-border-light',
@@ -167,25 +175,37 @@ export function PricingCard({
       {plan.id === 'pro' && <ProSeatSelect period={period} />}
 
       <div className="mt-6 space-y-2">
-        <Link
-          href={plan.ctaHref}
-          className={cn(
-            'flex items-center justify-center gap-2 rounded-full py-3 text-center text-sm font-medium transition-colors',
-            accent.cta,
-          )}>
-          {plan.ctaLabel}
-          <svg
-            viewBox="0 0 20 20"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="h-4 w-4 shrink-0"
-            aria-hidden="true">
-            <path d="M4 10h12M11 5l5 5-5 5" />
-          </svg>
-        </Link>
+        {isPaidPlanId(plan.id) ? (
+          <PricingCheckoutButton
+            planId={plan.id}
+            period={period}
+            label={plan.ctaLabel}
+            className={cn(
+              'flex w-full items-center justify-center gap-2 rounded-full py-3 text-center text-sm font-medium transition-colors',
+              accent.cta,
+            )}
+          />
+        ) : (
+          <Link
+            href={plan.ctaHref}
+            className={cn(
+              'flex items-center justify-center gap-2 rounded-full py-3 text-center text-sm font-medium transition-colors',
+              accent.cta,
+            )}>
+            {plan.ctaLabel}
+            <svg
+              viewBox="0 0 20 20"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="h-4 w-4 shrink-0"
+              aria-hidden="true">
+              <path d="M4 10h12M11 5l5 5-5 5" />
+            </svg>
+          </Link>
+        )}
         {plan.secondaryCtaLabel && plan.secondaryCtaHref && (
           <Link
             href={plan.secondaryCtaHref}

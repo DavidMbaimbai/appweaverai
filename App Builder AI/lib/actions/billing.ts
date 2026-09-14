@@ -7,6 +7,9 @@ import {
   getAppBaseUrl,
   getStripeClient,
   resolveStripeProPriceId,
+  resolvePriceIdForPlan,
+  type PaidPlanId,
+  type BillingPeriod,
 } from '@/lib/stripe';
 
 const billingUserSelect = {
@@ -63,6 +66,51 @@ export async function createProCheckoutSessionAction() {
       metadata: { userId: result.user.id },
       subscription_data: {
         metadata: { userId: result.user.id },
+      },
+    });
+
+    if (!session.url) {
+      return { error: 'Could not start checkout.' };
+    }
+
+    return { url: session.url };
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : 'Could not start checkout.';
+    return { error: message };
+  }
+}
+
+/**
+ * Starts a Stripe Checkout session for a specific paid plan (Builder/Pro/
+ * Business) and billing period, used directly by the marketing pricing page
+ * (see components/landing/pricing/pricing-cards.tsx) so upgrading goes
+ * straight to Stripe rather than the generic /app/billing screen.
+ */
+export async function createPlanCheckoutSessionAction(
+  planId: PaidPlanId,
+  period: BillingPeriod,
+) {
+  const result = await requireUser(billingUserSelect);
+  if (result.error || !result.user) {
+    return { error: result.error };
+  }
+
+  try {
+    const stripe = getStripeClient();
+    const customerId = await getOrCreateStripeCustomer(result.user);
+    const baseUrl = getAppBaseUrl();
+    const priceId = resolvePriceIdForPlan(planId, period);
+
+    const session = await stripe.checkout.sessions.create({
+      mode: 'subscription',
+      customer: customerId,
+      line_items: [{ price: priceId, quantity: 1 }],
+      success_url: `${baseUrl}/app/billing?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${baseUrl}/app/billing?checkout=cancel`,
+      metadata: { userId: result.user.id, planId, period },
+      subscription_data: {
+        metadata: { userId: result.user.id, planId, period },
       },
     });
 

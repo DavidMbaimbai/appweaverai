@@ -64,7 +64,7 @@ export function LoadingIndicator({
           className={cn(
             'loading-block',
             `loading-block-${index + 1}`,
-            RED_DOT_INDICES.has(index) ? 'fill-replit-orange' : blockMuted,
+            RED_DOT_INDICES.has(index) ? 'fill-appweaver-orange' : blockMuted,
           )}
         />
       ))}

@@ -138,7 +138,7 @@ export function PreviewPanel({
                 isActive
                   ? 'bg-app-surface-active text-app-text'
                   : 'text-app-text-muted hover:bg-app-surface-hover hover:text-app-text-secondary',
-                isWorking && 'ring-1 ring-replit-orange/40',
+                isWorking && 'ring-1 ring-appweaver-orange/40',
               )}>
               <button
                 type="button"
@@ -182,7 +182,7 @@ export function PreviewPanel({
             'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-dashed transition-colors',
             atLimit
               ? 'cursor-not-allowed border-app-border/60 text-app-text-muted/50'
-              : 'border-app-border text-app-text-muted hover:border-replit-orange/50 hover:text-replit-orange',
+              : 'border-app-border text-app-text-muted hover:border-appweaver-orange/50 hover:text-appweaver-orange',
           )}
           aria-label="Add artifact">
           +

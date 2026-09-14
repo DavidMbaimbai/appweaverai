@@ -48,7 +48,7 @@ function CarouselDotPagination({
           aria-label={getLabel(index)}
           className={cn(
             'h-2 w-2 rounded-full transition-colors',
-            index === activeIndex ? 'bg-replit-orange' : 'bg-[#d9d7d3]',
+            index === activeIndex ? 'bg-appweaver-orange' : 'bg-[#d9d7d3]',
           )}
         />
       ))}

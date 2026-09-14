@@ -2,19 +2,31 @@
 
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition } from 'react';
 
 import {
   createBillingPortalSessionAction,
+  createPlanCheckoutSessionAction,
   createProCheckoutSessionAction,
 } from '@/lib/actions/billing';
 import {
   FREE_PLAN_FEATURES,
   PRO_PLAN_FEATURES,
 } from '@/lib/billing/entitlements';
-import type { ProPlanInfo } from '@/lib/stripe';
+import type { PaidPlanId, ProPlanInfo } from '@/lib/stripe';
 import type { SubscriptionDisplayInfo } from '@/lib/billing/stripe-subscription';
+import type { BillingPeriod } from '@/lib/types';
 import { cn } from '@/lib/utils';
+
+const PAID_PLAN_IDS: PaidPlanId[] = ['builder', 'pro', 'business'];
+
+function isPaidPlanId(value: string | null): value is PaidPlanId {
+  return !!value && (PAID_PLAN_IDS as string[]).includes(value);
+}
+
+function isBillingPeriod(value: string | null): value is BillingPeriod {
+  return value === 'monthly' || value === 'yearly';
+}
 
 type BillingPageClientProps = {
   plan: 'free' | 'pro';
@@ -47,9 +59,42 @@ export function BillingPageClient({
   const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [autoRedirectFailed, setAutoRedirectFailed] = useState(false);
+  const hasTriggeredAutoUpgrade = useRef(false);
 
   const checkoutStatus = searchParams.get('checkout');
   const checkoutDisabled = isPending || !proPlan.configured;
+
+  const upgradePlanParam = searchParams.get('upgrade');
+  const upgradePeriodParam = searchParams.get('period');
+
+  // Coming from the marketing pricing page CTAs: once a signed-in user (or a
+  // freshly signed-up/logged-in one, redirected here via callbackUrl) lands
+  // on /app/billing with ?upgrade=<plan>&period=<period>, immediately start
+  // Stripe Checkout for that plan instead of making them click again.
+  const isAutoRedirecting =
+    plan === 'free' && isPaidPlanId(upgradePlanParam) && !autoRedirectFailed;
+
+  useEffect(() => {
+    if (hasTriggeredAutoUpgrade.current) return;
+    if (!isAutoRedirecting || !isPaidPlanId(upgradePlanParam)) return;
+    const period = isBillingPeriod(upgradePeriodParam)
+      ? upgradePeriodParam
+      : 'yearly';
+
+    hasTriggeredAutoUpgrade.current = true;
+
+    void createPlanCheckoutSessionAction(upgradePlanParam, period).then(
+      (result) => {
+        if (result?.url) {
+          window.location.assign(result.url);
+          return;
+        }
+        setAutoRedirectFailed(true);
+        if (result?.error) setError(result.error);
+      },
+    );
+  }, [isAutoRedirecting, upgradePlanParam, upgradePeriodParam]);
 
   function handleUpgrade() {
     setError(null);
@@ -89,6 +134,13 @@ export function BillingPageClient({
         {justUpgraded && plan === 'pro' ? (
           <p className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
             Welcome to Pro — your subscription is active.
+          </p>
+        ) : null}
+
+        {isAutoRedirecting ? (
+          <p className="flex items-center gap-2 rounded-xl border border-app-accent/30 bg-app-accent/10 px-4 py-3 text-sm text-app-text">
+            <span className="inline-flex h-4 w-4 animate-spin rounded-full border-2 border-app-accent/30 border-t-app-accent" />
+            Redirecting you to secure checkout…
           </p>
         ) : null}
 
@@ -245,7 +297,7 @@ export function BillingPageClient({
                   disabled={checkoutDisabled}
                   className={cn(
                     'inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition-all',
-                    'bg-gradient-to-r from-replit-orange to-[#ff6b35]',
+                    'bg-gradient-to-r from-appweaver-orange to-[#ff6b35]',
                     'shadow-[0_2px_12px_rgba(255,60,0,0.35)]',
                     'hover:brightness-110 hover:shadow-[0_4px_20px_rgba(255,60,0,0.45)]',
                     'disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none',

@@ -309,12 +309,12 @@ export function AppPromptInput({
               </button>
 
               {planMode ? (
-                <span className="inline-flex h-7 items-center gap-1.5 rounded-md border border-replit-orange/30 bg-replit-orange/10 px-2 text-xs text-replit-orange">
+                <span className="inline-flex h-7 items-center gap-1.5 rounded-md border border-appweaver-orange/30 bg-appweaver-orange/10 px-2 text-xs text-appweaver-orange">
                   <PlanIcon />
                   Plan mode
                   <button
                     type="button"
-                    className="flex h-4 w-4 items-center justify-center rounded text-replit-orange/80 hover:text-replit-orange"
+                    className="flex h-4 w-4 items-center justify-center rounded text-appweaver-orange/80 hover:text-appweaver-orange"
                     aria-label="Disable plan mode"
                     onClick={() => onPlanModeChange?.(false)}>
                     <svg
@@ -351,7 +351,7 @@ export function AppPromptInput({
                 className={cn(
                   'inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-xs transition-colors disabled:opacity-60',
                   planMode
-                    ? 'border-replit-orange/40 bg-replit-orange/10 text-replit-orange'
+                    ? 'border-appweaver-orange/40 bg-appweaver-orange/10 text-appweaver-orange'
                     : isLanding
                       ? 'border-[#dfded8] text-text-muted hover:bg-black-[0.04]'
                       : 'border-app-border text-app-text-muted hover:bg-app-surface-hover hover:text-app-text',
@@ -369,7 +369,7 @@ export function AppPromptInput({
                 className={cn(
                   'flex h-8 w-8 items-center justify-center rounded-lg transition-colors disabled:opacity-60',
                   isListening
-                    ? 'bg-replit-orange/15 text-replit-orange'
+                    ? 'bg-appweaver-orange/15 text-appweaver-orange'
                     : isLanding
                       ? 'text--[#696c74] hover:bg-black/[0.04]'
                       : 'text-app-text-muted hover:bg-app-surface-hover hover:text-app-text',
@@ -388,7 +388,7 @@ export function AppPromptInput({
                   className={cn(
                     'flex items-center justify-center rounded-full transition-all',
                     canSubmit
-                      ? 'h-8 gap-1 bg-replit-orange px-3 text-sm font-medium text-white'
+                      ? 'h-8 gap-1 bg-appweaver-orange px-3 text-sm font-medium text-white'
                       : 'h-8 w-8 bg-[#ffb199] text-white',
                   )}
                   onClick={handleSubmit}

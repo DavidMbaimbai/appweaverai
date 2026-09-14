@@ -742,7 +742,7 @@ export function AgentPanel({
               !activeArtifact ||
               (!activeArtifactBuildable && !planModeActive)
             }
-            className="rounded-lg bg-replit-orange px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50">
+            className="rounded-lg bg-appweaver-orange px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50">
             {isStreaming ? 'Working...' : 'Send'}
           </button>
         </div>

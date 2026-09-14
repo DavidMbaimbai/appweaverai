@@ -2,7 +2,7 @@ export type UiTheme = 'light' | 'app';
 
 export const focusRingStyles: Record<UiTheme, string> = {
   light:
-    'focus:border-replit-orange focus_outline-none focus:ring-2 focus:ring-replit-orange/20',
+    'focus:border-appweaver-orange focus_outline-none focus:ring-2 focus:ring-appweaver-orange/20',
   app: 'focus:border-app-text-muted focus:outline-none focus:ring-2 focus:ring-app-border/60',
 };
 
@@ -44,8 +44,8 @@ export const iconButtonOutlineStyles: Record<UiTheme, string> = {
 };
 
 export const focusVisibleRingStyles: Record<UiTheme, string> = {
-  light: 'focus-visible:ring-replit-orange focus-visible:ring-offset-2',
-  app: 'focus-visible:ring-replit-orange/60 focus-visible:ring-offset-app-bg',
+  light: 'focus-visible:ring-appweaver-orange focus-visible:ring-offset-2',
+  app: 'focus-visible:ring-appweaver-orange/60 focus-visible:ring-offset-app-bg',
 };
 
 export const badgeVariantStyles: Record<
@@ -57,8 +57,8 @@ export const badgeVariantStyles: Record<
     app: 'bg-app-surface-active text-app-text-secondary',
   },
   orange: {
-    light: 'bg-replit-orange/10 text-replit-orange',
-    app: 'bg-replit-orange/15 text-replit-orange',
+    light: 'bg-appweaver-orange/10 text-appweaver-orange',
+    app: 'bg-appweaver-orange/15 text-appweaver-orange',
   },
   muted: {
     light: 'bg-surface-warm text-text-muted',

@@ -80,7 +80,7 @@ export function LibrarySidebar({
                       className={cn(
                         'flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm text-app-text-secondary',
                         isWorking &&
-                          'bg-replit-orange/10 ring-1 ring-replit-orange/25',
+                          'bg-appweaver-orange/10 ring-1 ring-appweaver-orange/25',
                       )}>
                       {isWorking ? (
                         <AgentActivityPulse

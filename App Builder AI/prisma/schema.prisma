@@ -161,7 +161,6 @@ model StripeEvent {
 
 // -----------------------------------------------------------------------------
 // Workspaces — personal (solo) or team (shared access to all projects)
-// https://docs.replit.com/references/collaboration/workspaces
 // -----------------------------------------------------------------------------
 
 enum WorkspaceType {
@@ -231,7 +230,6 @@ model WorkspaceInvitation {
 
 // -----------------------------------------------------------------------------
 // Projects — container for code, data, artifacts, and shared resources
-// https://docs.replit.com/references/projects-and-artifacts/projects
 // -----------------------------------------------------------------------------
 
 enum ProjectAdminStatus {
@@ -323,7 +321,7 @@ model ProjectInvitation {
   @@map("project_invitations")
 }
 
-/// Per-user project UI state: pins and recency (Replit "last opened by you").
+/// Per-user project UI state: pins and recency ("last opened by you").
 model UserProjectPreference {
   id                   String    @id @default(cuid())
   userId               String    @map("user_id")
@@ -344,7 +342,6 @@ model UserProjectPreference {
 
 // -----------------------------------------------------------------------------
 // Artifacts — publishable outputs inside a project (max 7 per project in app logic)
-// https://docs.replit.com/references/projects-and-artifacts/artifacts
 // -----------------------------------------------------------------------------
 
 enum ArtifactType {
@@ -387,7 +384,6 @@ model Artifact {
 
 // -----------------------------------------------------------------------------
 // Project resources — shared by all artifacts in a project
-// https://docs.replit.com/learn/projects-and-artifacts/storage-and-databases
 // -----------------------------------------------------------------------------
 
 enum ResourceEnvironment {
@@ -481,7 +477,6 @@ model ProjectFile {
 
 // -----------------------------------------------------------------------------
 // Deployments — publishing is project-wide; all artifacts go live together
-// https://docs.replit.com/learn/projects-and-artifacts/replit-deployments
 // -----------------------------------------------------------------------------
 
 enum DeploymentType {
@@ -515,7 +510,7 @@ model Deployment {
   status         DeploymentStatus     @default(PENDING)
   deploymentType DeploymentType       @default(AUTOSCALE) @map("deployment_type")
   visibility     DeploymentVisibility @default(PUBLIC)
-  /// Default subdomain, e.g. my-app.replit.app
+  /// Default subdomain, e.g. my-app.appweaverai.app
   domain         String
   customDomain   String?              @map("custom_domain")
   isCurrent      Boolean              @default(false) @map("is_current")
@@ -534,7 +529,7 @@ model Deployment {
 }
 
 // -----------------------------------------------------------------------------
-// Agent — conversations tied to a project (Replit Agent)
+// Agent — conversations tied to a project (AppWeaver AI Agent)
 // -----------------------------------------------------------------------------
 
 enum AgentMessageRole {

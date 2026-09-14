@@ -26,8 +26,8 @@ export function AgentPlanQuestion({
           onClick={() => onSelect(option)}
           className={cn(
             'rounded-xl border border-app-border bg-app-surface px-3 py-2.5 text-left text-sm text-app-text-secondary transition-colors',
-            'hover:border-replit-orange/40 hover:bg-app-surface-hover hover:text-app-text',
-            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-replit-orange/60',
+            'hover:border-appweaver-orange/40 hover:bg-app-surface-hover hover:text-app-text',
+            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-appweaver-orange/60',
             'disabled:cursor-not-allowed disabled:opacity-50',
           )}>
           {option}

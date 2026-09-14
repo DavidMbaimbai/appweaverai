@@ -18,9 +18,9 @@ export function Toggle({ checked, onChange, disabled, label }: ToggleProps) {
       onClick={() => onChange(!checked)}
       className={cn(
         'relative h-6 w-11 shrink-0 rounded-full transition-colors duration-200',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-replit-orange/60 focus-visible:ring-offset-2 focus-visible:ring-offset-app-bg',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-appweaver-orange/60 focus-visible:ring-offset-2 focus-visible:ring-offset-app-bg',
         'disabled:cursor-not-allowed disabled:opacity-50',
-        checked ? 'bg-replit-orange' : 'bg-app-surface-active',
+        checked ? 'bg-appweaver-orange' : 'bg-app-surface-active',
       )}>
       <span
         className={cn(

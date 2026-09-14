@@ -6,6 +6,7 @@ import { hasPermission } from '@/lib/admin/permissions';
 import type { AdminSessionUser } from '@/lib/auth/require-admin';
 import { ADMIN_ROLE_LABELS } from '@/lib/admin/permissions';
 import { AdminNavLinks } from './admin-nav-links';
+import { AdminSignOutButton } from '@/components/admin/login/admin-sign-out-button';
 
 export type AdminNavItem = {
   label: string;
@@ -74,6 +75,7 @@ export function AdminShell({
             )}>
             Back to product →
           </Link>
+          <AdminSignOutButton className="mt-2 block text-left text-xs text-app-text-muted hover:text-app-text hover:underline" />
         </div>
       </aside>
 

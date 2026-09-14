@@ -144,7 +144,7 @@ export function AppHome({ user }: AppHomeProps) {
           />
 
           {error ? (
-            <p className="mt-3 text-center text-sm text-replit-orange">
+            <p className="mt-3 text-center text-sm text-appweaver-orange">
               {error}
             </p>
           ) : null}

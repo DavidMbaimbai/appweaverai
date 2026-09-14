@@ -10,7 +10,7 @@ function getLocationLabel(timeZone: string) {
 /**
  * Live local clock that auto-detects the visitor's timezone/location from
  * their system (no permissions or geolocation API needed) and ticks every
- * second, similar to the footer widget on replit.com.
+ * second.
  */
 export function FooterClock() {
   const [now, setNow] = useState<Date | null>(null);

@@ -13,6 +13,68 @@ export type ProPlanInfo = {
   configError: string | null;
 };
 
+export type PaidPlanId = 'builder' | 'pro' | 'business';
+export type BillingPeriod = 'monthly' | 'yearly';
+
+const PLAN_PRICE_ENV_VARS: Record<
+  PaidPlanId,
+  Record<BillingPeriod, string>
+> = {
+  builder: {
+    monthly: 'STRIPE_BUILDER_MONTHLY_PRICE_ID',
+    yearly: 'STRIPE_BUILDER_YEARLY_PRICE_ID',
+  },
+  pro: {
+    monthly: 'STRIPE_PRO_MONTHLY_PRICE_ID',
+    yearly: 'STRIPE_PRO_YEARLY_PRICE_ID',
+  },
+  business: {
+    monthly: 'STRIPE_BUSINESS_MONTHLY_PRICE_ID',
+    yearly: 'STRIPE_BUSINESS_YEARLY_PRICE_ID',
+  },
+};
+
+/** Resolves the Checkout price ID for a specific paid plan + billing period. */
+export function resolvePriceIdForPlan(
+  planId: PaidPlanId,
+  period: BillingPeriod,
+): string {
+  const envVar = PLAN_PRICE_ENV_VARS[planId][period];
+  const priceId = process.env[envVar]?.trim();
+
+  if (!priceId) {
+    throw new Error(
+      `Set ${envVar} (price_...) in your environment to enable checkout for the ${planId} plan.`,
+    );
+  }
+
+  return priceId;
+}
+
+export function isPlanCheckoutConfigured(
+  planId: PaidPlanId,
+  period: BillingPeriod,
+): boolean {
+  const envVar = PLAN_PRICE_ENV_VARS[planId][period];
+  return Boolean(process.env[envVar]?.trim());
+}
+
+/** All configured plan price IDs, keyed by price ID, for validating checkout sessions. */
+export function getPlanIdsByPriceId(): Record<string, PaidPlanId> {
+  const map: Record<string, PaidPlanId> = {};
+
+  for (const planId of Object.keys(PLAN_PRICE_ENV_VARS) as PaidPlanId[]) {
+    for (const period of ['monthly', 'yearly'] as BillingPeriod[]) {
+      const priceId = process.env[PLAN_PRICE_ENV_VARS[planId][period]]?.trim();
+      if (priceId) {
+        map[priceId] = planId;
+      }
+    }
+  }
+
+  return map;
+}
+
 function getStripeSecretKey() {
   return process.env.STRIPE_SECRET_KEY?.trim() ?? '';
 }
@@ -44,7 +106,9 @@ export function getAppBaseUrl() {
 }
 
 function getConfiguredProductOrPriceId() {
-  const priceId = process.env.STRIPE_PRO_PRICE_ID?.trim();
+  const priceId =
+    process.env.STRIPE_PRO_PRICE_ID?.trim() ||
+    process.env.STRIPE_PRO_MONTHLY_PRICE_ID?.trim();
   const productId = process.env.STRIPE_PRO_PRODUCT_ID?.trim();
 
   if (priceId) {

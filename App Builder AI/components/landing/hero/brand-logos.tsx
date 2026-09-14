@@ -1,4 +1,4 @@
-/** Official partner logos from replit.com — 110×48 display size, #898c94. */
+/** Partner / trust logos shown on the marketing homepage — 110×48 display size, #898c94. */
 
 type LogoProps = { className?: string };
 
@@ -254,6 +254,46 @@ function StripeLogo({ className }: LogoProps) {
   );
 }
 
+function AwsLogo({ className }: LogoProps) {
+  return (
+    <svg
+      width="130"
+      height="80"
+      viewBox="0 0 130 80"
+      xmlns="http://www.w3.org/2000/svg"
+      data-logo="aws"
+      className={className ?? LOGO_CLASS}
+      aria-label="aws"
+      role="img">
+      <text
+        x="0"
+        y="42"
+        fontFamily="Arial, Helvetica, sans-serif"
+        fontWeight="700"
+        fontSize="44"
+        fill="#252F3E"
+        letterSpacing="-1">
+        aws
+      </text>
+      <path
+        d="M2 54C24 68 82 70 122 52"
+        fill="none"
+        stroke="#FF9900"
+        strokeWidth="5"
+        strokeLinecap="round"
+      />
+      <path
+        d="M112 46L124 51L118 63"
+        fill="none"
+        stroke="#FF9900"
+        strokeWidth="5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export const partnerLogos = [
   { id: "coinbase", Logo: CoinbaseLogo },
   { id: "duolingo", Logo: DuolingoLogo },
@@ -263,4 +303,5 @@ export const partnerLogos = [
   { id: "paypal", Logo: PaypalLogo },
   { id: "sofi", Logo: SofiLogo },
   { id: "stripe", Logo: StripeLogo },
+  { id: "aws", Logo: AwsLogo },
 ];

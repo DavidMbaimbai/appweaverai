@@ -77,7 +77,7 @@ export function AgentMessageContent({
               href={href}
               target="_blank"
               rel="noreferrer"
-              className="text-replit-orange underline underline-offset-2 hover:opacity-90">
+              className="text-appweaver-orange underline underline-offset-2 hover:opacity-90">
               {children}
             </a>
           ),

@@ -86,5 +86,5 @@ export function isDeviceFramedPreview(id: PreviewDeviceId) {
 }
 
 export function previewDeviceStorageKey(projectId: string) {
-  return `replit-clone:preview-device:${projectId}`;
+  return `appweaver:preview-device:${projectId}`;
 }

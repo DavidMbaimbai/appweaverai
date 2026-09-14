@@ -22,12 +22,12 @@ export function AgentActivityPulse({
       aria-label={label}>
       <span
         className={cn(
-          'absolute inline-flex animate-ping rounded-full bg-replit-orange/70 opacity-75',
+          'absolute inline-flex animate-ping rounded-full bg-appweaver-orange/70 opacity-75',
           dotSize,
         )}>
         <span
           className={cn(
-            'relative inline-flex rounded-full bg-replit-orange',
+            'relative inline-flex rounded-full bg-appweaver-orange',
             dotSize,
           )}
         />
@@ -48,7 +48,7 @@ export function AgentWorkingBadge({
   return (
     <span
       className={cn(
-        'inline-flex max-w-full items-center gap-1.5 rounded-full border border-replit-orange/30 bg-replit-orange/10 px-2 py-0.5 text-[10px] font-medium text-replit-orange',
+        'inline-flex max-w-full items-center gap-1.5 rounded-full border border-appweaver-orange/30 bg-appweaver-orange/10 px-2 py-0.5 text-[10px] font-medium text-appweaver-orange',
         className,
       )}>
       <AgentActivityPulse size="sm" label={label} />

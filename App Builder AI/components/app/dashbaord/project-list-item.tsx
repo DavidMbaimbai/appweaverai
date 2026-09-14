@@ -76,7 +76,7 @@ export function ProjectListItem({ project }: ProjectListItemProps) {
           <div className="min-w-0 space-y-1">
             <Link
               href={href}
-              className="block text-sm font-medium leading-snug text-app-text transition-colors group-hover:text-replit-orange"
+              className="block text-sm font-medium leading-snug text-app-text transition-colors group-hover:text-appweaver-orange"
               title={project.name}>
               <span className="line-clamp-2">{project.name}</span>
             </Link>
@@ -189,7 +189,7 @@ export function ProjectListItem({ project }: ProjectListItemProps) {
                 theme="app"
                 onClick={() => setTrashDialogOpen(true)}
                 disabled={isPending}
-                className="text-app-text-muted hover:text-replit-orange">
+                className="text-app-text-muted hover:text-appweaver-orange">
                 <TrashIcon className="h-3.5 w-3.5" />
               </IconButton>
             </div>

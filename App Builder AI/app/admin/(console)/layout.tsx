@@ -51,7 +51,7 @@ function AccessDenied({
           )}
           <Link
             href="/app"
-            className="inline-block rounded-full bg-replit-orange px-5 py-2 text-sm font-medium text-white hover:bg-replit-orange-mid">
+            className="inline-block rounded-full bg-appweaver-orange px-5 py-2 text-sm font-medium text-white hover:bg-appweaver-orange-mid">
             Back to product
           </Link>
         </div>

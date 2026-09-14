@@ -90,7 +90,7 @@ export function AccountMenuPanel({
               },
             });
           }}
-          className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-replit-orange transition-colors hover:bg-replit-orange/10">
+          className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-appweaver-orange transition-colors hover:bg-appweaver-orange/10">
           <SignOutIcon className="h-3.5 w-3.5 shrink-0" />
           Sign out
         </button>

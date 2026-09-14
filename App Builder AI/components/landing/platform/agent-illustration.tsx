@@ -1,13 +1,13 @@
 export function PlatformAgentIllustration() {
   return (
     <div className="relative h-[244px] w-[272px]">
-      <div className="absolute bottom-[-9px] left-5 size-[250px] rounded-full border-[1.5px] border-dashed border-replit-orange" />
+      <div className="absolute bottom-[-9px] left-5 size-[250px] rounded-full border-[1.5px] border-dashed border-appweaver-orange" />
       <div className="absolute left-[45px] top-0 flex h-[50px] w-[162px] items-center gap-1 rounded-[7px] border border-[#191818] bg-white px-2.5 py-2 font-display text-[10.4px] tracking-[-0.03em] text-[#191818]">
         Make my idea come true
         <span className="h-3 w-px bg-[#191818]" aria-hidden />
       </div>
 
-      <div className="absolute bottom-[94px] left-[183px] flex h-[38px] w-[89px] items-center justify-center gap-1 rounded-[7px] bg-replit-orange px-3 font-display text-[10.4px] tracking-[-0.03em] text-white">
+      <div className="absolute bottom-[94px] left-[183px] flex h-[38px] w-[89px] items-center justify-center gap-1 rounded-[7px] bg-appweaver-orange px-3 font-display text-[10.4px] tracking-[-0.03em] text-white">
         <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden>
           <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.2" />
           <ellipse

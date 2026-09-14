@@ -165,7 +165,7 @@ export function PromptAttachmentDialog({
             className={cn(
               'flex min-h-[220px] flex-col items-center justify-center rounded-xl border border-dashed px-6 py-10 text-center transition-colors',
               isDragging
-                ? 'border-replit-orange bg-replit-orange/10'
+                ? 'border-appweaver-orange bg-appweaver-orange/10'
                 : isLanding
                   ? 'border-border-light bg-prompt-bg hover:border-[#ffb199]'
                   : 'border-app-border bg-app-prompt-bg hover:border-app-text-muted',
@@ -259,7 +259,7 @@ export function PromptAttachmentDialog({
                       )
                     }
                     className={cn(
-                      'shrink-0 text-xs transition-colors hover:text-replit-orange',
+                      'shrink-0 text-xs transition-colors hover:text-appweaver-orange',
                       isLanding ? 'text-text-muted' : 'text-app-text-muted',
                     )}>
                     Remove
@@ -294,7 +294,7 @@ export function PromptAttachmentDialog({
               'rounded-lg px-4 py-2 text-sm font-medium transition-colors',
               pendingFiles.length > 0
                 ? isLanding
-                  ? 'bg-replit-orange text-white hover:bg-[#e03600]'
+                  ? 'bg-appweaver-orange text-white hover:bg-[#e03600]'
                   : 'bg-app-text text-app-bg hover:bg-app-text-secondary'
                 : isLanding
                   ? 'cursor-not-allowed bg-[#ffb199]/40 text-white/80'

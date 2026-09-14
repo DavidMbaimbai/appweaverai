@@ -4,7 +4,7 @@ import { authClient } from '@/lib/auth-client';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import type { AuthMode, OAuthProvider } from '@/lib/types/account';
 import { cn } from '@/lib/utils';
-import { CloseIcon } from './auth-icons';
+import { CloseIcon, EyeIcon, EyeOffIcon } from './auth-icons';
 import { useAuthModal } from './auth-modal-provider';
 import { OAuthButton } from './oauth-button';
 import { useRouter } from 'next/navigation';
@@ -83,7 +83,7 @@ function AuthField({
         onChange={(event) => onChange(event.target.value)}
         className={cn(
           'h-11 w-full rounded-xl border border-border-light bg-surface-white px-3.5 text-sm text-text-primary placeholder:text-text-muted',
-          'transition-[border-color,box-shadow] focus:border-replit-orange focus:outline-none focus:ring-2 focus:ring-replit-orange/20',
+          'transition-[border-color,box-shadow] focus:border-appweaver-orange focus:outline-none focus:ring-2 focus:ring-appweaver-orange/20',
         )}
       />
     </div>
@@ -100,8 +100,20 @@ export function AuthModal() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Once set, the modal shows the "enter your 8-digit code" step instead of
+  // the login/register form (see handleSubmit's register branch below).
+  const [pendingVerificationEmail, setPendingVerificationEmail] = useState<
+    string | null
+  >(null);
+  const [otp, setOtp] = useState('');
+  const [isResending, setIsResending] = useState(false);
+  const [resendMessage, setResendMessage] = useState<string | null>(null);
 
   const copy = modeCopy[mode];
   const alternateMode: AuthMode = mode === 'login' ? 'register' : 'login';
@@ -161,8 +173,15 @@ export function AuthModal() {
       setName('');
       setEmail('');
       setPassword('');
+      setConfirmPassword('');
+      setShowPassword(false);
+      setShowConfirmPassword(false);
       setError(null);
       setIsLoading(false);
+      setPendingVerificationEmail(null);
+      setOtp('');
+      setIsResending(false);
+      setResendMessage(null);
     };
 
     reset();
@@ -195,12 +214,199 @@ export function AuthModal() {
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError(
-      'Email sign-in is not configured yet. Please use Google or GitHub.',
-    );
+    setError(null);
+
+    if (mode === 'register' && password !== confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+
+    setIsLoading(true);
+
+    if (mode === 'register') {
+      void authClient.signUp.email({
+        name,
+        email,
+        password,
+        callbackURL: getCallbackUrl(),
+        fetchOptions: {
+          onSuccess: () => {
+            setIsLoading(false);
+            setPendingVerificationEmail(email);
+          },
+          onError: (ctx) => {
+            setIsLoading(false);
+            setError(ctx.error.message ?? 'Could not create your account.');
+          },
+        },
+      });
+      return;
+    }
+
+    void authClient.signIn.email({
+      email,
+      password,
+      callbackURL: getCallbackUrl(),
+      fetchOptions: {
+        onSuccess: () => {
+          router.push(getCallbackUrl());
+          router.refresh();
+        },
+        onError: (ctx) => {
+          setIsLoading(false);
+          setError(ctx.error.message ?? 'Invalid email or password.');
+        },
+      },
+    });
+  }
+
+  function handleVerifyOtp(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!pendingVerificationEmail) return;
+
+    setError(null);
+    setIsLoading(true);
+
+    void authClient.emailOtp.verifyEmail({
+      email: pendingVerificationEmail,
+      otp,
+      fetchOptions: {
+        onSuccess: () => {
+          router.push(getCallbackUrl());
+          router.refresh();
+        },
+        onError: (ctx) => {
+          setIsLoading(false);
+          setError(ctx.error.message ?? 'Invalid or expired code.');
+        },
+      },
+    });
+  }
+
+  function handleResendOtp() {
+    if (!pendingVerificationEmail) return;
+
+    setError(null);
+    setResendMessage(null);
+    setIsResending(true);
+
+    void authClient.emailOtp.sendVerificationOtp({
+      email: pendingVerificationEmail,
+      type: 'email-verification',
+      fetchOptions: {
+        onSuccess: () => {
+          setIsResending(false);
+          setResendMessage('A new code has been sent to your email.');
+        },
+        onError: (ctx) => {
+          setIsResending(false);
+          setError(ctx.error.message ?? 'Could not resend the code.');
+        },
+      },
+    });
   }
 
   if (!isOpen) return null;
+
+  if (pendingVerificationEmail) {
+    return (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+        <button
+          type="button"
+          aria-label="Close authentication modal"
+          className="absolute inset-0 bg-[#191818]/45 backdrop-blur-[2px]"
+          onClick={handleClose}
+        />
+
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby={titleId}
+          aria-describedby={descriptionId}
+          className="relative max-h-auth-modal w-full max-w-auth-modal overflow-y-auto rounded-[24px] border border-[#e3e2dd] bg-surface-white shadow-[0_24px_80px_rgba(0,0,0,0.18)] auth-modal-panel">
+          <div className="flex items-start justify-between gap-4 border-b border-black/[0.06] px-6 pb-5 pt-6">
+            <div>
+              <h2
+                id={titleId}
+                className="font-display text-[28px] font-normal leading-tight tracking-[-0.04em] text-text-agent-heading">
+                Verify your email
+              </h2>
+              <p
+                id={descriptionId}
+                className="mt-1.5 text-sm leading-relaxed text-text-muted">
+                Enter the 8-digit code we sent to{' '}
+                <span className="font-medium text-text-secondary">
+                  {pendingVerificationEmail}
+                </span>
+                .
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleClose}
+              aria-label="Close"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-text-muted transition-colors hover:bg-pricing-surface hover:text-text-secondary">
+              <CloseIcon className="h-5 w-5" />
+            </button>
+          </div>
+
+          <div className="px-6 py-5">
+            {error && (
+              <p className="mb-3 rounded-xl bg-appweaver-orange/10 px-3 py-2 text-sm text-appweaver-orange">
+                {error}
+              </p>
+            )}
+            {resendMessage && (
+              <p className="mb-3 rounded-xl bg-pricing-surface px-3 py-2 text-sm text-text-secondary">
+                {resendMessage}
+              </p>
+            )}
+
+            <form className="space-y-4" onSubmit={handleVerifyOtp}>
+              <div className="space-y-1.5">
+                <label
+                  htmlFor="auth-otp"
+                  className="block text-sm font-medium text-text-secondary">
+                  Verification code
+                </label>
+                <input
+                  id="auth-otp"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={8}
+                  placeholder="12345678"
+                  value={otp}
+                  onChange={(event) =>
+                    setOtp(event.target.value.replace(/\D/g, '').slice(0, 8))
+                  }
+                  className="h-11 w-full rounded-xl border border-border-light bg-surface-white px-3.5 text-center text-lg tracking-[0.3em] text-text-primary placeholder:text-text-muted transition-[border-color,box-shadow] focus:border-appweaver-orange focus:outline-none focus:ring-2 focus:ring-appweaver-orange/20"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={isLoading || otp.length !== 8}
+                className="h-11 w-full rounded-full bg-appweaver-orange text-sm font-medium text-white transition-colors hover:bg-[#e03600] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-appweaver-orange focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60">
+                Verify email
+              </button>
+            </form>
+          </div>
+
+          <div className="border-t border-black/[0.06] px-6 py-4 text-center text-sm text-text-muted">
+            Didn&apos;t get a code?{' '}
+            <button
+              type="button"
+              disabled={isResending}
+              onClick={handleResendOtp}
+              className="font-medium text-appweaver-orange transition-colors hover:text-[#e03600] disabled:opacity-60">
+              Resend code
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
@@ -277,7 +483,7 @@ export function AuthModal() {
           </div>
 
           {error && (
-            <p className="mt-3 rounded-xl bg-replit-orange/10 px-3 py-2 text-sm text-replit-orange">
+            <p className="mt-3 rounded-xl bg-appweaver-orange/10 px-3 py-2 text-sm text-appweaver-orange">
               {error}
             </p>
           )}
@@ -317,28 +523,80 @@ export function AuthModal() {
                 {mode === 'login' && (
                   <button
                     type="button"
-                    className="text-xs font-medium text-replit-orange transition-colors hover:text-[#e03600]">
+                    className="text-xs font-medium text-appweaver-orange transition-colors hover:text-[#e03600]">
                     Forgot password?
                   </button>
                 )}
               </div>
-              <input
-                id="auth-password"
-                type="password"
-                autoComplete={
-                  mode === 'login' ? 'current-password' : 'new-password'
-                }
-                placeholder={
-                  mode === 'login' ? 'Enter your password' : 'Create a password'
-                }
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                className={cn(
-                  'h-11 w-full rounded-xl border border-border-light bg-surface-white px-3.5 text-sm text-text-primary placeholder:text-text-muted',
-                  'transition-[border-color,box-shadow] focus:border-replit-orange focus:outline-none focus:ring-2 focus:ring-replit-orange/20',
-                )}
-              />
+              <div className="relative">
+                <input
+                  id="auth-password"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete={
+                    mode === 'login' ? 'current-password' : 'new-password'
+                  }
+                  placeholder={
+                    mode === 'login'
+                      ? 'Enter your password'
+                      : 'Create a password'
+                  }
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  className={cn(
+                    'h-11 w-full rounded-xl border border-border-light bg-surface-white px-3.5 pr-11 text-sm text-text-primary placeholder:text-text-muted',
+                    'transition-[border-color,box-shadow] focus:border-appweaver-orange focus:outline-none focus:ring-2 focus:ring-appweaver-orange/20',
+                  )}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((value) => !value)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-text-muted transition-colors hover:text-text-secondary">
+                  {showPassword ? (
+                    <EyeOffIcon className="h-5 w-5" />
+                  ) : (
+                    <EyeIcon className="h-5 w-5" />
+                  )}
+                </button>
+              </div>
             </div>
+
+            {mode === 'register' && (
+              <div className="space-y-1.5">
+                <label
+                  htmlFor="auth-confirm-password"
+                  className="text-sm font-medium text-text-secondary">
+                  Confirm password
+                </label>
+                <div className="relative">
+                  <input
+                    id="auth-confirm-password"
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    autoComplete="new-password"
+                    placeholder="Re-enter your password"
+                    value={confirmPassword}
+                    onChange={(event) => setConfirmPassword(event.target.value)}
+                    className={cn(
+                      'h-11 w-full rounded-xl border border-border-light bg-surface-white px-3.5 pr-11 text-sm text-text-primary placeholder:text-text-muted',
+                      'transition-[border-color,box-shadow] focus:border-appweaver-orange focus:outline-none focus:ring-2 focus:ring-appweaver-orange/20',
+                    )}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword((value) => !value)}
+                    aria-label={
+                      showConfirmPassword ? 'Hide password' : 'Show password'
+                    }
+                    className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-text-muted transition-colors hover:text-text-secondary">
+                    {showConfirmPassword ? (
+                      <EyeOffIcon className="h-5 w-5" />
+                    ) : (
+                      <EyeIcon className="h-5 w-5" />
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
 
             {mode === 'register' && (
               <p className="text-xs leading-relaxed text-text-muted">
@@ -361,7 +619,7 @@ export function AuthModal() {
             <button
               type="submit"
               disabled={isLoading}
-              className="h-11 w-full rounded-full bg-replit-orange text-sm font-medium text-white transition-colors hover:bg-[#e03600] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-replit-orange focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60">
+              className="h-11 w-full rounded-full bg-appweaver-orange text-sm font-medium text-white transition-colors hover:bg-[#e03600] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-appweaver-orange focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60">
               {copy.submit}
             </button>
           </form>
@@ -372,7 +630,7 @@ export function AuthModal() {
           <button
             type="button"
             onClick={() => setAuthMode(alternateMode)}
-            className="font-medium text-replit-orange transition-colors hover:text-[#e03600]">
+            className="font-medium text-appweaver-orange transition-colors hover:text-[#e03600]">
             {copy.switchAction}
           </button>
         </div>

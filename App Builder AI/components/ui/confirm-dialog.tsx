@@ -53,7 +53,7 @@ export function ConfirmDialog({
               className={cn(
                 'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl',
                 variant === 'destructive'
-                  ? 'bg-replit-orange/10 text-replit-orange'
+                  ? 'bg-appweaver-orange/10 text-appweaver-orange'
                   : 'bg-app-surface-active text-app-text-secondary',
               )}>
               <TrashIcon className="h-4 w-4" />
@@ -100,7 +100,7 @@ export function ConfirmDialog({
             disabled={isPending}
             className={cn(
               variant === 'destructive' &&
-                'bg-replit-orange hover:bg-replit-orange-mid',
+                'bg-appweaver-orange hover:bg-appweaver-orange-mid',
             )}>
             {isPending ? 'Working...' : confirmLabel}
           </Button>

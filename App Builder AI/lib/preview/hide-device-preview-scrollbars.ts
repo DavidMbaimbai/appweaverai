@@ -1,4 +1,4 @@
-const STYLE_ID = 'replit-clone-device-preview-scrollbar-hide';
+const STYLE_ID = 'appweaver-device-preview-scrollbar-hide';
 
 const HIDE_SCROLLBAR_CSS = `
   html,

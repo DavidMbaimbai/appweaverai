@@ -1,6 +1,6 @@
 import { createPromptAttachment, type PromptAttachment } from "./prompt-attachments";
 
-const DB_NAME = "replit-hero-prompt";
+const DB_NAME = "appweaver-hero-prompt";
 const STORE = "attachments";
 
 type StoredAttachment = {

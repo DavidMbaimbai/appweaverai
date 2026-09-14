@@ -53,16 +53,16 @@ function FileWriteCard({
       className={cn(
         'overflow-hidden rounded-xl border bg-app-surface/80',
         file.status === 'streaming'
-          ? 'border-replit-orange/30'
+          ? 'border-appweaver-orange/30'
           : 'border-app-border-subtle',
       )}>
       <div className="flex items-center gap-2 border-b border-app-border-subtle px-3 py-2">
         {file.status === 'streaming' ? (
           <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center">
-            <span className="h-3 w-3 animate-spin rounded-full border-2 border-replit-orange/30 border-t-replit-orange" />
+            <span className="h-3 w-3 animate-spin rounded-full border-2 border-appweaver-orange/30 border-t-appweaver-orange" />
           </span>
         ) : (
-          <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-replit-orange/15 text-[10px] font-semibold text-replit-orange">
+          <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-appweaver-orange/15 text-[10px] font-semibold text-appweaver-orange">
             ✓
           </span>
         )}
@@ -84,7 +84,7 @@ function FileWriteCard({
             className="font-mono text-[11px] leading-relaxed whitespace-pre-wrap text-app-text-secondary">
             {previewContent}
             {file.status === 'streaming' && live ? (
-              <span className="ml-0.5 inline-block h-3.5 w-1.5 animate-pulse bg-replit-orange align-middle" />
+              <span className="ml-0.5 inline-block h-3.5 w-1.5 animate-pulse bg-appweaver-orange align-middle" />
             ) : null}
           </pre>
         ) : (

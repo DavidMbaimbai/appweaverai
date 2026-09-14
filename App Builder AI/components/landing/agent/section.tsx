@@ -11,7 +11,7 @@ export function AgentSection() {
     <section className="py-12 desktop:py-20">
       <Container className="below-desktop:!px-4">
         <div className="text-center mobile:flex mobile:flex-col mobile:items-center mobile:gap-4">
-          <p className="font-display text-sm font-medium uppercase tracking-[0.2em] text-replit-orange">
+          <p className="font-display text-sm font-medium uppercase tracking-[0.2em] text-appweaver-orange">
             The Agent
           </p>
           <h1 className="mt-3 font-display text-[40px] font-normal leading-[40px] tracking-[-2px] text-text-agent-heading desktop:text-[56px] desktop:leading-[1.05] desktop:tracking-[-2.8px]">

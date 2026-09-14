@@ -77,11 +77,12 @@ export async function POST(request: Request) {
               await stripe.subscriptions.retrieve(subscriptionId);
             await syncUserSubscription(userId, subscription, customerId);
           } else {
+            const planId = session.metadata?.planId ?? 'pro';
             await prisma.user.update({
               where: { id: userId },
               data: {
                 stripeCustomerId: customerId,
-                subscriptionPlan: 'pro',
+                subscriptionPlan: planId,
                 subscriptionStatus: 'active',
               },
             });

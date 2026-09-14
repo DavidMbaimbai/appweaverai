@@ -80,12 +80,12 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
               'toast-enter flex items-center gap-2.5 rounded-full border px-4 py-2.5 shadow-[0_12px_40px_rgba(0,0,0,0.35)] backdrop-blur-sm',
               item.type === 'success'
                 ? 'border-app-border bg-app-surface text-app-text'
-                : 'border-replit-orange/30 bg-app-surface text-app-text',
+                : 'border-appweaver-orange/30 bg-app-surface text-app-text',
             )}>
             <span
               className={cn(
                 'h-1.5 w-1.5 shrink-0 rounded-full',
-                item.type === 'success' ? 'bg-emerald-400' : 'bg-replit-orange',
+                item.type === 'success' ? 'bg-emerald-400' : 'bg-appweaver-orange',
               )}
               aria-hidden="true"
             />

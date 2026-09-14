@@ -6,7 +6,7 @@ export default function DocsHomePage() {
   return (
     <DocsShell>
       <div className="rounded-2xl border border-border-light bg-white p-8 tablet-up:p-12">
-        <p className="font-display text-sm uppercase tracking-[0.2em] text-replit-orange">
+        <p className="font-display text-sm uppercase tracking-[0.2em] text-appweaver-orange">
           Documentation
         </p>
         <h1 className="mt-3 font-display text-[36px] leading-none tracking-[-1.4px] text-text-agent-heading tablet-up:text-[48px]">
@@ -20,7 +20,7 @@ export default function DocsHomePage() {
         <div className="mt-6 flex flex-wrap gap-3">
           <Link
             href="/docs/welcome"
-            className="rounded-full bg-replit-orange px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-replit-orange/90">
+            className="rounded-full bg-appweaver-orange px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-appweaver-orange/90">
             Start reading
           </Link>
           <Link

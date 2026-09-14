@@ -26,7 +26,7 @@ const themeStyles = {
     categoryLabel:
       'pt-1 text-center text-xs leading-[18px] text-app-text-secondary',
     selectedIcon:
-      'border-replit-orange/40 bg-app-surface-active text-replit-orange',
+      'border-appweaver-orange/40 bg-app-surface-active text-appweaver-orange',
   },
 } as const;
 

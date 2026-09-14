@@ -144,7 +144,7 @@ export function LibraryProjectFiles({
       ) : null}
 
       {error ? (
-        <p className="rounded-lg border border-replit-orange/30 bg-replit-orange/10 px-2.5 py-2 text-xs text-replit-orange">
+        <p className="rounded-lg border border-appweaver-orange/30 bg-appweaver-orange/10 px-2.5 py-2 text-xs text-appweaver-orange">
           {error}
         </p>
       ) : null}
@@ -179,7 +179,7 @@ export function LibraryProjectFiles({
                       className={cn(
                         'rounded-lg border bg-app-surface/70 px-2 py-2',
                         isWorking
-                          ? 'border-replit-orange/40 ring-1 ring-replit-orange/20'
+                          ? 'border-appweaver-orange/40 ring-1 ring-appweaver-orange/20'
                           : 'border-app-border-subtle',
                       )}>
                       <div className="flex items-start gap-2">

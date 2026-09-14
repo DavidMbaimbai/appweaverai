@@ -44,11 +44,11 @@ export function AdminLoginForm({ forbidden }: AdminLoginFormProps) {
   if (forbidden) {
     return (
       <div className="space-y-5 text-center">
-        <p className="rounded-xl bg-replit-orange/10 px-4 py-3 text-sm text-replit-orange">
+        <p className="rounded-xl bg-appweaver-orange/10 px-4 py-3 text-sm text-appweaver-orange">
           This account doesn&apos;t have admin access. Sign out and try
           another account.
         </p>
-        <AdminSignOutButton className="inline-flex h-11 w-full items-center justify-center rounded-xl bg-replit-orange text-sm font-medium text-white hover:bg-[#e03600]" />
+        <AdminSignOutButton className="inline-flex h-11 w-full items-center justify-center rounded-xl bg-appweaver-orange text-sm font-medium text-white hover:bg-[#e03600]" />
       </div>
     );
   }
@@ -69,7 +69,7 @@ export function AdminLoginForm({ forbidden }: AdminLoginFormProps) {
           placeholder="you@company.com"
           value={email}
           onChange={(event) => setEmail(event.target.value)}
-          className="h-11 w-full rounded-xl border border-border-light bg-surface-white px-3.5 text-sm text-text-primary placeholder:text-text-muted transition-[border-color,box-shadow] focus:border-replit-orange focus:outline-none focus:ring-2 focus:ring-replit-orange/20"
+          className="h-11 w-full rounded-xl border border-border-light bg-surface-white px-3.5 text-sm text-text-primary placeholder:text-text-muted transition-[border-color,box-shadow] focus:border-appweaver-orange focus:outline-none focus:ring-2 focus:ring-appweaver-orange/20"
         />
       </div>
 
@@ -87,12 +87,12 @@ export function AdminLoginForm({ forbidden }: AdminLoginFormProps) {
           placeholder="Enter your password"
           value={password}
           onChange={(event) => setPassword(event.target.value)}
-          className="h-11 w-full rounded-xl border border-border-light bg-surface-white px-3.5 text-sm text-text-primary placeholder:text-text-muted transition-[border-color,box-shadow] focus:border-replit-orange focus:outline-none focus:ring-2 focus:ring-replit-orange/20"
+          className="h-11 w-full rounded-xl border border-border-light bg-surface-white px-3.5 text-sm text-text-primary placeholder:text-text-muted transition-[border-color,box-shadow] focus:border-appweaver-orange focus:outline-none focus:ring-2 focus:ring-appweaver-orange/20"
         />
       </div>
 
       {error && (
-        <p className="rounded-xl bg-replit-orange/10 px-3 py-2 text-sm text-replit-orange">
+        <p className="rounded-xl bg-appweaver-orange/10 px-3 py-2 text-sm text-appweaver-orange">
           {error}
         </p>
       )}
@@ -100,7 +100,7 @@ export function AdminLoginForm({ forbidden }: AdminLoginFormProps) {
       <button
         type="submit"
         disabled={isLoading}
-        className="h-11 w-full rounded-xl bg-replit-orange text-sm font-medium text-white transition-colors hover:bg-[#e03600] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-replit-orange focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60">
+        className="h-11 w-full rounded-xl bg-appweaver-orange text-sm font-medium text-white transition-colors hover:bg-[#e03600] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-appweaver-orange focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60">
         {isLoading ? 'Signing in…' : 'Log in'}
       </button>
     </form>

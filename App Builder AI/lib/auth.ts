@@ -1,8 +1,11 @@
 import { prismaAdapter } from '@better-auth/prisma-adapter';
 import { betterAuth } from 'better-auth';
 import { nextCookies } from 'better-auth/next-js';
+import { emailOTP } from 'better-auth/plugins';
 import { prisma } from './prisma';
 import { provisionNewUser } from './auth/provision-user';
+import { recordAuthActivity } from './auth/record-auth-activity';
+import { sendEmail } from './email';
 
 const useDatabase = Boolean(process.env.DATABASE_URL);
 
@@ -28,17 +31,15 @@ export const auth = betterAuth({
   },
 
   /**
-   * Email + password is used exclusively by the Admin Console sign-in page
-   * (app/admin/login) — there is no public sign-up UI or endpoint for it.
-   * `disableSignUp` blocks the /sign-up/email API outright (sign-in only);
-   * admin accounts are provisioned directly (see
-   * lib/admin/bootstrap-seed-admin.ts), never through better-auth's sign-up
-   * flow. The customer-facing auth modal never calls signIn.email either —
-   * it only offers Google/GitHub.
+   * Email + password is used both by the public sign-up/sign-in modal (see
+   * components/auth/auth-modal.tsx) and the dedicated Admin Console sign-in
+   * page (app/admin/login). Admin accounts are still provisioned directly
+   * (see lib/admin/bootstrap-seed-admin.ts) rather than through this sign-up
+   * flow, but regular customers can now create an account with an email +
+   * password in addition to Google/GitHub.
    */
   emailAndPassword: {
     enabled: true,
-    disableSignUp: true,
   },
 
   user: {
@@ -66,10 +67,48 @@ export const auth = betterAuth({
               },
             },
           },
+          session: {
+            create: {
+              // Fires for every new session (sign-up's auto sign-in, plain
+              // sign-in, and OAuth callbacks alike) — used to surface real
+              // user activity in the Admin Console's Audit Logs / Security
+              // Events, which previously only tracked privileged admin
+              // actions.
+              after: async (session, context) => {
+                const path = context?.path ?? '';
+                const event = path.includes('sign-up') ? 'signup' : 'login';
+
+                await recordAuthActivity({
+                  userId: session.userId,
+                  event,
+                  ipAddress: session.ipAddress ?? null,
+                });
+              },
+            },
+          },
         },
       }
     : {}),
-  plugins: [nextCookies()],
+  plugins: [
+    emailOTP({
+      otpLength: 8,
+      expiresIn: 600, // 10 minutes
+      // New sign-ups get an 8-digit code emailed to them, which they enter
+      // to verify their address (see components/auth/auth-modal.tsx).
+      sendVerificationOnSignUp: true,
+      async sendVerificationOTP({ email, otp, type }) {
+        if (type !== 'email-verification') return;
+
+        await sendEmail({
+          to: email,
+          subject: `${otp} is your AppWeaver AI verification code`,
+          html: `<p>Your AppWeaver AI verification code is:</p><p style="font-size:28px;font-weight:700;letter-spacing:4px;">${otp}</p><p>This code expires in 10 minutes.</p>`,
+          text: `Your AppWeaver AI verification code is ${otp}. It expires in 10 minutes.`,
+        });
+      },
+    }),
+    nextCookies(),
+  ],
 });
 
 export type Session = typeof auth.$Infer.Session;

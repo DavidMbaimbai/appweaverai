@@ -245,7 +245,7 @@ export function EditorTopBar({
                   role="menuitem"
                   onClick={handleMoveToTrashClick}
                   disabled={isPending}
-                  className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-replit-orange transition-colors hover:bg-replit-orange/10 disabled:opacity-50">
+                  className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-appweaver-orange transition-colors hover:bg-appweaver-orange/10 disabled:opacity-50">
                   <TrashIcon className="h-3.5 w-3.5 shrink-0" />
                   Move to trash
                 </button>

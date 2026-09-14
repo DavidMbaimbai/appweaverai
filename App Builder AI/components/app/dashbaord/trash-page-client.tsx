@@ -127,7 +127,7 @@ export function TrashPageClient({
                     theme="app"
                     disabled={isRowPending}
                     onClick={() => setDeleteTarget(project)}
-                    className="text-replit-orange hover:text-replit-orange">
+                    className="text-appweaver-orange hover:text-appweaver-orange">
                     Delete permanently
                   </Button>
                 </div>

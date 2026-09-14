@@ -22,13 +22,13 @@ type ButtonProps = {
 const variantStyles: Record<ButtonVariant, Record<UiTheme, string>> = {
   primary: {
     light:
-      'bg-replit-orange text-white hover:bg-replit-orange-mid border border-transparent',
-    app: 'bg-replit-orange text-white hover:bg-replit-orange-mid border border-transparent',
+      'bg-appweaver-orange text-white hover:bg-appweaver-orange-mid border border-transparent',
+    app: 'bg-appweaver-orange text-white hover:bg-appweaver-orange-mid border border-transparent',
   },
   outline: {
     light:
-      'bg-transparent text-replit-orange border border-replit-orange hover:bg-replit-orange/5',
-    app: 'bg-transparent text-replit-orange border border-replit-orange/60 hover:bg-replit-orange/10',
+      'bg-transparent text-appweaver-orange border border-appweaver-orange hover:bg-appweaver-orange/5',
+    app: 'bg-transparent text-appweaver-orange border border-appweaver-orange/60 hover:bg-appweaver-orange/10',
   },
   ghost: {
     light:

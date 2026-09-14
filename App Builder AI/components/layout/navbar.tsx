@@ -100,7 +100,7 @@ function MobileNavLink({
       onClick={onNavigate}
       className={cn(
         'block py-2.5 text-sm leading-tight text-[#2f3034] transition-colors hover:text-[#212225]',
-        link.accent && 'text-replit-orange hover:text-replit-orange',
+        link.accent && 'text-appweaver-orange hover:text-appweaver-orange',
       )}>
       {link.label}
     </Link>
@@ -210,7 +210,7 @@ function MobileNavMenu({
         </Link>
         <AuthNavActions
           initialUser={initialUser}
-          createAccountClassName="inline-flex h-[41px] items-center justify-center rounded-full border-[1.5px] border-replit-orange bg-transparent px-5 text-sm font-medium text-replit-orange transition-colors hover:bg-replit-orange hover:text-white"
+          createAccountClassName="inline-flex h-[41px] items-center justify-center rounded-full border-[1.5px] border-appweaver-orange bg-transparent px-5 text-sm font-medium text-appweaver-orange transition-colors hover:bg-appweaver-orange hover:text-white"
         />
       </div>
     </div>
@@ -307,7 +307,7 @@ export function Navbar({
 
           <AuthNavActions
             initialUser={initialUser}
-            createAccountClassName="inline-flex items-center justify-center rounded-full border-[1.5px] border-replit-orange bg-transparent px-3 py-1.5 text-[13px] font-medium tracking-[-0.02em] text-replit-orange transition-[background-color,color] duration-150 hover:bg-replit-orange hover:text-white"
+            createAccountClassName="inline-flex items-center justify-center rounded-full border-[1.5px] border-appweaver-orange bg-transparent px-3 py-1.5 text-[13px] font-medium tracking-[-0.02em] text-appweaver-orange transition-[background-color,color] duration-150 hover:bg-appweaver-orange hover:text-white"
           />
 
           <button

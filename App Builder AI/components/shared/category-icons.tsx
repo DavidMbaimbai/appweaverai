@@ -21,7 +21,7 @@ export function CategoryCheckIcon() {
   );
 }
 
-/** Official Replit category icons — 16×16 viewBox extracted from replit.com. */
+/** Project category icons — 16×16 viewBox. */
 export function CategoryIcon({ icon }: { icon: ProjectCategory['icon'] }) {
   switch (icon) {
     case 'website':

@@ -46,7 +46,7 @@ export async function ProductPage({
       <Navbar initialUser={initialUser} />
       <main className="min-h-[60vh] py-16 tablet-up:py-24">
         <Container className="flex flex-col items-center gap-6 text-center">
-          <p className="font-display text-sm uppercase tracking-[0.2em] text-replit-orange">
+          <p className="font-display text-sm uppercase tracking-[0.2em] text-appweaver-orange">
             {eyebrow}
           </p>
           <h1 className="font-display text-[40px] leading-none tracking-[-1.6px] text-text-agent-heading tablet-up:text-[56px]">

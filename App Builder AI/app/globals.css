@@ -51,8 +51,8 @@
   --background: #faf6f1;
   --header-bg: #faf6f1;
 
-  --replit-orange: #ff3c00;
-  --replit-orange-mid: #ff764c;
+  --appweaver-orange: #ff3c00;
+  --appweaver-orange-mid: #ff764c;
 
   --text-primary: #0e0e0f;
   --text-secondary: #36373b;
@@ -122,8 +122,8 @@
 @theme inline {
   --color-background: var(--background);
   --color-header-bg: var(--header-bg);
-  --color-replit-orange: var(--replit-orange);
-  --color-replit-orange-mid: var(--replit-orange-mid);
+  --color-appweaver-orange: var(--appweaver-orange);
+  --color-appweaver-orange-mid: var(--appweaver-orange-mid);
   --color-text-primary: var(--text-primary);
   --color-text-secondary: var(--text-secondary);
   --color-text-heading: var(--text-heading);
@@ -209,7 +209,7 @@ summary {
   cursor: pointer;
 }
 
-/* Replit landing fonts — brand for UI/nav, Plus Variable for marketing headings */
+/* AppWeaver AI landing fonts — brand for UI/nav, Plus Variable for marketing headings */
 .font-sans {
   font-family: var(--font-sans);
 }

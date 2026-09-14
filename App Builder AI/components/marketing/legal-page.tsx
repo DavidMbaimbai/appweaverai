@@ -36,7 +36,7 @@ export async function LegalPage({
       <Navbar initialUser={initialUser} />
       <main className="min-h-[60vh] py-16 tablet-up:py-24">
         <Container className="max-w-[760px]">
-          <p className="font-display text-sm uppercase tracking-[0.2em] text-replit-orange">
+          <p className="font-display text-sm uppercase tracking-[0.2em] text-appweaver-orange">
             Legal
           </p>
           <h1 className="mt-3 font-display text-[36px] leading-none tracking-[-1.4px] text-text-agent-heading tablet-up:text-[48px]">

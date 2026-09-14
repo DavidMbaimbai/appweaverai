@@ -217,7 +217,7 @@ export function ArtifactPreview({
         <div className="ml-auto flex min-w-0 flex-1 items-center justify-end gap-2">
           <div className="hidden min-w-0 flex-1 items-center rounded-lg border border-app-border bg-app-surface px-3 py-1.5 tablet-up:flex">
             <span className="truncate text-xs text-app-text-muted">
-              {artifact.slug}.replit.dev
+              {artifact.slug}.appweaverai.app
             </span>
           </div>
           <PreviewDeviceMenu value={deviceId} onChange={handleDeviceChange} />

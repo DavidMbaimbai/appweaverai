@@ -30,7 +30,7 @@ export default async function DocsArticlePage({
     <DocsShell activeSlug={article.slug}>
       <article className="rounded-2xl border border-border-light bg-white p-8 tablet-up:p-12">
         {category && (
-          <p className="font-display text-sm uppercase tracking-[0.2em] text-replit-orange">
+          <p className="font-display text-sm uppercase tracking-[0.2em] text-appweaver-orange">
             {category.title}
           </p>
         )}

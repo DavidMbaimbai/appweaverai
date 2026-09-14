@@ -6,7 +6,12 @@ import {
   type SubscriptionDisplayInfo,
 } from '@/lib/billing/subscription-display';
 import { prisma } from '@/lib/prisma';
-import { getStripeClient, resolveStripeProPriceId } from '@/lib/stripe';
+import {
+  getStripeClient,
+  resolveStripeProPriceId,
+  getPlanIdsByPriceId,
+  type PaidPlanId,
+} from '@/lib/stripe';
 
 const CHECKOUT_SESSION_ID_PATTERN = /^cs_(test|live)_[a-zA-Z0-9]+$/;
 
@@ -57,13 +62,20 @@ export async function syncUserSubscription(
   const status = subscription.status;
   const isActive = status === 'active' || status === 'trialing';
 
+  const planIdsByPriceId = getPlanIdsByPriceId();
+  const subscriptionPriceId = subscription.items.data[0]?.price?.id;
+  const resolvedPlanId: PaidPlanId =
+    (subscriptionPriceId && planIdsByPriceId[subscriptionPriceId]) ||
+    (subscription.metadata?.planId as PaidPlanId | undefined) ||
+    'pro';
+
   await prisma.user.update({
     where: { id: userId },
     data: {
       stripeCustomerId: customerId ?? undefined,
       stripeSubscriptionId: subscription.id,
       subscriptionStatus: status,
-      subscriptionPlan: isActive ? 'pro' : 'free',
+      subscriptionPlan: isActive ? resolvedPlanId : 'free',
     },
   });
 }
@@ -77,7 +89,7 @@ export async function syncUserFromCheckoutSession(
   }
 
   const stripe = getStripeClient();
-  const expectedPriceId = await resolveStripeProPriceId();
+  const planIdsByPriceId = getPlanIdsByPriceId();
 
   const session = await stripe.checkout.sessions.retrieve(sessionId, {
     expand: ['line_items', 'subscription'],
@@ -105,14 +117,37 @@ export async function syncUserFromCheckoutSession(
   }
 
   const lineItems = session.line_items?.data ?? [];
-  const hasProPrice = lineItems.some((item) => {
+  let matchedPlanId: PaidPlanId | null = null;
+
+  for (const item of lineItems) {
     const priceId =
       typeof item.price === 'string' ? item.price : item.price?.id;
-    return priceId === expectedPriceId;
-  });
+    if (priceId && planIdsByPriceId[priceId]) {
+      matchedPlanId = planIdsByPriceId[priceId];
+      break;
+    }
+  }
 
-  if (!hasProPrice) {
-    return { error: 'Checkout session is not for the Pro plan.' as const };
+  // Fall back to the legacy single-plan Pro price for existing setups that
+  // only configured STRIPE_PRO_PRICE_ID/STRIPE_PRO_PRODUCT_ID.
+  if (!matchedPlanId) {
+    try {
+      const legacyProPriceId = await resolveStripeProPriceId();
+      const hasLegacyProPrice = lineItems.some((item) => {
+        const priceId =
+          typeof item.price === 'string' ? item.price : item.price?.id;
+        return priceId === legacyProPriceId;
+      });
+      if (hasLegacyProPrice) {
+        matchedPlanId = 'pro';
+      }
+    } catch {
+      // No legacy Pro price configured either — fall through to error below.
+    }
+  }
+
+  if (!matchedPlanId) {
+    return { error: 'Checkout session is not for a known plan.' as const };
   }
 
   const customerId =
@@ -139,5 +174,5 @@ export async function syncUserFromCheckoutSession(
   }
 
   await syncUserSubscription(userId, subscription, customerId);
-  return { success: true as const, plan: 'pro' as const };
+  return { success: true as const, plan: matchedPlanId };
 }

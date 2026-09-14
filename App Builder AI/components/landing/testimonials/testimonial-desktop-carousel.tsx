@@ -19,7 +19,7 @@ function NavArrow({ direction }: { direction: 'left' | 'right' }) {
     <ChevronIcon
       direction={direction}
       size={24}
-      className="shrink-0 text-replit-orange"
+      className="shrink-0 text-appweaver-orange"
     />
   );
 }
