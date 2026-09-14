@@ -120,7 +120,30 @@ export const auth = betterAuth({
                 await recordAuthActivity({
                   userId: session.userId,
                   event,
-                  ipAddress: session.ipAddress || headerIp || null,
+                  // Prefer the header-derived left-most client IP (same
+                  // resolution used for logout, which already works
+                  // correctly) over better-auth's own session.ipAddress,
+                  // which behind a reverse proxy / CDN is often the proxy's
+                  // own address (or empty) rather than the real client IP.
+                  ipAddress: headerIp || session.ipAddress || null,
+                });
+              },
+            },
+            delete: {
+              // Fires whenever a session row is removed — the main path
+              // being an explicit sign-out (see components/auth/auth-nav-actions.tsx,
+              // account-menu.tsx, admin-sign-out-button.tsx). Surfaces
+              // logouts in the Admin Console's Audit Logs / Security Events
+              // and analytics, which previously only tracked logins.
+              after: async (session, context) => {
+                const headerIp = getClientIpFromHeaders(
+                  context?.headers ?? context?.request?.headers,
+                );
+
+                await recordAuthActivity({
+                  userId: session.userId,
+                  event: 'logout',
+                  ipAddress: headerIp ?? null,
                 });
               },
             },

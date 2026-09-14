@@ -11,7 +11,7 @@ import { lookupIpLocation } from '@/lib/geo/ip-lookup';
  */
 export async function recordAuthActivity(input: {
   userId: string;
-  event: 'signup' | 'login';
+  event: 'signup' | 'login' | 'logout';
   ipAddress?: string | null;
 }) {
   try {
@@ -20,13 +20,23 @@ export async function recordAuthActivity(input: {
       select: { email: true },
     });
 
-    const label = input.event === 'signup' ? 'signed up' : 'signed in';
+    const label =
+      input.event === 'signup'
+        ? 'signed up'
+        : input.event === 'logout'
+          ? 'logged out'
+          : 'signed in';
     const location = await lookupIpLocation(input.ipAddress);
 
     await recordAuditLog({
       adminId: input.userId,
       adminEmail: user?.email ?? null,
-      action: input.event === 'signup' ? 'auth.signup' : 'auth.login',
+      action:
+        input.event === 'signup'
+          ? 'auth.signup'
+          : input.event === 'logout'
+            ? 'auth.logout'
+            : 'auth.login',
       targetType: 'User',
       targetId: input.userId,
       after: location,
@@ -35,7 +45,7 @@ export async function recordAuthActivity(input: {
     });
 
     await recordSecurityEvent({
-      type: 'LOGIN_SUCCESS',
+      type: input.event === 'logout' ? 'LOGOUT' : 'LOGIN_SUCCESS',
       severity: 'INFO',
       subjectType: 'User',
       subjectId: input.userId,

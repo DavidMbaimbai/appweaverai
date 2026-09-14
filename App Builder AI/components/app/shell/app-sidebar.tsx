@@ -148,7 +148,7 @@ export function AppSidebar({
             <Avatar
               size="sm"
               theme="app"
-              name="Ali Murtaza"
+              name={user.name ?? user.email}
               image={user.image}
             />
             <div className="min-w-0 flex-1">
@@ -159,10 +159,29 @@ export function AppSidebar({
                 {user.email ?? 'View menu'}
               </p>
             </div>
+            <ChevronUpDownIcon className="h-3.5 w-3.5 shrink-0 text-app-text-muted" />
           </button>
         </div>
       </div>
     </aside>
+  );
+}
+
+function ChevronUpDownIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true">
+      <path
+        d="M8 9.5 12 5.5l4 4M8 14.5l4 4 4-4"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 
