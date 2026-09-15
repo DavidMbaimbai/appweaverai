@@ -20,7 +20,7 @@ import type {
 
 export const topNavLinks: NavLink[] = [
   { label: "Security", href: "/security" },
-  { label: "Pricing", href: "#pricing" },
+  { label: "Pricing", href: "/pricing" },
 ];
 
 export const navGroups: NavGroup[] = [
@@ -218,7 +218,7 @@ export const platformFeatures: PlatformFeature[] = [
     eyebrow: "Enterprise control",
     title: "Secure your apps as they scale.",
     description:
-      "Security controls: SSO/SAML, SOC 2, and admin controls. Screening and secure services keep apps safe.",
+      "Security controls: SSO/SAML options, admin roles, audit logs, and privacy controls help teams govern apps as they grow.",
     variant: "enterprise",
   },
 ];
@@ -288,7 +288,7 @@ export const pricingPlans: PricingPlan[] = [
     monthlyPrice: 0,
     yearlyPrice: 0,
     ctaLabel: "Start for free",
-    ctaHref: "/signup",
+    ctaHref: "/?auth=register",
     accent: "orange",
     featuresIntro: "Explore what's possible:",
     features: [

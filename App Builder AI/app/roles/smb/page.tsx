@@ -1,34 +1,33 @@
-import { ProductPage } from '@/components/marketing/product-page';
+import { RolePage } from '@/components/marketing/role-page';
 
 export default function SmbRolePage() {
   return (
-    <ProductPage
-      eyebrow="Roles"
+    <RolePage
       title="AppWeaver AI for Small Business Owners"
-      description="Build the website, booking system, or customer tool your business needs — without hiring a developer or learning to code."
-      highlights={[
-        {
-          title: "No coding required",
-          description:
-            "Describe what you want in plain language and get a working app back.",
-        },
-        {
-          title: "Affordable to start",
-          description:
-            "Launch on a free plan and upgrade only when your business is ready to scale.",
-        },
-        {
-          title: "Own your website",
-          description:
-            "Publish a site or app under your own domain without an agency retainer.",
-        },
-        {
-          title: "Update it yourself",
-          description:
-            "Make changes anytime by describing what you want changed — no developer needed.",
-        },
+      description="Build the website, booking flow, customer portal, or internal tracker your business needs without hiring a developer first."
+      forWhom="Small business owners who need useful software for customers or staff but do not want a long agency process."
+      canBuild={[
+        'Business websites and lead-capture pages.',
+        'Booking, intake, or request forms.',
+        'Customer portals and simple internal dashboards.',
+      ]}
+      capabilities={[
+        'Plain-language prompting with no coding required.',
+        'Built-in publishing and custom-domain support on paid plans.',
+        'Simple account and project management.',
+        'Editable copy and layouts after the first version is generated.',
+      ]}
+      workflow={[
+        'Describe the business, the customer, and the action you want people to take.',
+        'Review the generated pages and forms.',
+        'Update copy, offers, and fields as your business changes.',
+        'Publish when the flow is ready to share.',
+      ]}
+      benefits={[
+        'Start with a free plan and upgrade when the project grows.',
+        'Avoid waiting weeks for small updates.',
+        'Own a working app that can change with the business.',
       ]}
     />
   );
 }
-

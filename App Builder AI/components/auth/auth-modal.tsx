@@ -8,6 +8,7 @@ import { CloseIcon, EyeIcon, EyeOffIcon } from './auth-icons';
 import { useAuthModal } from './auth-modal-provider';
 import { OAuthButton } from './oauth-button';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { AppWeaverLogo } from '../ui/appweaver-logo';
 import { recordEmailVerifiedAction } from '@/lib/auth/actions';
 
@@ -1139,17 +1140,17 @@ export function AuthModal() {
             {mode === 'register' && (
               <p className="text-xs leading-relaxed text-text-muted">
                 By creating an account, you agree to our{' '}
-                <a
+                <Link
                   href="/terms"
                   className="text-text-secondary underline underline-offset-2">
                   Terms of Service
-                </a>{' '}
+                </Link>{' '}
                 and{' '}
-                <a
+                <Link
                   href="/privacy"
                   className="text-text-secondary underline underline-offset-2">
                   Privacy Policy
-                </a>
+                </Link>
                 .
               </p>
             )}

@@ -1,36 +1,35 @@
-import { ProductPage } from '@/components/marketing/product-page';
+import { RolePage } from '@/components/marketing/role-page';
 
 export default function EnterpriseRolePage() {
   return (
-    <ProductPage
-      eyebrow="Roles"
+    <RolePage
       title="AppWeaver AI for Enterprise"
-      description="Give your organization a secure, governed way to turn ideas into internal tools and customer-facing apps, without waiting on a full engineering cycle."
-      highlights={[
-        {
-          title: "Governed by default",
-          description:
-            "SSO, admin controls, and audit-friendly workflows keep every project accountable.",
-        },
-        {
-          title: "Faster delivery",
-          description:
-            "Reduce the time from request to working software across every department.",
-        },
-        {
-          title: "Central oversight",
-          description:
-            "Admins can see every workspace and project across the organization in one place.",
-        },
-        {
-          title: "Enterprise support",
-          description:
-            "Dedicated support and onboarding help your teams adopt AppWeaver AI with confidence.",
-        },
+      description="Give teams a governed way to turn ideas into internal tools and customer-facing apps without bypassing visibility and administrative control."
+      forWhom="Enterprise teams that need faster delivery while maintaining admin oversight, access control, and support paths."
+      canBuild={[
+        'Departmental internal tools and dashboards.',
+        'Customer portals and approval workflows.',
+        'Prototypes that graduate into governed production apps.',
+      ]}
+      capabilities={[
+        'Admin roles and permissioned console workflows.',
+        'Audit logs and security-event tracking in the admin console.',
+        'Contact-sales path for SSO/SAML and enterprise deployment discussions.',
+        'Team billing, subscriptions, and project oversight.',
+      ]}
+      workflow={[
+        'Start with a constrained business workflow or prototype.',
+        'Review generated functionality with security and operations stakeholders.',
+        'Publish under the right access model.',
+        'Use admin visibility and support to scale adoption across teams.',
+      ]}
+      benefits={[
+        'Reduce time from request to working software.',
+        'Keep governance visible as more teams build.',
+        'Support both internal tools and customer-facing app experiments.',
       ]}
       ctaLabel="Contact sales"
       ctaHref="/contact-sales"
     />
   );
 }
-

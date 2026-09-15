@@ -4,30 +4,32 @@ export default function CertificationsPage() {
   return (
     <ProductPage
       eyebrow="Company"
-      title="Certifications & compliance"
-      description="Information on the security certifications and compliance standards AppWeaver AI maintains to keep your data safe."
+      title="Security and compliance review"
+      description="AppWeaver AI can support enterprise security and procurement conversations, but this page does not claim formal certifications that are not represented in the current product."
       highlights={[
         {
-          title: "SOC 2",
+          title: 'Application controls',
           description:
-            "Independently audited controls around security, availability, and confidentiality.",
+            'Authentication, admin permissions, audit logs, security events, and server-side access checks are implemented in the application.',
         },
         {
-          title: "Data privacy",
+          title: 'Data privacy',
           description:
-            "Practices aligned with common privacy regulations for handling user data.",
+            'The privacy policy explains how account, project, billing, and support data are handled.',
         },
         {
-          title: "Security reviews",
+          title: 'Enterprise review',
           description:
-            "Regular third-party assessments of our infrastructure and application security.",
+            'Teams can request security and deployment details through Contact Sales before rollout.',
         },
         {
-          title: "Enterprise requests",
+          title: 'No unsupported claims',
           description:
-            "Enterprise customers can request detailed compliance documentation.",
+            'We do not claim SOC 2, ISO 27001, HIPAA, or other certifications here unless they are formally available.',
         },
       ]}
+      ctaLabel="Contact sales"
+      ctaHref="/contact-sales"
     />
   );
 }

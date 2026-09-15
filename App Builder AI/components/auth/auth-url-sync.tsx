@@ -14,7 +14,8 @@ function AuthUrlSyncInner() {
   useEffect(() => {
     if (isPending) return;
     const auth = searchParams.get('auth');
-    const callbackUrl = searchParams.get('callbackurl');
+    const callbackUrl =
+      searchParams.get('callbackUrl') ?? searchParams.get('callbackurl');
     const safeCallback =
       callbackUrl?.startsWith('/') && !callbackUrl.startsWith('//')
         ? callbackUrl
