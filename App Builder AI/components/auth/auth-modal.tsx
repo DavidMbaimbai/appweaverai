@@ -95,7 +95,8 @@ function AuthField({
 
 export function AuthModal() {
   const router = useRouter();
-  const { isOpen, mode, closeAuthModal, setAuthMode } = useAuthModal();
+  const { isOpen, mode, initialError, closeAuthModal, setAuthMode } =
+    useAuthModal();
   const titleId = useId();
   const descriptionId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -149,20 +150,42 @@ export function AuthModal() {
         ? 'Sign in to continue'
         : null;
 
-  const handleClose = useCallback(() => {
-    closeAuthModal();
-
+  const cleanAuthQuery = useCallback(() => {
     const params = new URLSearchParams(window.location.search);
-    if (!params.has('auth') && !params.has('callbackUrl')) return;
+    if (
+      !params.has('auth') &&
+      !params.has('callbackUrl') &&
+      !params.has('callbackurl') &&
+      !params.has('error')
+    ) {
+      return;
+    }
 
     params.delete('auth');
     params.delete('callbackUrl');
+    params.delete('callbackurl');
+    params.delete('error');
     const query = params.toString();
 
     router.replace(
       query ? `${window.location.pathname}?${query}` : window.location.pathname,
     );
-  }, [closeAuthModal, router]);
+  }, [router]);
+
+  const completeAuthSuccess = useCallback(
+    (target: string) => {
+      closeAuthModal();
+      cleanAuthQuery();
+      router.replace(target);
+      router.refresh();
+    },
+    [cleanAuthQuery, closeAuthModal, router],
+  );
+
+  const handleClose = useCallback(() => {
+    closeAuthModal();
+    cleanAuthQuery();
+  }, [cleanAuthQuery, closeAuthModal]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -197,7 +220,7 @@ export function AuthModal() {
       setConfirmPassword('');
       setShowPassword(false);
       setShowConfirmPassword(false);
-      setError(null);
+      setError(initialError);
       setIsLoading(false);
       setPendingVerificationEmail(null);
       setOtp('');
@@ -215,11 +238,11 @@ export function AuthModal() {
     };
 
     reset();
-  }, [isOpen]);
+  }, [initialError, isOpen]);
 
   function getCallbackUrl() {
     const params = new URLSearchParams(window.location.search);
-    const callback = params.get('callbackUrl');
+    const callback = params.get('callbackUrl') ?? params.get('callbackurl');
 
     if (callback?.startsWith('/')) {
       return callback;
@@ -279,8 +302,7 @@ export function AuthModal() {
       callbackURL: getCallbackUrl(),
       fetchOptions: {
         onSuccess: () => {
-          router.push(getCallbackUrl());
-          router.refresh();
+          completeAuthSuccess(getCallbackUrl());
         },
         onError: (ctx) => {
           setIsLoading(false);
@@ -312,8 +334,7 @@ export function AuthModal() {
 
           const target = getCallbackUrl();
           window.setTimeout(() => {
-            router.push(target);
-            router.refresh();
+            completeAuthSuccess(target);
           }, 2200);
         },
         onError: (ctx) => {
@@ -453,8 +474,7 @@ export function AuthModal() {
             callbackURL: getCallbackUrl(),
             fetchOptions: {
               onSuccess: () => {
-                router.push(getCallbackUrl());
-                router.refresh();
+                completeAuthSuccess(getCallbackUrl());
               },
               onError: () => {
                 setIsLoading(false);
