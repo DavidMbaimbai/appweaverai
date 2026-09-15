@@ -21,7 +21,7 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           port: 22
           script: |
-            cd /opt/appweaverai
+            cd "/var/www/appweaverai/App Builder AI"
             git pull origin main
 
             docker compose down
