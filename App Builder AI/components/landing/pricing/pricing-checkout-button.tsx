@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 
-import { authClient } from '@/lib/auth-client';
 import { useAuthModal } from '@/components/auth/auth-modal-provider';
+import { useAuthSession } from '@/components/auth/session-provider';
 import { createPlanCheckoutSessionAction } from '@/lib/actions/billing';
 import type { PaidPlanId } from '@/lib/stripe';
 import type { BillingPeriod } from '@/lib/types';
@@ -29,18 +29,18 @@ export function PricingCheckoutButton({
   label,
   className,
 }: PricingCheckoutButtonProps) {
-  const { data: session, isPending } = authClient.useSession();
+  const { data: session, status } = useAuthSession();
   const { openAuthModal } = useAuthModal();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   function handleClick() {
-    if (isPending || isLoading) return;
+    if (status === 'loading' || isLoading) return;
     setError(null);
 
     const upgradeCallback = `/app/billing?upgrade=${planId}&period=${period}`;
 
-    if (!session?.user) {
+    if (status === 'unauthenticated' || !session?.user) {
       const params = new URLSearchParams(window.location.search);
       params.set('auth', 'register');
       params.set('callbackUrl', upgradeCallback);

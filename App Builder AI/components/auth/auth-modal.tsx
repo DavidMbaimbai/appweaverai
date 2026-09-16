@@ -11,8 +11,19 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { AppWeaverLogo } from '../ui/appweaver-logo';
 import { recordEmailVerifiedAction } from '@/lib/auth/actions';
+import { useAuthSession } from './session-provider';
 
 const DEFAULT_CALLBACK_URL = '/app';
+const AUTH_QUERY_KEYS = [
+  'auth',
+  'error',
+  'callbackUrl',
+  'callbackurl',
+  'callbackURL',
+  'code',
+  'state',
+  'token',
+] as const;
 
 const modeCopy: Record<
   AuthMode,
@@ -95,6 +106,7 @@ function AuthField({
 
 export function AuthModal() {
   const router = useRouter();
+  const { refetch: refetchSession } = useAuthSession();
   const { isOpen, mode, initialError, closeAuthModal, setAuthMode } =
     useAuthModal();
   const titleId = useId();
@@ -141,7 +153,9 @@ export function AuthModal() {
   const alternateMode: AuthMode = mode === 'login' ? 'register' : 'login';
   const callbackUrl =
     typeof window !== 'undefined'
-      ? new URLSearchParams(window.location.search).get('callbackUrl')
+      ? (new URLSearchParams(window.location.search).get('callbackUrl') ??
+        new URLSearchParams(window.location.search).get('callbackurl') ??
+        new URLSearchParams(window.location.search).get('callbackURL'))
       : null;
   const redirectHint =
     callbackUrl === '/app'
@@ -152,34 +166,35 @@ export function AuthModal() {
 
   const cleanAuthQuery = useCallback(() => {
     const params = new URLSearchParams(window.location.search);
-    if (
-      !params.has('auth') &&
-      !params.has('callbackUrl') &&
-      !params.has('callbackurl') &&
-      !params.has('error')
-    ) {
+    const hasAuthQuery = AUTH_QUERY_KEYS.some((key) => params.has(key));
+
+    if (!hasAuthQuery) {
       return;
     }
 
-    params.delete('auth');
-    params.delete('callbackUrl');
-    params.delete('callbackurl');
-    params.delete('error');
-    const query = params.toString();
+    for (const key of AUTH_QUERY_KEYS) {
+      params.delete(key);
+    }
 
-    router.replace(
-      query ? `${window.location.pathname}?${query}` : window.location.pathname,
-    );
+    const query = params.toString();
+    const cleanUrl = query
+      ? `${window.location.pathname}?${query}`
+      : window.location.pathname;
+
+    window.history.replaceState(null, '', cleanUrl);
+    router.replace(cleanUrl);
   }, [router]);
 
   const completeAuthSuccess = useCallback(
     (target: string) => {
+      setError(null);
       closeAuthModal();
       cleanAuthQuery();
+      void refetchSession();
       router.replace(target);
       router.refresh();
     },
-    [cleanAuthQuery, closeAuthModal, router],
+    [cleanAuthQuery, closeAuthModal, refetchSession, router],
   );
 
   const handleClose = useCallback(() => {
@@ -242,9 +257,12 @@ export function AuthModal() {
 
   function getCallbackUrl() {
     const params = new URLSearchParams(window.location.search);
-    const callback = params.get('callbackUrl') ?? params.get('callbackurl');
+    const callback =
+      params.get('callbackUrl') ??
+      params.get('callbackurl') ??
+      params.get('callbackURL');
 
-    if (callback?.startsWith('/')) {
+    if (callback?.startsWith('/') && !callback.startsWith('//')) {
       return callback;
     }
     return DEFAULT_CALLBACK_URL;

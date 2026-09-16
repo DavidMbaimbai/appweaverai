@@ -11,6 +11,7 @@ import {
 
 import type { AuthMode } from '@/lib/types/account';
 import { AuthModal } from './auth-modal';
+import { useAuthSession } from './session-provider';
 
 type AuthModalContextValue = {
   isOpen: boolean;
@@ -24,17 +25,24 @@ type AuthModalContextValue = {
 const AuthModalContext = createContext<AuthModalContextValue | null>(null);
 
 export function AuthModalProvider({ children }: { children: ReactNode }) {
+  const { status } = useAuthSession();
   const [isOpen, setIsOpen] = useState(false);
   const [mode, setMode] = useState<AuthMode>('login');
   const [initialError, setInitialError] = useState<string | null>(null);
 
   const openAuthModal = useCallback(
     (nextMode: AuthMode = 'login', error: string | null = null) => {
+      if (status !== 'unauthenticated') {
+        setInitialError(null);
+        setIsOpen(false);
+        return;
+      }
+
       setInitialError(error);
       setMode(nextMode);
       setIsOpen(true);
     },
-    [],
+    [status],
   );
 
   const closeAuthModal = useCallback(() => {
@@ -47,16 +55,27 @@ export function AuthModalProvider({ children }: { children: ReactNode }) {
     setMode(nextMode);
   }, []);
 
+  const effectiveIsOpen = status === 'unauthenticated' && isOpen;
+  const effectiveInitialError =
+    status === 'authenticated' ? null : initialError;
+
   const value = useMemo(
     () => ({
-      isOpen,
+      isOpen: effectiveIsOpen,
       mode,
-      initialError,
+      initialError: effectiveInitialError,
       openAuthModal,
       closeAuthModal,
       setAuthMode,
     }),
-    [isOpen, mode, initialError, openAuthModal, closeAuthModal, setAuthMode],
+    [
+      effectiveIsOpen,
+      mode,
+      effectiveInitialError,
+      openAuthModal,
+      closeAuthModal,
+      setAuthMode,
+    ],
   );
 
   return (
@@ -71,7 +90,7 @@ export function useAuthModal() {
   const context = useContext(AuthModalContext);
 
   if (!context) {
-    throw new Error('useAuthModal must be used within AuthModalProivder');
+    throw new Error('useAuthModal must be used within AuthModalProvider');
   }
 
   return context;

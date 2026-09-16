@@ -1,60 +1,106 @@
 'use client';
 
-import { authClient } from '@/lib/auth-client';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect } from 'react';
 import { useAuthModal } from './auth-modal-provider';
+import { useAuthSession } from './session-provider';
+
+const AUTH_QUERY_KEYS = [
+  'auth',
+  'error',
+  'callbackUrl',
+  'callbackurl',
+  'callbackURL',
+  'code',
+  'state',
+  'token',
+] as const;
+
+const CONSUMED_AUTH_ERROR_PREFIX = 'appweaver:consumed-auth-error:';
+
+function stripAuthQuery(searchParams: URLSearchParams, pathname: string) {
+  const params = new URLSearchParams(searchParams.toString());
+
+  for (const key of AUTH_QUERY_KEYS) {
+    params.delete(key);
+  }
+
+  const query = params.toString();
+  return query ? `${pathname}?${query}` : pathname;
+}
+
+function replaceAuthUrl(router: ReturnType<typeof useRouter>, url: string) {
+  if (typeof window !== 'undefined') {
+    window.history.replaceState(null, '', url);
+  }
+
+  router.replace(url);
+}
 
 function AuthUrlSyncInner() {
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const router = useRouter();
-  const { data: session, isPending } = authClient.useSession();
+  const { data: session, status } = useAuthSession();
   const { closeAuthModal, openAuthModal } = useAuthModal();
 
   useEffect(() => {
-    if (isPending) return;
+    if (status === 'loading') return;
     const auth = searchParams.get('auth');
     const authError = searchParams.get('error');
     const callbackUrl =
-      searchParams.get('callbackUrl') ?? searchParams.get('callbackurl');
+      searchParams.get('callbackUrl') ??
+      searchParams.get('callbackurl') ??
+      searchParams.get('callbackURL');
     const safeCallback =
       callbackUrl?.startsWith('/') && !callbackUrl.startsWith('//')
         ? callbackUrl
         : null;
+    const cleanUrl = stripAuthQuery(searchParams, pathname);
 
     if (session?.user && safeCallback) {
       closeAuthModal();
-      router.replace(safeCallback);
+      replaceAuthUrl(router, safeCallback);
       return;
     }
 
     if (session?.user && (auth || authError)) {
       closeAuthModal();
-      const params = new URLSearchParams(searchParams.toString());
-      params.delete('auth');
-      params.delete('error');
-      params.delete('callbackUrl');
-      params.delete('callbackurl');
-      const query = params.toString();
-      router.replace(query ? `${pathname}?${query}` : pathname);
+      replaceAuthUrl(router, cleanUrl);
       return;
     }
 
     if (authError) {
-      const params = new URLSearchParams(searchParams.toString());
-      params.delete('auth');
-      params.delete('error');
-      const query = params.toString();
-      const cleanUrl = query ? `${pathname}?${query}` : pathname;
+      const errorKey = `${CONSUMED_AUTH_ERROR_PREFIX}${pathname}?${searchParams.toString()}`;
+      let hasConsumedError = false;
 
+      if (typeof window !== 'undefined') {
+        try {
+          hasConsumedError = window.sessionStorage.getItem(errorKey) === '1';
+        } catch {
+          hasConsumedError = false;
+        }
+      }
+
+      if (typeof window !== 'undefined') {
+        try {
+          window.sessionStorage.setItem(errorKey, '1');
+        } catch {
+          // Ignore storage failures; URL cleanup still prevents replay.
+        }
+      }
+      replaceAuthUrl(router, cleanUrl);
+
+      if (hasConsumedError) {
+        closeAuthModal();
+        return;
+      }
       openAuthModal(
         auth === 'register' ? 'register' : 'login',
         authError === 'invalid_code'
           ? 'That sign-in link expired or was already used. Please try signing in again.'
           : 'Sign-in could not be completed. Please try again.',
       );
-      router.replace(cleanUrl);
       return;
     }
 
@@ -69,7 +115,7 @@ function AuthUrlSyncInner() {
     closeAuthModal,
     openAuthModal,
     session,
-    isPending,
+    status,
     router,
   ]);
 

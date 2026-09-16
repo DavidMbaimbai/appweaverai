@@ -1,23 +1,22 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import type { ProjectCategory } from '@/lib/types';
 import { useToast } from '@/components/ui/toast';
-import { cn } from '@/lib/utils';
 import { ExamplePrompts } from '@/components/shared/example-prompts';
 import { CategoryCarousel } from '@/components/landing/hero/category-carousel';
-import { authClient } from '@/lib/auth-client';
 import { useAuthModal } from '@/components/auth/auth-modal-provider';
 import { useHeroPromptDraftRestore } from '@/lib/hooks/use-hero-prompt-draft';
 import { AppPromptInput } from '@/components/app/home/app-prompt-input';
 import { persistHeroPromptState } from '@/lib/hero-prompt-draft';
+import { useAuthSession } from '@/components/auth/session-provider';
 
 const APP_AUTOSTART_URL = '/app?autostart=1';
 
 export function HeroPromptArea() {
   const router = useRouter();
-  const { data: session, isPending } = authClient.useSession();
+  const { data: session, status } = useAuthSession();
   const { openAuthModal } = useAuthModal();
   const { error: toastError } = useToast();
   const {
@@ -79,9 +78,9 @@ export function HeroPromptArea() {
       autostart: true,
     });
 
-    if (isPending) return;
+    if (status === 'loading') return;
 
-    if (!session?.user) {
+    if (status === 'unauthenticated' || !session?.user) {
       openLogin();
       return;
     }
