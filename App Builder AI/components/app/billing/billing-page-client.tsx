@@ -401,8 +401,8 @@ export function BillingPageClient({
                   className={cn(
                     'inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition-all',
                     'bg-gradient-to-r from-appweaver-orange to-[#ff6b35]',
-                    'shadow-[0_2px_12px_rgba(109,94,248,0.35)]',
-                    'hover:brightness-110 hover:shadow-[0_4px_20px_rgba(109,94,248,0.45)]',
+                    'shadow-[0_2px_12px_rgba(255,60,0,0.35)]',
+                    'hover:brightness-110 hover:shadow-[0_4px_20px_rgba(255,60,0,0.45)]',
                     'disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none',
                   )}>
                   {isPending ? (

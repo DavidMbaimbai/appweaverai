@@ -51,8 +51,8 @@
   --background: #faf6f1;
   --header-bg: #faf6f1;
 
-  --appweaver-orange: #6d5ef8;
-  --appweaver-orange-mid: #9c8bff;
+  --appweaver-orange: #ff3c00;
+  --appweaver-orange-mid: #ff764c;
 
   --text-primary: #0e0e0f;
   --text-secondary: #36373b;
@@ -116,7 +116,7 @@
   --app-category-border: #e3e2dd;
   --app-carousel-arrow: #f1efe9;
   --app-accent-blue: #3d6fd4;
-  --app-glow: rgba(109, 94, 248, 0.06);
+  --app-glow: rgba(255, 60, 0, 0.05);
 }
 
 @theme inline {

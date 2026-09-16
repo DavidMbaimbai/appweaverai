@@ -9,8 +9,8 @@
 
 import { BRAND_LOGO_CID } from '@/lib/email';
 
-const ORANGE = '#6d5ef8';
-const ORANGE_MID = '#9c8bff';
+const ORANGE = '#ff3c00';
+const ORANGE_MID = '#ff764c';
 const BG = '#faf6f1';
 const TEXT_PRIMARY = '#0e0e0f';
 const TEXT_MUTED = '#696c74';

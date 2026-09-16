@@ -110,11 +110,16 @@ export async function POST(
             return;
           }
         } else if (parsed.data.content) {
+          const userMessageMetadata: AgentMessageMetadata = {
+            authorId: userId,
+            authorName: session.user.name || session.user.email || 'Someone',
+          };
           await prisma.agentMessage.create({
             data: {
               conversationId,
               role: 'USER',
               content: parsed.data.content,
+              metadata: userMessageMetadata,
             },
           });
         } else {

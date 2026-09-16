@@ -61,7 +61,7 @@ export async function submitSalesInquiryAction(
           <p style="margin:0 0 4px;color:#696c74;font-size:13px;">Name</p>
           <p style="margin:0 0 12px;">${escapeHtml(name)}</p>
           <p style="margin:0 0 4px;color:#696c74;font-size:13px;">Email</p>
-          <p style="margin:0 0 12px;"><a href="mailto:${escapeHtml(email)}" style="color:#6d5ef8;">${escapeHtml(email)}</a></p>
+          <p style="margin:0 0 12px;"><a href="mailto:${escapeHtml(email)}" style="color:#ff3c00;">${escapeHtml(email)}</a></p>
           ${company ? `<p style="margin:0 0 4px;color:#696c74;font-size:13px;">Company</p><p style="margin:0 0 12px;">${escapeHtml(company)}</p>` : ''}
           ${teamSize ? `<p style="margin:0 0 4px;color:#696c74;font-size:13px;">Team size</p><p style="margin:0 0 12px;">${escapeHtml(teamSize)}</p>` : ''}
           <p style="margin:0 0 4px;color:#696c74;font-size:13px;">Message</p>

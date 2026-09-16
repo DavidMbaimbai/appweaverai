@@ -36,6 +36,14 @@ export type AgentMessageMetadata = {
     mimeType: string | null;
     sizeBytes: number;
   }>;
+  /**
+   * Who prompted/produced this turn. Lets a shared, multi-user project
+   * conversation show "Alex asked for a login page" / "Agent finished
+   * Alex's request" instead of an anonymous "You" — important once more
+   * than one teammate is building in the same project at once.
+   */
+  authorId?: string;
+  authorName?: string;
 };
 
 export type AgentStreamEvent =

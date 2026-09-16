@@ -179,7 +179,7 @@ export function ArtifactPreview({
     return (
       <div
         className={cn(
-          'relative flex flex-1 items-center justify-center overflow-hidden bg-[radial-gradient(ellipse_70%_50%_at_50%_0%,rgba(109,94,248,0.06),transparent_60%),linear-gradient(180deg,var(--app-surface)_0%,var(--app-bg)_100%)] p-8',
+          'relative flex flex-1 items-center justify-center overflow-hidden bg-[radial-gradient(ellipse_70%_50%_at_50%_0%,rgba(255,60,0,0.06),transparent_60%),linear-gradient(180deg,var(--app-surface)_0%,var(--app-bg)_100%)] p-8',
           className,
         )}>
         <div
