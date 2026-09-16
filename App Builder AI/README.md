@@ -85,8 +85,12 @@ The Stripe webhook endpoint for this app is:
 https://YOUR_DOMAIN/api/webhooks/stripe
 ```
 
-Listen for `checkout.session.completed`, `customer.subscription.updated`, and
-`customer.subscription.deleted`.
+Listen for `checkout.session.completed`, `invoice.paid`,
+`customer.subscription.updated`, and `customer.subscription.deleted`.
+`checkout.session.completed` sends the "you're subscribed" welcome email,
+`invoice.paid` sends a receipt email for every successful charge (first
+payment and renewals alike) — both must be enabled on the webhook endpoint
+for billing emails to go out.
 
 You can start editing the app by modifying files under `app/` and `components/`. Pages auto-update as you edit.
 

@@ -30,6 +30,8 @@ export const ADMIN_PERMISSIONS = [
   'exports:read',
   'feedback:read',
   'feedback:write',
+  'sso:read',
+  'sso:write',
 ] as const;
 
 export type AdminPermission = (typeof ADMIN_PERMISSIONS)[number];
@@ -62,6 +64,8 @@ const ROLE_PERMISSIONS: Record<AdminRole, Set<AdminPermission>> = {
     'exports:read',
     'feedback:read',
     'feedback:write',
+    'sso:read',
+    'sso:write',
   ]),
   FINANCE_ADMIN: new Set<AdminPermission>([
     'dashboard:read',
@@ -97,6 +101,8 @@ const ROLE_PERMISSIONS: Record<AdminRole, Set<AdminPermission>> = {
     'security:read',
     'security:write',
     'system_health:read',
+    'sso:read',
+    'sso:write',
   ]),
 };
 

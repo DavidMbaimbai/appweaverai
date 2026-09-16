@@ -20,7 +20,9 @@ export function PricingPlanClient({
       ? {
           ...plan,
           monthlyPrice: proMonthlyPrice,
-          yearlyPrice: Math.round(proMonthlyPrice * 0.9),
+          // 20% annual discount, matching the Builder/Business plans'
+          // "pay yearly, save" pricing pattern (see lib/landing-data.ts).
+          yearlyPrice: Math.round(proMonthlyPrice * 0.8),
           originalPrice: proMonthlyPrice,
         }
       : plan,

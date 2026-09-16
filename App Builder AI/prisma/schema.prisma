@@ -89,6 +89,7 @@ model User {
   aiUsageEvents     AiUsageEvent[]
   creditAdjustments CreditAdjustment[] @relation("CreditAdjustmentTarget")
   flags             UserFlag[]         @relation("FlaggedUser")
+  ssoProvidersRegistered SsoProvider[]
 
   @@index([adminRole])
   @@index([accountStatus])
@@ -187,6 +188,29 @@ model StripeEvent {
   createdAt DateTime @default(now()) @map("created_at")
 
   @@map("stripe_events")
+}
+
+/// Enterprise SSO/SAML connections, managed by the @better-auth/sso plugin
+/// (see lib/auth.ts). Registration is gated to internal Admin Console staff
+/// (see lib/admin/actions/sso.ts) rather than exposed for customer
+/// self-service, since Enterprise SSO onboarding is handled through our
+/// sales/support process.
+model SsoProvider {
+  id             String   @id @default(cuid())
+  issuer         String
+  oidcConfig     String?  @db.Text
+  samlConfig     String?  @db.Text
+  userId         String?  @map("user_id")
+  providerId     String   @unique @map("provider_id")
+  organizationId String?  @map("organization_id")
+  domain         String
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([domain])
+  @@map("sso_providers")
 }
 
 enum AuthReminderKind {
@@ -312,6 +336,11 @@ model Project {
   suspendedById   String?            @map("suspended_by_id")
   archivedAt      DateTime?          @map("archived_at")
 
+  /// Set when this project was created via the "Remix" action from a
+  /// publicly-published project. Used to show remix counts in the gallery
+  /// (Replit/Lovable-style community discovery).
+  remixedFromProjectId String? @map("remixed_from_project_id")
+
   workspace     Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   createdBy     User                    @relation("ProjectCreator", fields: [createdById], references: [id], onDelete: Restrict)
   members       ProjectMember[]
@@ -330,8 +359,11 @@ model Project {
   aiUsageEvents AiUsageEvent[]
   flags         ProjectFlag[]
   pageViews     ProjectPageView[]
+  remixedFrom   Project?                @relation("ProjectRemixes", fields: [remixedFromProjectId], references: [id], onDelete: SetNull)
+  remixes       Project[]               @relation("ProjectRemixes")
 
   @@unique([workspaceId, slug])
+  @@index([remixedFromProjectId])
   @@index([workspaceId, updatedAt])
   @@index([workspaceId, deletedAt])
   @@index([createdById])

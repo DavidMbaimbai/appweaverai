@@ -1,8 +1,11 @@
 import { prismaAdapter } from '@better-auth/prisma-adapter';
 import { betterAuth } from 'better-auth';
+import { createAuthMiddleware, APIError, getSessionFromCtx } from 'better-auth/api';
 import { nextCookies } from 'better-auth/next-js';
 import { emailOTP } from 'better-auth/plugins';
+import { sso } from '@better-auth/sso';
 import { prisma } from './prisma';
+import { hasPermission } from './admin/permissions';
 import { provisionNewUser } from './auth/provision-user';
 import { recordAuthActivity } from './auth/record-auth-activity';
 import {
@@ -54,9 +57,61 @@ function getClientIpFromHeaders(
   return read('x-real-ip') ?? read('cf-connecting-ip') ?? null;
 }
 
+/**
+ * Enterprise SSO (@better-auth/sso) exposes provider management endpoints
+ * (`/sso/register`, `/sso/update-provider`, `/sso/delete-provider`,
+ * `/sso/providers`, `/sso/get-provider`, `/sso/request-domain-verification`,
+ * `/sso/verify-domain`) to ANY authenticated session by default. Onboarding
+ * an Enterprise customer's identity provider is handled by our own staff
+ * (see lib/admin/actions/sso.ts), never self-service by regular customers,
+ * so we hard-block those management routes here unless the caller is an
+ * admin with the `sso:write` permission. `/sso/callback*` and
+ * `/sign-in/sso` (actual SSO sign-in) are intentionally left open — those
+ * must remain reachable by anyone signing in.
+ */
+const SSO_MANAGEMENT_PATH_PREFIXES = [
+  '/sso/register',
+  '/sso/update-provider',
+  '/sso/delete-provider',
+  '/sso/providers',
+  '/sso/get-provider',
+  '/sso/request-domain-verification',
+  '/sso/verify-domain',
+];
+
 export const auth = betterAuth({
   baseURL: process.env.BETTER_AUTH_URL,
   secret: process.env.BETTER_AUTH_SECRET,
+  hooks: {
+    before: createAuthMiddleware(async (ctx) => {
+      if (!SSO_MANAGEMENT_PATH_PREFIXES.some((p) => ctx.path.startsWith(p))) {
+        return;
+      }
+
+      const session = await getSessionFromCtx(ctx);
+      const userId = session?.user?.id;
+      if (!userId) {
+        throw new APIError('UNAUTHORIZED');
+      }
+
+      const admin = useDatabase
+        ? await prisma.user.findUnique({
+            where: { id: userId },
+            select: { adminRole: true, accountStatus: true },
+          })
+        : null;
+
+      if (
+        !admin ||
+        admin.accountStatus !== 'ACTIVE' ||
+        !hasPermission(admin.adminRole, 'sso:write')
+      ) {
+        throw new APIError('FORBIDDEN', {
+          message: 'SSO provider management is restricted to staff.',
+        });
+      }
+    }),
+  },
   ...(useDatabase
     ? {
         database: prismaAdapter(prisma, {
@@ -224,6 +279,12 @@ export const auth = betterAuth({
           text: `Your AppWeaver AI verification code is ${otp}. It expires in 10 minutes.`,
         });
       },
+    }),
+    sso({
+      // Multi-tenant "organization" linking isn't set up in this app —
+      // customers sign in via email/domain matching instead (see
+      // authClient.signIn.sso in the auth modal).
+      organizationProvisioning: { disabled: true },
     }),
     nextCookies(),
   ],

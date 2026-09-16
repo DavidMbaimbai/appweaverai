@@ -20,6 +20,7 @@ import {
 } from "@/lib/publish/visibility";
 import { prisma } from "@/lib/prisma";
 import { recordUserActivity } from "@/lib/activity/record-user-activity";
+import { captureProjectScreenshots } from "@/lib/gallery/capture-screenshot";
 
 const publishSchema = z.object({
   projectId: z.string().min(1),
@@ -143,6 +144,14 @@ export async function publishProjectAction(
   revalidatePath("/app/projects");
   revalidatePath(`/app/projects/${project.workspace.slug}/${project.slug}`);
   revalidatePath(urlPath);
+
+  // Only PUBLIC deployments are visible to anonymous visitors, which is
+  // required for the headless capture request below to succeed (private /
+  // workspace-only previews require an authenticated session). Fire this
+  // off without awaiting so a slow/failed screenshot never delays publish.
+  if (visibility === "public") {
+    captureProjectScreenshots(project.id, project.artifacts);
+  }
 
   await recordUserActivity({
     userId,

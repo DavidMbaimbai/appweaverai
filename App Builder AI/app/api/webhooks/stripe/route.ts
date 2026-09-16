@@ -3,7 +3,12 @@ import type Stripe from 'stripe';
 
 import { prisma } from '@/lib/prisma';
 import { syncUserSubscription } from '@/lib/billing/stripe-subscription';
-import { getStripeClient } from '@/lib/stripe';
+import {
+  PAID_PLAN_LABELS,
+  sendPaymentReceiptEmail,
+  sendSubscriptionConfirmationEmail,
+} from '@/lib/billing/receipts';
+import { getStripeClient, getPlanIdsByPriceId } from '@/lib/stripe';
 
 async function markEventProcessed(eventId: string) {
   const existing = await prisma.stripeEvent.findUnique({
@@ -24,6 +29,23 @@ async function resolveUserIdFromCustomer(customerId: string) {
   });
 
   return user?.id ?? null;
+}
+
+async function notifyUser(
+  userId: string,
+  notify: (user: { email: string | null; name: string | null }) => Promise<void>,
+) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { email: true, name: true },
+  });
+  if (!user?.email) return;
+
+  try {
+    await notify(user);
+  } catch (error) {
+    console.error(`Failed to send billing email to user ${userId}:`, error);
+  }
 }
 
 export async function POST(request: Request) {
@@ -72,12 +94,18 @@ export async function POST(request: Request) {
             : session.subscription?.id;
 
         if (userId && customerId) {
+          let planId = session.metadata?.planId ?? 'pro';
+
           if (subscriptionId) {
             const subscription =
               await stripe.subscriptions.retrieve(subscriptionId);
             await syncUserSubscription(userId, subscription, customerId);
+            const priceId = subscription.items.data[0]?.price?.id;
+            planId =
+              (priceId && getPlanIdsByPriceId()[priceId]) ||
+              (subscription.metadata?.planId as string | undefined) ||
+              planId;
           } else {
-            const planId = session.metadata?.planId ?? 'pro';
             await prisma.user.update({
               where: { id: userId },
               data: {
@@ -87,6 +115,38 @@ export async function POST(request: Request) {
               },
             });
           }
+
+          const planLabel = PAID_PLAN_LABELS[planId] ?? 'Pro';
+          await notifyUser(userId, (user) =>
+            sendSubscriptionConfirmationEmail({
+              email: user.email,
+              name: user.name,
+              planLabel,
+            }),
+          );
+        }
+        break;
+      }
+
+      case 'invoice.paid': {
+        const invoice = event.data.object as Stripe.Invoice;
+        const customerId =
+          typeof invoice.customer === 'string'
+            ? invoice.customer
+            : invoice.customer?.id;
+
+        const userId = customerId
+          ? await resolveUserIdFromCustomer(customerId)
+          : null;
+
+        if (userId) {
+          await notifyUser(userId, (user) =>
+            sendPaymentReceiptEmail({
+              email: user.email,
+              name: user.name,
+              invoice,
+            }),
+          );
         }
         break;
       }

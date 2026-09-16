@@ -27,6 +27,13 @@ function formatDate(date: Date) {
   }).format(date);
 }
 
+/** Canonical display names for paid plan ids, shared across billing emails. */
+export const PAID_PLAN_LABELS: Record<string, string> = {
+  builder: 'Builder',
+  pro: 'Pro',
+  business: 'Business',
+};
+
 /** Sent once right after a checkout completes and a subscription becomes active. */
 export async function sendSubscriptionConfirmationEmail({
   email,

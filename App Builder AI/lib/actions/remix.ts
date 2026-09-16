@@ -105,6 +105,7 @@ export async function remixProjectAction(sourceProjectId: string) {
       description: `Remixed from "${source.name}"`,
       workspaceId: workspace.id,
       createdById: userId,
+      remixedFromProjectId: source.id,
       members: { create: { userId, role: 'OWNER' } },
       preferences: { create: { userId, lastOpenedAt: new Date() } },
       artifacts: {
