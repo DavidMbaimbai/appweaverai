@@ -81,6 +81,9 @@ model User {
   projectInvitesSent   ProjectInvitation[]     @relation("ProjectInviter")
   agentConversations   AgentConversation[]
   deploymentsCreated   Deployment[]            @relation("DeploymentCreator")
+  projectCheckpointsCreated ProjectCheckpoint[] @relation("ProjectCheckpointCreator")
+  projectGithubLinksConnected ProjectGithubLink[] @relation("ProjectGithubLinkConnector")
+  githubConnection     UserGithubConnection?
   settings             UserSettings?
 
   aiUsageEvents     AiUsageEvent[]
@@ -110,6 +113,23 @@ model UserSettings {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("user_settings")
+}
+
+/// Stores a user's personal-access-token connection to their own GitHub
+/// account, used for the "Export to GitHub" feature (create/push a repo for
+/// a project). The token is encrypted at rest with lib/crypto/secret-box.ts.
+model UserGithubConnection {
+  id                   String   @id @default(cuid())
+  userId               String   @unique @map("user_id")
+  githubUsername       String   @map("github_username")
+  encryptedAccessToken String   @map("encrypted_access_token") @db.Text
+  scopes               String?
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_github_connections")
 }
 
 model Account {
@@ -167,6 +187,31 @@ model StripeEvent {
   createdAt DateTime @default(now()) @map("created_at")
 
   @@map("stripe_events")
+}
+
+enum AuthReminderKind {
+  SIGNUP
+  PASSWORD_RESET
+}
+
+/// Tracks an in-progress signup (email verification) or password-reset
+/// attempt so we can nudge the user with a reminder email if they never
+/// finish within 30 minutes. Resolved automatically once the user
+/// verifies their email / resets their password / signs in successfully.
+model PendingAuthReminder {
+  id          String           @id @default(cuid())
+  email       String
+  kind        AuthReminderKind
+  createdAt   DateTime         @default(now()) @map("created_at")
+  /// When the reminder email should go out (createdAt + 30 minutes),
+  /// refreshed each time the user re-requests a code for the same flow.
+  remindAfter DateTime         @map("remind_after")
+  reminderSentAt DateTime?     @map("reminder_sent_at")
+  resolvedAt  DateTime?        @map("resolved_at")
+
+  @@index([kind, remindAfter, reminderSentAt, resolvedAt])
+  @@index([email, kind])
+  @@map("pending_auth_reminders")
 }
 
 // -----------------------------------------------------------------------------
@@ -276,8 +321,11 @@ model Project {
   files         ProjectFile[]
   databases     ProjectDatabase[]
   storage       ProjectStorage?
+  githubLink    ProjectGithubLink?
+  customDomain  ProjectCustomDomain?
   secrets       ProjectSecret[]
   deployments   Deployment[]
+  checkpoints   ProjectCheckpoint[]
   conversations AgentConversation[]
   aiUsageEvents AiUsageEvent[]
   flags         ProjectFlag[]
@@ -451,6 +499,46 @@ model ProjectStorage {
   @@map("project_storages")
 }
 
+/// Tracks a project's linked GitHub repository for export/sync (ADM-parity with
+/// Lovable/Replit "Export to GitHub"). One project links to at most one repo.
+model ProjectGithubLink {
+  id             String    @id @default(cuid())
+  projectId      String    @unique @map("project_id")
+  repoOwner      String    @map("repo_owner")
+  repoName       String    @map("repo_name")
+  repoFullName   String    @map("repo_full_name")
+  defaultBranch  String    @default("main") @map("default_branch")
+  htmlUrl        String    @map("html_url")
+  private        Boolean   @default(true)
+  connectedById  String    @map("connected_by_id")
+  lastSyncedAt   DateTime? @map("last_synced_at")
+  lastSyncedById String?   @map("last_synced_by_id")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  project      Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  connectedBy  User    @relation("ProjectGithubLinkConnector", fields: [connectedById], references: [id], onDelete: Restrict)
+
+  @@map("project_github_links")
+}
+
+/// A verified custom domain pointing at a project's published deployment.
+/// Verified via a DNS TXT record; once verified, requests to `domain` are
+/// rewritten (see middleware.ts) to the project's published path.
+model ProjectCustomDomain {
+  id                String    @id @default(cuid())
+  projectId         String    @unique @map("project_id")
+  domain            String    @unique
+  verificationToken String    @map("verification_token")
+  verifiedAt        DateTime? @map("verified_at")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("project_custom_domains")
+}
+
 /// Editor and deployment secrets (API keys, DATABASE_URL for user apps, etc.).
 model ProjectSecret {
   id          String              @id @default(cuid())
@@ -488,6 +576,48 @@ model ProjectFile {
   @@index([projectId, updatedAt])
   @@index([artifactId])
   @@map("project_files")
+}
+
+// -----------------------------------------------------------------------------
+// Version history — lightweight file snapshots so agent-driven changes can be
+// rolled back (an automatic checkpoint is taken after every agent turn that
+// writes files, plus users can save a named checkpoint manually).
+// -----------------------------------------------------------------------------
+
+model ProjectCheckpoint {
+  id          String   @id @default(cuid())
+  projectId   String   @map("project_id")
+  label       String
+  description String?  @db.Text
+  /// false for user-triggered "Save checkpoint" — these are never
+  /// auto-pruned, unlike automatic post-turn snapshots.
+  isAutomatic Boolean  @default(true) @map("is_automatic")
+  createdById String?  @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  project   Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdBy User?                   @relation("ProjectCheckpointCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  files     ProjectCheckpointFile[]
+
+  @@index([projectId, createdAt])
+  @@index([projectId, isAutomatic, createdAt])
+  @@map("project_checkpoints")
+}
+
+/// Records which files (and sizes) existed at snapshot time. The actual
+/// bytes are copied on disk under project-workspace/{projectId}/.checkpoints/{id}/.
+model ProjectCheckpointFile {
+  id           String  @id @default(cuid())
+  checkpointId String  @map("checkpoint_id")
+  path         String
+  mimeType     String? @map("mime_type")
+  sizeBytes    Int     @default(0) @map("size_bytes")
+
+  checkpoint ProjectCheckpoint @relation(fields: [checkpointId], references: [id], onDelete: Cascade)
+
+  @@unique([checkpointId, path])
+  @@index([checkpointId])
+  @@map("project_checkpoint_files")
 }
 
 // -----------------------------------------------------------------------------

@@ -1,3 +1,5 @@
+import { RemixButton } from './remix-button';
+
 type PublishedProjectViewerProps = {
   project: {
     id: string;
@@ -29,13 +31,18 @@ export function PublishedProjectViewer({
                 : 'Only you'}
           </p>
         </div>
-        <a
-          href={previewUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="rounded-lg border border-white/15 px-3 py-1.5 text-xs text-white/80 transition-colors hover:bg-white/10">
-          Open full screen
-        </a>
+        <div className="flex items-center gap-2">
+          {project.visibility === 'public' ? (
+            <RemixButton projectId={project.id} />
+          ) : null}
+          <a
+            href={previewUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="rounded-lg border border-white/15 px-3 py-1.5 text-xs text-white/80 transition-colors hover:bg-white/10">
+            Open full screen
+          </a>
+        </div>
       </header>
       <iframe
         title={project.name}

@@ -1,7 +1,9 @@
 'use server';
 
 import { requireUser } from '@/lib/auth/require-user';
-import { syncUserFromCheckoutSession } from '@/lib/billing/stripe-subscription';
+import { syncUserFromCheckoutSession, syncUserSubscription } from '@/lib/billing/stripe-subscription';
+import { getSubscriptionPeriodEnd } from '@/lib/billing/subscription-display';
+import { sendSubscriptionCanceledEmail } from '@/lib/billing/receipts';
 import { prisma } from '@/lib/prisma';
 import {
   getAppBaseUrl,
@@ -17,6 +19,7 @@ const billingUserSelect = {
   email: true,
   name: true,
   stripeCustomerId: true,
+  stripeSubscriptionId: true,
   subscriptionPlan: true,
   subscriptionStatus: true,
 } as const;
@@ -162,6 +165,97 @@ export async function syncBillingAfterCheckoutAction(sessionId: string) {
   } catch (error) {
     const message =
       error instanceof Error ? error.message : 'Could not sync subscription.';
+    return { error: message };
+  }
+}
+
+/**
+ * Schedules the user's active subscription to cancel at the end of the
+ * current billing period (they keep access until then — no immediate loss
+ * of service). Used by the in-app "Cancel subscription" action on the
+ * billing page so users don't have to leave the app / go through the
+ * Stripe portal just to cancel.
+ */
+export async function cancelSubscriptionAction() {
+  const result = await requireUser(billingUserSelect);
+  if (result.error || !result.user) {
+    return { error: result.error };
+  }
+
+  if (!result.user.stripeSubscriptionId) {
+    return { error: 'No active subscription found.' };
+  }
+
+  try {
+    const stripe = getStripeClient();
+    const subscription = await stripe.subscriptions.update(
+      result.user.stripeSubscriptionId,
+      { cancel_at_period_end: true },
+    );
+
+    await syncUserSubscription(
+      result.user.id,
+      subscription,
+      result.user.stripeCustomerId,
+    );
+
+    const periodEnd = getSubscriptionPeriodEnd(subscription);
+    await sendSubscriptionCanceledEmail({
+      email: result.user.email,
+      name: result.user.name,
+      accessUntilLabel: periodEnd
+        ? new Intl.DateTimeFormat('en-US', {
+            month: 'long',
+            day: 'numeric',
+            year: 'numeric',
+          }).format(periodEnd)
+        : null,
+    });
+
+    return { success: true as const };
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : 'Could not cancel your subscription.';
+    return { error: message };
+  }
+}
+
+/**
+ * Reverses a scheduled cancellation (cancel_at_period_end) so the
+ * subscription keeps renewing as normal. Used by the in-app "Reactivate
+ * subscription" action.
+ */
+export async function reactivateSubscriptionAction() {
+  const result = await requireUser(billingUserSelect);
+  if (result.error || !result.user) {
+    return { error: result.error };
+  }
+
+  if (!result.user.stripeSubscriptionId) {
+    return { error: 'No subscription found.' };
+  }
+
+  try {
+    const stripe = getStripeClient();
+    const subscription = await stripe.subscriptions.update(
+      result.user.stripeSubscriptionId,
+      { cancel_at_period_end: false },
+    );
+
+    await syncUserSubscription(
+      result.user.id,
+      subscription,
+      result.user.stripeCustomerId,
+    );
+
+    return { success: true as const };
+  } catch (error) {
+    const message =
+      error instanceof Error
+        ? error.message
+        : 'Could not reactivate your subscription.';
     return { error: message };
   }
 }

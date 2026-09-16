@@ -4,6 +4,7 @@ import { headers } from 'next/headers';
 
 import { auth } from '@/lib/auth';
 import { recordEmailVerificationLocation } from '@/lib/auth/record-auth-activity';
+import { resolvePendingAuthReminders } from '@/lib/auth/pending-reminders';
 
 async function getRequestIp() {
   const h = await headers();
@@ -27,4 +28,21 @@ export async function recordEmailVerifiedAction() {
     userId: session.user.id,
     ipAddress: await getRequestIp(),
   });
+
+  // Signup is now complete — cancel any pending "finish signing up"
+  // reminder email that would otherwise fire 30 minutes from now.
+  if (session.user.email) {
+    await resolvePendingAuthReminders(session.user.email, 'SIGNUP');
+  }
 }
+
+/**
+ * Called from the sign-up modal right after a password reset succeeds
+ * (components/auth/auth-modal.tsx). Cancels any pending "still having
+ * trouble signing in?" reminder email for this address.
+ */
+export async function resolvePasswordResetReminderAction(email: string) {
+  if (!email) return;
+  await resolvePendingAuthReminders(email, 'PASSWORD_RESET');
+}
+

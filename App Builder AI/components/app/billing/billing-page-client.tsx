@@ -1,13 +1,15 @@
 'use client';
 
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState, useTransition } from 'react';
 
 import {
+  cancelSubscriptionAction,
   createBillingPortalSessionAction,
   createPlanCheckoutSessionAction,
   createProCheckoutSessionAction,
+  reactivateSubscriptionAction,
 } from '@/lib/actions/billing';
 import {
   FREE_PLAN_FEATURES,
@@ -16,6 +18,7 @@ import {
 import type { PaidPlanId, ProPlanInfo } from '@/lib/stripe';
 import type { SubscriptionDisplayInfo } from '@/lib/billing/stripe-subscription';
 import type { BillingPeriod } from '@/lib/types';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { cn } from '@/lib/utils';
 
 const PAID_PLAN_IDS: PaidPlanId[] = ['builder', 'pro', 'business'];
@@ -59,9 +62,14 @@ export function BillingPageClient({
   justUpgraded = false,
 }: BillingPageClientProps) {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const [autoRedirectFailed, setAutoRedirectFailed] = useState(false);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const [isCanceling, setIsCanceling] = useState(false);
+  const [isReactivating, setIsReactivating] = useState(false);
   const hasTriggeredAutoUpgrade = useRef(false);
 
   const checkoutStatus = searchParams.get('checkout');
@@ -119,6 +127,37 @@ export function BillingPageClient({
         return;
       }
       if (result?.error) setError(result.error);
+    });
+  }
+
+  function handleCancelSubscription() {
+    setError(null);
+    setIsCanceling(true);
+    void cancelSubscriptionAction().then((result) => {
+      setIsCanceling(false);
+      setShowCancelConfirm(false);
+      if (result?.error) {
+        setError(result.error);
+        return;
+      }
+      setNotice(
+        'Your subscription has been canceled and will not renew. You keep access until the end of your current billing period.',
+      );
+      router.refresh();
+    });
+  }
+
+  function handleReactivateSubscription() {
+    setError(null);
+    setIsReactivating(true);
+    void reactivateSubscriptionAction().then((result) => {
+      setIsReactivating(false);
+      if (result?.error) {
+        setError(result.error);
+        return;
+      }
+      setNotice('Your subscription has been reactivated and will renew as normal.');
+      router.refresh();
     });
   }
 
@@ -212,6 +251,12 @@ export function BillingPageClient({
         {checkoutStatus === 'cancel' ? (
           <p className="rounded-xl border border-app-border bg-app-surface px-4 py-3 text-sm text-app-text-muted">
             Checkout was canceled. You can upgrade anytime.
+          </p>
+        ) : null}
+
+        {notice ? (
+          <p className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
+            {notice}
           </p>
         ) : null}
 
@@ -356,8 +401,8 @@ export function BillingPageClient({
                   className={cn(
                     'inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition-all',
                     'bg-gradient-to-r from-appweaver-orange to-[#ff6b35]',
-                    'shadow-[0_2px_12px_rgba(255,60,0,0.35)]',
-                    'hover:brightness-110 hover:shadow-[0_4px_20px_rgba(255,60,0,0.45)]',
+                    'shadow-[0_2px_12px_rgba(109,94,248,0.35)]',
+                    'hover:brightness-110 hover:shadow-[0_4px_20px_rgba(109,94,248,0.45)]',
                     'disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none',
                   )}>
                   {isPending ? (
@@ -400,6 +445,26 @@ export function BillingPageClient({
                 </button>
               ) : null}
 
+              {plan === 'pro' && subscription?.cancelAtPeriodEnd ? (
+                <button
+                  type="button"
+                  onClick={handleReactivateSubscription}
+                  disabled={isReactivating}
+                  className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-5 py-2.5 text-sm font-medium text-emerald-200 transition-colors hover:bg-emerald-500/20 disabled:opacity-50">
+                  {isReactivating ? 'Reactivating…' : 'Reactivate subscription'}
+                </button>
+              ) : null}
+
+              {plan === 'pro' && !subscription?.cancelAtPeriodEnd ? (
+                <button
+                  type="button"
+                  onClick={() => setShowCancelConfirm(true)}
+                  disabled={isPending}
+                  className="rounded-xl border border-app-border px-5 py-2.5 text-sm font-medium text-app-text-muted transition-colors hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-300 disabled:opacity-50">
+                  Cancel subscription
+                </button>
+              ) : null}
+
               {plan === 'free' ? (
                 <Link
                   href="/app"
@@ -411,6 +476,18 @@ export function BillingPageClient({
           </div>
         </section>
       </div>
+
+      <ConfirmDialog
+        open={showCancelConfirm}
+        onClose={() => setShowCancelConfirm(false)}
+        onConfirm={handleCancelSubscription}
+        title="Cancel your subscription?"
+        description="You'll keep access to Pro features until the end of your current billing period, after which your account moves to the free plan. You can reactivate anytime before then."
+        confirmLabel="Cancel subscription"
+        cancelLabel="Keep subscription"
+        variant="destructive"
+        isPending={isCanceling}
+      />
     </div>
   );
 }

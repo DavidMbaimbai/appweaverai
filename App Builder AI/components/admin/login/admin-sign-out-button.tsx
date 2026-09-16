@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { authClient } from '@/lib/auth-client';
+import { PencilIcon } from '@/components/app/shell/user-area-icons';
 import { cn } from '@/lib/utils';
 
 /**
@@ -14,7 +15,7 @@ export function AdminSignOutButton({
   icon = false,
 }: {
   className?: string;
-  /** Shows a small red trash/sign-out icon before the label. */
+  /** Shows a small red pencil icon before the label. */
   icon?: boolean;
 }) {
   const [isLoading, setIsLoading] = useState(false);
@@ -42,33 +43,10 @@ export function AdminSignOutButton({
         className,
       )}>
       {icon ? (
-        <SignOutIcon className="h-3.5 w-3.5 shrink-0 text-red-500" />
+        <PencilIcon className="h-3.5 w-3.5 shrink-0 text-red-500" />
       ) : null}
       {isLoading ? 'Signing out…' : 'Sign out'}
     </button>
   );
 }
 
-function SignOutIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true">
-      <path
-        d="M10 7V6a2 2 0 0 1 2-2h7v16h-7a2 2 0 0 1-2-2v-1"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-      />
-      <path
-        d="M14 12H4m0 0 3-3M4 12l3 3"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}

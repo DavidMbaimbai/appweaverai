@@ -1,7 +1,7 @@
 'use client';
 
 import { cn } from '@/lib/utils';
-import { TrashIcon } from '../app/shell/user-area-icons';
+import { PencilIcon } from '../app/shell/user-area-icons';
 import { AppModalBackdrop } from './app-modal';
 import { Button } from './button';
 
@@ -53,10 +53,10 @@ export function ConfirmDialog({
               className={cn(
                 'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl',
                 variant === 'destructive'
-                  ? 'bg-appweaver-orange/10 text-appweaver-orange'
+                  ? 'bg-red-500/10 text-red-500'
                   : 'bg-app-surface-active text-app-text-secondary',
               )}>
-              <TrashIcon className="h-4 w-4" />
+              <PencilIcon className="h-4 w-4" />
             </div>
             <div className="min-w-0 flex-1">
               <h2

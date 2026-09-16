@@ -10,7 +10,10 @@ import { OAuthButton } from './oauth-button';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { AppWeaverLogo } from '../ui/appweaver-logo';
-import { recordEmailVerifiedAction } from '@/lib/auth/actions';
+import {
+  recordEmailVerifiedAction,
+  resolvePasswordResetReminderAction,
+} from '@/lib/auth/actions';
 import { useAuthSession } from './session-provider';
 
 const DEFAULT_CALLBACK_URL = '/app';
@@ -490,6 +493,10 @@ export function AuthModal() {
       password: newPassword,
       fetchOptions: {
         onSuccess: () => {
+          // The reset succeeded — cancel any pending "still having trouble
+          // signing in?" reminder email for this address.
+          void resolvePasswordResetReminderAction(pendingResetEmail);
+
           // Automatically sign the user in with their new password rather
           // than bouncing them back to a plain login form.
           void authClient.signIn.email({

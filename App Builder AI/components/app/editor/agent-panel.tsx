@@ -114,9 +114,20 @@ export function AgentPanel({
   const [liveRun, setLiveRun] = useState<LiveRunState | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const [planModeActive, setPlanModeActive] = useState(project.planMode);
+  const [otherUserRun, setOtherUserRun] = useState<{ name: string } | null>(
+    null,
+  );
   const initialReplyStarted = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const lastActivityKeyRef = useRef('');
+  const isStreamingRef = useRef(isStreaming);
+  const syncCursorRef = useRef<string | null>(
+    project.messages.at(-1)?.createdAt ?? null,
+  );
+
+  useEffect(() => {
+    isStreamingRef.current = isStreaming;
+  }, [isStreaming]);
 
   const activeArtifact =
     project.artifacts.find((artifact) => artifact.id === activeArtifactId) ??
@@ -399,6 +410,86 @@ export function AgentPanel({
       void runAgentStream({ initialReply: true });
     }, 10);
   }, [activeArtifact, messages, project]);
+
+  // Poll for messages/replies from other collaborators with this project
+  // open, and surface a "so-and-so is generating…" indicator while their
+  // turn is in flight. Since files are only ever changed through this
+  // shared AI conversation (there's no free-text collaborative editor),
+  // this is the real-time collaboration layer for this app.
+  useEffect(() => {
+    const conversationId = project.conversationId;
+    if (!conversationId) return;
+
+    let cancelled = false;
+
+    async function poll() {
+      if (isStreamingRef.current) return;
+
+      try {
+        const params = new URLSearchParams({ conversationId: conversationId! });
+        if (syncCursorRef.current) {
+          params.set('after', syncCursorRef.current);
+        }
+
+        const res = await fetch(
+          `/api/projects/${project.id}/agent/sync?${params.toString()}`,
+        );
+        if (!res.ok || cancelled) return;
+
+        const data: {
+          messages: AppAgentMessage[];
+          activeRun: { name: string } | null;
+        } = await res.json();
+        if (cancelled) return;
+
+        if (data.messages.length > 0) {
+          setMessages((current) => {
+            const existingIds = new Set(current.map((item) => item.id));
+            const incoming = data.messages.filter(
+              (item) => !existingIds.has(item.id),
+            );
+            if (incoming.length === 0) return current;
+            return [...current, ...incoming].sort((a, b) =>
+              a.createdAt < b.createdAt ? -1 : 1,
+            );
+          });
+
+          syncCursorRef.current =
+            data.messages[data.messages.length - 1]?.createdAt ??
+            syncCursorRef.current;
+
+          const newAssistantMessages = data.messages.filter(
+            (item) => item.role === 'assistant',
+          );
+          if (newAssistantMessages.length > 0) {
+            onPreviewVersionChange(1);
+            const buildReady = [...newAssistantMessages]
+              .reverse()
+              .find((item) => item.metadata?.buildValid);
+            if (buildReady?.metadata?.presentedArtifactId) {
+              onAgentRunComplete?.({
+                artifactId: buildReady.metadata.presentedArtifactId,
+                buildValid: true,
+                previewVersion: buildReady.metadata.previewVersion ?? 0,
+              });
+            }
+          }
+        }
+
+        setOtherUserRun(data.activeRun ?? null);
+      } catch {
+        // Best-effort — a failed sync just gets retried next tick.
+      }
+    }
+
+    const interval = setInterval(() => void poll(), 4000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project.id, project.conversationId]);
 
   function handleSend(content?: string) {
     const trimmed = (content ?? input).trim();

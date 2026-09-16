@@ -5,6 +5,14 @@ import { emailOTP } from 'better-auth/plugins';
 import { prisma } from './prisma';
 import { provisionNewUser } from './auth/provision-user';
 import { recordAuthActivity } from './auth/record-auth-activity';
+import {
+  sendLoginNotificationEmail,
+  sendWelcomeEmail,
+} from './auth/lifecycle-emails';
+import {
+  resolvePendingAuthReminders,
+  trackPendingAuthReminder,
+} from './auth/pending-reminders';
 import { sendEmail } from './email';
 import { renderBrandedEmail, highlightCodeHtml } from './email-templates';
 import { accountLinkingConfig, getSocialProviders } from './auth/oauth-config';
@@ -96,6 +104,8 @@ export const auth = betterAuth({
                   username:
                     typeof user.username === 'string' ? user.username : null,
                 });
+
+                await sendWelcomeEmail({ email: user.email, name: user.name });
               },
             },
           },
@@ -112,6 +122,7 @@ export const auth = betterAuth({
                 const headerIp = getClientIpFromHeaders(
                   context?.headers ?? context?.request?.headers,
                 );
+                const ipAddress = headerIp || session.ipAddress || null;
 
                 await recordAuthActivity({
                   userId: session.userId,
@@ -121,8 +132,28 @@ export const auth = betterAuth({
                   // correctly) over better-auth's own session.ipAddress,
                   // which behind a reverse proxy / CDN is often the proxy's
                   // own address (or empty) rather than the real client IP.
-                  ipAddress: headerIp || session.ipAddress || null,
+                  ipAddress,
                 });
+
+                // A successful session means whatever they were attempting
+                // (verifying, resetting a password, signing in) went
+                // through — clear any pending 30-minute nudge reminders.
+                const authUser = await prisma.user.findUnique({
+                  where: { id: session.userId },
+                  select: { email: true, name: true },
+                });
+
+                if (authUser?.email) {
+                  await resolvePendingAuthReminders(authUser.email);
+
+                  if (event === 'login') {
+                    await sendLoginNotificationEmail({
+                      email: authUser.email,
+                      name: authUser.name,
+                      ipAddress,
+                    });
+                  }
+                }
               },
             },
             delete: {
@@ -156,6 +187,7 @@ export const auth = betterAuth({
       sendVerificationOnSignUp: true,
       async sendVerificationOTP({ email, otp, type }) {
         if (type === 'forget-password') {
+          await trackPendingAuthReminder(email, 'PASSWORD_RESET');
           await sendEmail({
             to: email,
             subject: `${otp} is your AppWeaver AI password reset code`,
@@ -174,6 +206,8 @@ export const auth = betterAuth({
         }
 
         if (type !== 'email-verification') return;
+
+        await trackPendingAuthReminder(email, 'SIGNUP');
 
         await sendEmail({
           to: email,

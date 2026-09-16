@@ -2,6 +2,7 @@
 
 import { Avatar } from '@/components/ui/avatar';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { PencilIcon } from '@/components/app/shell/user-area-icons';
 import { useToast } from '@/components/ui/toast';
 import {
   removeAccountAvatarAction,
@@ -111,7 +112,7 @@ export function ProfilePhotoSection({
               onClick={() => setConfirmOpen(true)}
               disabled={isPending}
               className="flex h-9 items-center gap-1.5 rounded-lg px-4 text-sm text-red-500 transition-colors hover:bg-red-500/10 hover:text-red-500 disabled:opacity-50">
-              <TrashIcon className="h-3.5 w-3.5 shrink-0" />
+              <PencilIcon className="h-3.5 w-3.5 shrink-0" />
               Remove
             </button>
           ) : null}
@@ -129,23 +130,5 @@ export function ProfilePhotoSection({
         isPending={isPending}
       />
     </section>
-  );
-}
-
-function TrashIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true">
-      <path
-        d="M5 7h14M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7m2 0v11.5A1.5 1.5 0 0 1 15.5 20h-7A1.5 1.5 0 0 1 7 18.5V7"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
   );
 }

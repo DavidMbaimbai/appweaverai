@@ -16,6 +16,11 @@ import type { PublishVisibility } from '@/lib/publish/visibility';
 import { focusVisibleRingStyles } from '@/lib/ui-theme';
 import { cn } from '@/lib/utils';
 import { publishProjectAction } from '@/lib/actions/publish';
+import { HistoryPanel } from './history-panel';
+import { GithubExportPanel } from './github-export-panel';
+import { CustomDomainPanel } from './custom-domain-panel';
+import { PresenceAvatars } from './presence-avatars';
+import { ActivityLogPanel } from './activity-log-panel';
 
 type EditorTopbarProps = {
   project: AppProjectDetail;
@@ -39,6 +44,10 @@ export function EditorTopBar({
   const { success, error: toastError } = useToast();
   const [menuOpen, setMenuOpen] = useState(false);
   const [trashDialogOpen, setTrashDialogOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [githubOpen, setGithubOpen] = useState(false);
+  const [domainOpen, setDomainOpen] = useState(false);
+  const [activityOpen, setActivityOpen] = useState(false);
   const [visibility, setVisibility] = useState<PublishVisibility>(
     project.deployment?.visibility ?? 'private',
   );
@@ -158,6 +167,7 @@ export function EditorTopBar({
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
+          <PresenceAvatars projectId={project.id} />
           <Select
             value={visibility}
             onChange={(event) =>
@@ -182,6 +192,13 @@ export function EditorTopBar({
               Upgrade
             </Link>
           ) : null}
+          <button
+            type="button"
+            onClick={() => setHistoryOpen(true)}
+            className="hidden h-9 shrink-0 items-center gap-1.5 rounded-lg border border-app-border bg-app-surface px-3 text-xs font-medium text-app-text-secondary transition-colors hover:bg-app-surface-hover hover:text-app-text tablet-up:inline-flex">
+            <HistoryIcon className="h-3.5 w-3.5" />
+            History
+          </button>
           <Button
             variant="primary"
             size="sm"
@@ -243,6 +260,50 @@ export function EditorTopBar({
                 <button
                   type="button"
                   role="menuitem"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setHistoryOpen(true);
+                  }}
+                  className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-app-text-secondary transition-colors hover:bg-app-surface-hover hover:text-app-text">
+                  <HistoryIcon className="h-3.5 w-3.5 shrink-0" />
+                  Version history
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setGithubOpen(true);
+                  }}
+                  className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-app-text-secondary transition-colors hover:bg-app-surface-hover hover:text-app-text">
+                  <GithubIcon className="h-3.5 w-3.5 shrink-0" />
+                  Export to GitHub
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setDomainOpen(true);
+                  }}
+                  className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-app-text-secondary transition-colors hover:bg-app-surface-hover hover:text-app-text">
+                  <DomainIcon className="h-3.5 w-3.5 shrink-0" />
+                  Custom domain
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setActivityOpen(true);
+                  }}
+                  className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-app-text-secondary transition-colors hover:bg-app-surface-hover hover:text-app-text">
+                  <ActivityIcon className="h-3.5 w-3.5 shrink-0" />
+                  Build &amp; activity log
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
                   onClick={handleMoveToTrashClick}
                   disabled={isPending}
                   className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-appweaver-orange transition-colors hover:bg-appweaver-orange/10 disabled:opacity-50">
@@ -276,6 +337,31 @@ export function EditorTopBar({
         itemName={project.name}
         confirmLabel="Move to trash"
         isPending={isPending}
+      />
+
+      <HistoryPanel
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        projectId={project.id}
+      />
+
+      <GithubExportPanel
+        open={githubOpen}
+        onClose={() => setGithubOpen(false)}
+        projectId={project.id}
+        defaultRepoName={project.slug}
+      />
+
+      <CustomDomainPanel
+        open={domainOpen}
+        onClose={() => setDomainOpen(false)}
+        projectId={project.id}
+      />
+
+      <ActivityLogPanel
+        open={activityOpen}
+        onClose={() => setActivityOpen(false)}
+        projectId={project.id}
       />
     </>
   );
@@ -388,6 +474,78 @@ function TrashIcon({ className }: { className?: string }) {
       aria-hidden="true">
       <path
         d="M5 7h14M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7m2 0v11.5A1.5 1.5 0 0 1 15.5 20h-7A1.5 1.5 0 0 1 7 18.5V7"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function HistoryIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true">
+      <path
+        d="M3 12a9 9 0 1 0 2.64-6.36M3 12V6m0 6h6"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M12 8v4l2.5 2.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function GithubIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M12 2.2c-5.5 0-10 4.46-10 9.96 0 4.4 2.87 8.13 6.84 9.45.5.1.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.46-1.15-1.11-1.46-1.11-1.46-.9-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.9 1.52 2.34 1.08 2.91.83.09-.65.35-1.08.64-1.33-2.22-.25-4.56-1.1-4.56-4.9 0-1.08.39-1.97 1.03-2.66-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02a9.6 9.6 0 0 1 5 0c1.9-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.69 1.03 1.58 1.03 2.66 0 3.81-2.34 4.65-4.57 4.9.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A9.98 9.98 0 0 0 22 12.16c0-5.5-4.5-9.96-10-9.96Z"
+      />
+    </svg>
+  );
+}
+
+function DomainIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true">
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.5" />
+      <path
+        d="M3 12h18M12 3a15 15 0 0 1 0 18M12 3a15 15 0 0 0 0 18"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function ActivityIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true">
+      <path
+        d="M3 12h4l2-7 4 14 2-7h6"
         stroke="currentColor"
         strokeWidth="1.5"
         strokeLinecap="round"

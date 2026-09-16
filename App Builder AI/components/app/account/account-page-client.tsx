@@ -5,6 +5,7 @@ import { updateAccountFieldAction } from '@/lib/actions/account';
 import { useRouter } from 'next/navigation';
 import type { AccountProfile } from '@/lib/types/account';
 import { ConnectedAccountSection } from './connected-accounts-section';
+import { GithubExportSection } from './github-export-section';
 import { ProfilePhotoSection } from './profile-photo-section';
 import { InlineEditField } from './inline-edit-field';
 
@@ -103,6 +104,8 @@ export function AccountPageClient({ profile }: AccountPageClientProps) {
         </section>
 
         <ConnectedAccountSection accounts={profile.connectedAccounts} />
+
+        <GithubExportSection />
 
         <section className="rounded-2xl border border-app-border bg-app-surface p-6">
           <h2 className="font-display text-lg text-app-text">Account info</h2>

@@ -11,6 +11,7 @@ import { WorkspaceSelector } from './workspace-selector';
 import {
   AccountIcon,
   BillingIcon,
+  PencilIcon,
   SettingsIcon,
   TrashIcon,
 } from './user-area-icons';
@@ -39,6 +40,7 @@ const mainNav: Array<{
 }> = [
   { label: 'Home', href: '/app', icon: HomeIcon, exact: true },
   { label: 'Projects', href: '/app/projects', icon: ProjectsIcon, exact: true },
+  { label: 'Explore', href: '/app/explore', icon: ExploreIcon, exact: true },
 ];
 
 const secondaryNav: Array<{
@@ -192,8 +194,8 @@ export function AppSidebar({
               },
             });
           }}
-          className="mt-1 flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-sm text-appweaver-orange transition-colors hover:bg-appweaver-orange/10">
-          <SignOutIcon className="h-3.5 w-3.5 shrink-0" />
+          className="mt-1 flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-sm text-red-500 transition-colors hover:bg-red-500/10">
+          <PencilIcon className="h-3.5 w-3.5 shrink-0" />
           Sign out
         </button>
       </div>
@@ -223,29 +225,6 @@ function billingBadgeLabel(billing: {
   return { text: `${billing.creditBalance} credits`, urgent: false };
 }
 
-function SignOutIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true">
-      <path
-        d="M10 7V6a2 2 0 0 1 2-2h7v16h-7a2 2 0 0 1-2-2v-1"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-      />
-      <path
-        d="M14 12H4m0 0 3-3M4 12l3 3"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-}
 
 function SearchIcon() {
   return (
@@ -361,6 +340,24 @@ function ProjectsIcon({ className }: { className?: string }) {
         rx="1.5"
         stroke="currentColor"
         strokeWidth="1.5"
+      />
+    </svg>
+  );
+}
+
+function ExploreIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true">
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.5" />
+      <path
+        d="m14.5 9.5-2 5-5 2 2-5 5-2Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
       />
     </svg>
   );

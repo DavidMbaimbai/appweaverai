@@ -8,6 +8,8 @@ import {
   getAuthorizedProject,
 } from '@/lib/agent/access';
 import { runAgentLoop } from '@/lib/agent/run-agent';
+import { startAgentRun, endAgentRun } from '@/lib/agent/run-presence';
+import { createProjectCheckpoint } from '@/lib/project-checkpoints';
 import type { AgentMessageMetadata, AgentStreamEvent } from '@/lib/agent/types';
 import { getAgentLimits, getAppTier } from '@/lib/billing/entitlements';
 import { getUserBillingFields } from '@/lib/queries/billing';
@@ -121,13 +123,23 @@ export async function POST(
           return;
         }
 
-        const result = await runAgentLoop({
-          conversationId,
-          projectId,
-          artifactId: artifact.id,
-          limits: agentLimits,
-          onEvent: send,
-        });
+        const result = await (async () => {
+          startAgentRun(projectId, {
+            userId,
+            name: session.user.name || session.user.email || 'Someone',
+          });
+          try {
+            return await runAgentLoop({
+              conversationId,
+              projectId,
+              artifactId: artifact.id,
+              limits: agentLimits,
+              onEvent: send,
+            });
+          } finally {
+            endAgentRun(projectId, userId);
+          }
+        })();
 
         const metadata: AgentMessageMetadata = {
           steps: result.steps,
@@ -158,6 +170,22 @@ export async function POST(
           await prisma.artifact.update({
             where: { id: artifact.id },
             data: { status: 'READY' },
+          });
+        }
+
+        // Best-effort automatic checkpoint so this turn's file changes can
+        // be rolled back later from the editor's History panel. Never
+        // blocks the response to the user.
+        if (result.fileWrites.length > 0) {
+          const label =
+            result.summary.split('\n')[0]?.slice(0, 120) || 'Agent update';
+          void createProjectCheckpoint({
+            projectId,
+            label,
+            createdById: userId,
+            isAutomatic: true,
+          }).catch((error) => {
+            console.error('Failed to create automatic checkpoint:', error);
           });
         }
 

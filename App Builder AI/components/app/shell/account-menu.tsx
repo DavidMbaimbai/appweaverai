@@ -6,6 +6,7 @@ import Link from 'next/link';
 import {
   AccountIcon,
   BillingIcon,
+  PencilIcon,
   SettingsIcon,
   TrashIcon,
 } from './user-area-icons';
@@ -90,35 +91,11 @@ export function AccountMenuPanel({
               },
             });
           }}
-          className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-appweaver-orange transition-colors hover:bg-appweaver-orange/10">
-          <SignOutIcon className="h-3.5 w-3.5 shrink-0" />
+          className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-red-500 transition-colors hover:bg-red-500/10">
+          <PencilIcon className="h-3.5 w-3.5 shrink-0" />
           Sign out
         </button>
       </div>
     </div>
-  );
-}
-
-function SignOutIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      aria-hidden="true">
-      <path
-        d="M10 7V6a2 2 0 0 1 2-2h7v16h-7a2 2 0 0 1-2-2v-1"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-      />
-      <path
-        d="M14 12H4m0 0 3-3M4 12l3 3"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-    </svg>
   );
 }
