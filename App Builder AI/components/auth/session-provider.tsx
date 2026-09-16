@@ -8,9 +8,12 @@ import {
 } from 'react';
 
 import { authClient } from '@/lib/auth-client';
+import {
+  getAuthSessionStatus,
+  type AuthSessionStatus,
+} from '@/lib/auth/session-status';
 
 type BetterAuthSessionState = ReturnType<typeof authClient.useSession>;
-type AuthSessionStatus = 'loading' | 'authenticated' | 'unauthenticated';
 
 type AuthSessionContextValue = BetterAuthSessionState & {
   status: AuthSessionStatus;
@@ -22,11 +25,10 @@ export function AuthSessionProvider({ children }: { children: ReactNode }) {
   const sessionState = authClient.useSession();
 
   const value = useMemo<AuthSessionContextValue>(() => {
-    const status: AuthSessionStatus = sessionState.isPending
-      ? 'loading'
-      : sessionState.data?.user
-        ? 'authenticated'
-        : 'unauthenticated';
+    const status = getAuthSessionStatus({
+      isPending: sessionState.isPending,
+      hasUser: Boolean(sessionState.data?.user),
+    });
 
     return {
       ...sessionState,

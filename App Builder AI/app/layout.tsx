@@ -4,6 +4,7 @@ import { RootProviders } from '@/components/root-providers';
 import { AuthSessionProvider } from '@/components/auth/session-provider';
 import { AuthModalProvider } from '@/components/auth/auth-modal-provider';
 import { AuthUrlSync } from '@/components/auth/auth-url-sync';
+import { getEnabledOAuthProviders } from '@/lib/auth/oauth-config';
 
 export const metadata: Metadata = {
   title: 'AppWeaver AI - Build apps and sites with AI',
@@ -29,11 +30,13 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const enabledOAuthProviders = getEnabledOAuthProviders(process.env);
+
   return (
     <html lang="en" className="h-full antialiased" data-scroll-behavior="smooth">
       <body className="min-h-full flex flex-col">
         <AuthSessionProvider>
-          <AuthModalProvider>
+          <AuthModalProvider enabledOAuthProviders={enabledOAuthProviders}>
             <RootProviders>
               <AuthUrlSync />
               {children}

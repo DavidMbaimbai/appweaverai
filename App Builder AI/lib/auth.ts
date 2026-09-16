@@ -7,6 +7,7 @@ import { provisionNewUser } from './auth/provision-user';
 import { recordAuthActivity } from './auth/record-auth-activity';
 import { sendEmail } from './email';
 import { renderBrandedEmail, highlightCodeHtml } from './email-templates';
+import { accountLinkingConfig, getSocialProviders } from './auth/oauth-config';
 
 const useDatabase = Boolean(process.env.DATABASE_URL);
 
@@ -55,15 +56,10 @@ export const auth = betterAuth({
         }),
       }
     : {}),
-  socialProviders: {
-    google: {
-      clientId: process.env.GOOGLE_CLIENT_ID ?? '',
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',
-    },
-    github: {
-      clientId: process.env.GITHUB_CLIENT_ID ?? '',
-      clientSecret: process.env.GITHUB_CLIENT_SECRET ?? '',
-    },
+  socialProviders: getSocialProviders(process.env),
+
+  account: {
+    accountLinking: accountLinkingConfig,
   },
 
   /**

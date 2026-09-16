@@ -4,6 +4,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect } from 'react';
 import { useAuthModal } from './auth-modal-provider';
 import { useAuthSession } from './session-provider';
+import { getOAuthErrorMessage } from '@/lib/auth/oauth-errors';
 
 const AUTH_QUERY_KEYS = [
   'auth',
@@ -97,9 +98,7 @@ function AuthUrlSyncInner() {
       }
       openAuthModal(
         auth === 'register' ? 'register' : 'login',
-        authError === 'invalid_code'
-          ? 'That sign-in link expired or was already used. Please try signing in again.'
-          : 'Sign-in could not be completed. Please try again.',
+        getOAuthErrorMessage(authError),
       );
       return;
     }

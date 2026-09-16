@@ -107,8 +107,14 @@ function AuthField({
 export function AuthModal() {
   const router = useRouter();
   const { refetch: refetchSession } = useAuthSession();
-  const { isOpen, mode, initialError, closeAuthModal, setAuthMode } =
-    useAuthModal();
+  const {
+    isOpen,
+    mode,
+    initialError,
+    enabledOAuthProviders,
+    closeAuthModal,
+    setAuthMode,
+  } = useAuthModal();
   const titleId = useId();
   const descriptionId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -1042,16 +1048,14 @@ export function AuthModal() {
           </div>
 
           <div className="space-y-3">
-            <OAuthButton
-              provider="google"
-              disabled={isLoading}
-              onClick={() => handleOAuthClick('google')}
-            />
-            <OAuthButton
-              provider="github"
-              disabled={isLoading}
-              onClick={() => handleOAuthClick('github')}
-            />
+            {enabledOAuthProviders.map((provider) => (
+              <OAuthButton
+                key={provider}
+                provider={provider}
+                disabled={isLoading}
+                onClick={() => handleOAuthClick(provider)}
+              />
+            ))}
           </div>
 
           {error && (

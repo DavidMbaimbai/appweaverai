@@ -9,7 +9,11 @@ import {
   type ReactNode,
 } from 'react';
 
-import type { AuthMode } from '@/lib/types/account';
+import {
+  shouldShowAuthModal,
+  type AuthSessionStatus,
+} from '@/lib/auth/session-status';
+import type { AuthMode, OAuthProvider } from '@/lib/types/account';
 import { AuthModal } from './auth-modal';
 import { useAuthSession } from './session-provider';
 
@@ -17,6 +21,7 @@ type AuthModalContextValue = {
   isOpen: boolean;
   mode: AuthMode;
   initialError: string | null;
+  enabledOAuthProviders: OAuthProvider[];
   openAuthModal: (mode?: AuthMode, error?: string | null) => void;
   closeAuthModal: () => void;
   setAuthMode: (mode: AuthMode) => void;
@@ -24,7 +29,17 @@ type AuthModalContextValue = {
 
 const AuthModalContext = createContext<AuthModalContextValue | null>(null);
 
-export function AuthModalProvider({ children }: { children: ReactNode }) {
+export function canOpenAuthModal(status: AuthSessionStatus) {
+  return status === 'unauthenticated';
+}
+
+export function AuthModalProvider({
+  children,
+  enabledOAuthProviders,
+}: {
+  children: ReactNode;
+  enabledOAuthProviders: OAuthProvider[];
+}) {
   const { status } = useAuthSession();
   const [isOpen, setIsOpen] = useState(false);
   const [mode, setMode] = useState<AuthMode>('login');
@@ -32,7 +47,7 @@ export function AuthModalProvider({ children }: { children: ReactNode }) {
 
   const openAuthModal = useCallback(
     (nextMode: AuthMode = 'login', error: string | null = null) => {
-      if (status !== 'unauthenticated') {
+      if (!canOpenAuthModal(status)) {
         setInitialError(null);
         setIsOpen(false);
         return;
@@ -55,7 +70,10 @@ export function AuthModalProvider({ children }: { children: ReactNode }) {
     setMode(nextMode);
   }, []);
 
-  const effectiveIsOpen = status === 'unauthenticated' && isOpen;
+  const effectiveIsOpen = shouldShowAuthModal({
+    requestedOpen: isOpen,
+    status,
+  });
   const effectiveInitialError =
     status === 'authenticated' ? null : initialError;
 
@@ -64,6 +82,7 @@ export function AuthModalProvider({ children }: { children: ReactNode }) {
       isOpen: effectiveIsOpen,
       mode,
       initialError: effectiveInitialError,
+      enabledOAuthProviders,
       openAuthModal,
       closeAuthModal,
       setAuthMode,
@@ -72,6 +91,7 @@ export function AuthModalProvider({ children }: { children: ReactNode }) {
       effectiveIsOpen,
       mode,
       effectiveInitialError,
+      enabledOAuthProviders,
       openAuthModal,
       closeAuthModal,
       setAuthMode,
