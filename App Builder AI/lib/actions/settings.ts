@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { requireUserId } from '@/lib/auth/require-user';
 import type { DefaultStartPage } from '@/lib/generated/prisma/client';
 import { prisma } from '@/lib/prisma';
+import { recordUserActivity } from '@/lib/activity/record-user-activity';
 import {
   normalizeWorkspaceSlug,
   uniqueWorkspaceSlug,
@@ -29,6 +30,14 @@ export async function updateUserSettingsAction(data: SettingsUpdate) {
   });
 
   revalidatePath('/app/settings');
+
+  await recordUserActivity({
+    userId: authResult.userId,
+    action: 'account.settings_updated',
+    targetType: 'User',
+    targetId: authResult.userId,
+    after: data,
+  });
 
   return { success: true };
 }
@@ -71,6 +80,15 @@ export async function updateWorkspaceSlugAction(value: string) {
 
   revalidatePath('/app/settings');
   revalidatePath('/app/projects');
+
+  await recordUserActivity({
+    userId: authResult.userId,
+    action: 'account.workspace_slug_updated',
+    targetType: 'Workspace',
+    targetId: workspace.id,
+    before: { slug: workspace.slug },
+    after: { slug: nextSlug },
+  });
 
   return { success: true, value: nextSlug };
 }

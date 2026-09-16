@@ -4,6 +4,7 @@ export type SubscriptionDisplayInfo = {
   status: string;
   cancelAtPeriodEnd: boolean;
   periodEndLabel: string | null;
+  daysUntilPeriodEnd: number | null;
   summary: string;
   variant: 'active' | 'canceling' | 'canceled' | 'past_due' | 'inactive';
   badgeLabel: string;
@@ -59,6 +60,12 @@ function formatSubscriptionDate(date: Date) {
     day: 'numeric',
     year: 'numeric',
   }).format(date);
+}
+
+function daysUntil(date: Date | null) {
+  if (!date) return null;
+  const diffMs = date.getTime() - Date.now();
+  return Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
 }
 
 function withDisplayStyles(
@@ -121,12 +128,14 @@ export function buildSubscriptionDisplayInfo(
   const cancelAtPeriodEnd = isSubscriptionScheduledToCancel(subscription);
   const periodEnd = getSubscriptionPeriodEnd(subscription);
   const periodEndLabel = periodEnd ? formatSubscriptionDate(periodEnd) : null;
+  const daysUntilPeriodEnd = daysUntil(periodEnd);
 
   if (status === 'canceled' || status === 'incomplete_expired') {
     return withDisplayStyles({
       status,
       cancelAtPeriodEnd,
       periodEndLabel,
+      daysUntilPeriodEnd: null,
       summary: periodEndLabel
         ? `Canceled — access ended ${periodEndLabel}`
         : 'Canceled',
@@ -139,6 +148,7 @@ export function buildSubscriptionDisplayInfo(
       status,
       cancelAtPeriodEnd: true,
       periodEndLabel,
+      daysUntilPeriodEnd,
       summary: `Cancels on ${periodEndLabel} — you keep Pro until then`,
       variant: 'canceling',
     });
@@ -149,6 +159,7 @@ export function buildSubscriptionDisplayInfo(
       status,
       cancelAtPeriodEnd: true,
       periodEndLabel: null,
+      daysUntilPeriodEnd: null,
       summary: 'Scheduled to cancel at the end of the billing period',
       variant: 'canceling',
     });
@@ -159,6 +170,7 @@ export function buildSubscriptionDisplayInfo(
       status,
       cancelAtPeriodEnd: false,
       periodEndLabel,
+      daysUntilPeriodEnd,
       summary: periodEndLabel
         ? `Active — renews on ${periodEndLabel}`
         : 'Active',
@@ -171,6 +183,7 @@ export function buildSubscriptionDisplayInfo(
       status,
       cancelAtPeriodEnd,
       periodEndLabel,
+      daysUntilPeriodEnd,
       summary: periodEndLabel
         ? `Payment issue — update billing by ${periodEndLabel}`
         : 'Payment issue — update your billing details',
@@ -182,6 +195,7 @@ export function buildSubscriptionDisplayInfo(
     status,
     cancelAtPeriodEnd,
     periodEndLabel,
+    daysUntilPeriodEnd,
     summary: status.replaceAll('_', ' '),
     variant: 'inactive',
   });
@@ -197,6 +211,7 @@ export function buildFallbackSubscriptionDisplayInfo(
     status: subscriptionStatus,
     cancelAtPeriodEnd: false,
     periodEndLabel: null,
+    daysUntilPeriodEnd: null,
     summary: isActive
       ? `Active (${subscriptionStatus})`
       : subscriptionStatus.replaceAll('_', ' '),

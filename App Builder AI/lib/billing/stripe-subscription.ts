@@ -3,6 +3,7 @@ import type Stripe from 'stripe';
 import {
   buildFallbackSubscriptionDisplayInfo,
   buildSubscriptionDisplayInfo,
+  getSubscriptionPeriodEnd,
   type SubscriptionDisplayInfo,
 } from '@/lib/billing/subscription-display';
 import { prisma } from '@/lib/prisma';
@@ -69,6 +70,19 @@ export async function syncUserSubscription(
     (subscription.metadata?.planId as PaidPlanId | undefined) ||
     'pro';
 
+  const periodEnd = getSubscriptionPeriodEnd(subscription);
+  const previousUser = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { subscriptionCurrentPeriodEnd: true },
+  });
+
+  // Reset the "already reminded" marker whenever the billing period end
+  // actually changes (e.g. the subscription renewed into a new cycle), so a
+  // fresh renewal reminder can be sent again ahead of the new period end.
+  const periodEndChanged =
+    previousUser?.subscriptionCurrentPeriodEnd?.getTime() !==
+    periodEnd?.getTime();
+
   await prisma.user.update({
     where: { id: userId },
     data: {
@@ -76,6 +90,8 @@ export async function syncUserSubscription(
       stripeSubscriptionId: subscription.id,
       subscriptionStatus: status,
       subscriptionPlan: isActive ? resolvedPlanId : 'free',
+      subscriptionCurrentPeriodEnd: periodEnd,
+      ...(periodEndChanged ? { renewalReminderSentForEnd: null } : {}),
     },
   });
 }

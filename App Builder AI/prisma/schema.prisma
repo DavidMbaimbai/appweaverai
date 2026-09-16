@@ -46,6 +46,16 @@ model User {
   subscriptionStatus   String? @map("subscription_status")
   subscriptionPlan     String  @default("free") @map("subscription_plan")
 
+  /// Current Stripe billing period end (renewal/expiry date) for the active
+  /// subscription, kept in sync from Stripe webhooks.
+  subscriptionCurrentPeriodEnd DateTime? @map("subscription_current_period_end")
+
+  /// Timestamps used to avoid re-sending the same billing alert email
+  /// repeatedly. Cleared automatically once the underlying condition
+  /// resolves (credits topped up / subscription renews into a new period).
+  lowCreditsAlertSentAt      DateTime? @map("low_credits_alert_sent_at")
+  renewalReminderSentForEnd  DateTime? @map("renewal_reminder_sent_for_end")
+
   /// Admin Console: null means the user has no administrative access.
   adminRole AdminRole? @map("admin_role")
 

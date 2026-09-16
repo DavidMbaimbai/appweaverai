@@ -60,24 +60,27 @@ export function AdminShell({
 
         <nav className="flex-1 space-y-0.5 px-2">
           <AdminNavLinks items={visibleItems} />
-        </nav>
 
-        <div className="border-t border-app-border-subtle px-4 py-3">
-          <p className="truncate text-sm text-app-text">
-            {admin.name ?? admin.email ?? 'Admin'}
-          </p>
-          <p className="truncate text-xs text-app-text-muted">
-            {ADMIN_ROLE_LABELS[admin.adminRole]}
-          </p>
-          <Link
-            href="/app"
-            className={cn(
-              'mt-2 inline-block text-xs text-app-accent-blue hover:underline',
-            )}>
-            Back to product →
-          </Link>
-          <AdminSignOutButton className="mt-2 block text-left text-xs text-app-text-muted hover:text-app-text hover:underline" />
-        </div>
+          <div className="mt-2 border-t border-app-border-subtle px-2 pt-3">
+            <p className="truncate text-sm text-app-text">
+              {admin.name ?? admin.email ?? 'Admin'}
+            </p>
+            <p className="truncate text-xs text-app-text-muted">
+              {ADMIN_ROLE_LABELS[admin.adminRole]}
+            </p>
+            <Link
+              href="/app"
+              className={cn(
+                'mt-2 inline-block text-xs text-app-accent-blue hover:underline',
+              )}>
+              Back to product →
+            </Link>
+            <AdminSignOutButton
+              icon
+              className="mt-2 block text-left text-xs text-app-text-muted hover:text-app-text hover:underline"
+            />
+          </div>
+        </nav>
       </aside>
 
       <main className="min-w-0 flex-1 overflow-y-auto">

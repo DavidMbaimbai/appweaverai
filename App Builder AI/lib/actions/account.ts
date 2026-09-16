@@ -6,6 +6,7 @@ import path from 'node:path';
 import { requireUserId } from '@/lib/auth/require-user';
 import { slugifyUsername } from '@/lib/app-utils';
 import { prisma } from '@/lib/prisma';
+import { recordUserActivity } from '@/lib/activity/record-user-activity';
 
 const USERNAME_PATTERN = /^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])?$/;
 const MAX_AVATAR_BYTES = 2 * 1024 * 1024;
@@ -44,6 +45,14 @@ export async function updateAccountFieldAction(
 
     revalidatePath('/app/account');
 
+    await recordUserActivity({
+      userId: authResult.userId,
+      action: 'account.name_updated',
+      targetType: 'User',
+      targetId: authResult.userId,
+      after: { name: trimmed },
+    });
+
     return { success: true, value: user.name };
   }
 
@@ -76,6 +85,14 @@ export async function updateAccountFieldAction(
   });
 
   revalidatePath('/app/account');
+
+  await recordUserActivity({
+    userId: authResult.userId,
+    action: 'account.username_updated',
+    targetType: 'User',
+    targetId: authResult.userId,
+    after: { username: normalized },
+  });
 
   return { success: true, value: user.username };
 }
@@ -127,6 +144,14 @@ export async function uploadAccountAvatarAction(formData: FormData) {
 
   revalidatePath('/app/account');
 
+  await recordUserActivity({
+    userId: authResult.userId,
+    action: 'account.avatar_uploaded',
+    targetType: 'User',
+    targetId: authResult.userId,
+    after: { image: imageUrl },
+  });
+
   return { success: true, value: imageUrl };
 }
 
@@ -142,6 +167,13 @@ export async function removeAccountAvatarAction() {
   });
 
   revalidatePath('/app/account');
+
+  await recordUserActivity({
+    userId: authResult.userId,
+    action: 'account.avatar_removed',
+    targetType: 'User',
+    targetId: authResult.userId,
+  });
 
   return { success: true, value: null };
 }

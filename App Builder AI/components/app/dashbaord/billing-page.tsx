@@ -61,6 +61,7 @@ export async function BillingPage({ searchParams }: BillingPageProps) {
         plan={billing.plan}
         status={billing.status}
         hasCustomer={billing.hasCustomer}
+        creditBalance={billing.creditBalance}
         proPlan={billing.proPlan}
         subscription={billing.subscription}
         justUpgraded={params.upgraded === '1'}

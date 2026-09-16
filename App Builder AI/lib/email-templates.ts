@@ -2,9 +2,12 @@
  * Shared branded HTML email template (colorful AppWeaver AI header +
  * consistent card layout) used for every transactional email the app
  * sends — OTP verification codes, feedback notifications, etc. Built with
- * plain inline styles/tables (no Tailwind classes, no external images) so
- * it renders reliably across Gmail, Outlook, and Apple Mail.
+ * plain inline styles/tables (no Tailwind classes, no externally-hosted
+ * images — the logo is embedded as an inline CID attachment) so it renders
+ * reliably across Gmail, Outlook, and Apple Mail.
  */
+
+import { BRAND_LOGO_CID } from '@/lib/email';
 
 const ORANGE = '#ff3c00';
 const ORANGE_MID = '#ff764c';
@@ -17,7 +20,12 @@ function logoBadgeHtml() {
     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:0 auto;">
       <tr>
         <td style="padding-right:10px;vertical-align:middle;">
-          <div style="width:34px;height:34px;border-radius:10px;background:#ffffff;text-align:center;line-height:34px;font-family:'IBM Plex Sans',Arial,sans-serif;font-weight:700;font-size:15px;color:${ORANGE};">AW</div>
+          <img
+            src="cid:${BRAND_LOGO_CID}"
+            width="34"
+            height="34"
+            alt="AppWeaver AI"
+            style="display:block;width:34px;height:34px;border-radius:10px;" />
         </td>
         <td style="vertical-align:middle;">
           <span style="font-family:'IBM Plex Sans',Arial,sans-serif;font-size:19px;font-weight:600;color:#ffffff;">AppWeaver&nbsp;AI</span>

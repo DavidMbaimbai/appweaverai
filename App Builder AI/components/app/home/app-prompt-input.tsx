@@ -22,6 +22,8 @@ type AppPromptInputProps = {
   onError?: (message: string) => void;
   disabled?: boolean;
   variant?: 'app' | 'landing';
+  /** Bump this number to programmatically open the attachment dialog (e.g. from an external "Recreate screenshot" button). */
+  openAttachmentDialogSignal?: number;
 };
 
 function CategoryTag({
@@ -87,6 +89,7 @@ export function AppPromptInput({
   onError,
   disabled,
   variant = 'app',
+  openAttachmentDialogSignal,
 }: AppPromptInputProps) {
   const isLanding = variant === 'landing';
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -95,6 +98,12 @@ export function AppPromptInput({
   const hasValue = Boolean(value.trim());
   const hasAttachments = attachments.length > 0;
   const canSubmit = hasValue || hasAttachments;
+
+  useEffect(() => {
+    if (openAttachmentDialogSignal === undefined) return;
+    if (openAttachmentDialogSignal === 0) return;
+    setAttachmentDialogOpen(true);
+  }, [openAttachmentDialogSignal]);
 
   const { isListening, isSupported, toggleListening, stopListening } =
     useSpeechRecognition({

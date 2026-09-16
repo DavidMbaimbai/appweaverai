@@ -3,12 +3,17 @@
 import { AppWeaverLogo } from '@/components/ui/appweaver-logo';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { authClient } from '@/lib/auth-client';
 import type { AppWorkspace } from '@/lib/app-types';
 import { cn } from '@/lib/utils';
 import { Avatar } from '@/components/ui/avatar';
-import { AccountMenuPanel } from './account-menu';
 import { WorkspaceSelector } from './workspace-selector';
+import {
+  AccountIcon,
+  BillingIcon,
+  SettingsIcon,
+  TrashIcon,
+} from './user-area-icons';
 
 type AppSidebarProps = {
   workspaces: AppWorkspace[];
@@ -18,6 +23,11 @@ type AppSidebarProps = {
     email?: string | null;
     image?: string | null;
   };
+  billing?: {
+    creditBalance: number;
+    plan: string;
+    daysUntilRenewal: number | null;
+  } | null;
   onOpenSearch: () => void;
 };
 
@@ -31,25 +41,25 @@ const mainNav: Array<{
   { label: 'Projects', href: '/app/projects', icon: ProjectsIcon, exact: true },
 ];
 
+const secondaryNav: Array<{
+  label: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+}> = [
+  { label: 'Account', href: '/app/account', icon: AccountIcon },
+  { label: 'Settings', href: '/app/settings', icon: SettingsIcon },
+  { label: 'Billing', href: '/app/billing', icon: BillingIcon },
+  { label: 'Trash', href: '/app/trash', icon: TrashIcon },
+];
+
 export function AppSidebar({
   workspaces,
   activeWorkspaceSlug,
   user,
+  billing,
   onOpenSearch,
 }: AppSidebarProps) {
   const pathname = usePathname();
-  const [accountOpen, setAccountOpen] = useState(false);
-
-  useEffect(() => {
-    if (!accountOpen) return;
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape') setAccountOpen(false);
-    }
-
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [accountOpen]);
 
   return (
     <aside className="flex h-screen w-app-sidebar shrink-0 flex-col border-r border-app-border-subtle bg-app-sidebar-bg">
@@ -112,62 +122,108 @@ export function AppSidebar({
             </Link>
           );
         })}
+
+        <div className="my-2 border-t border-app-border-subtle" />
+
+        {secondaryNav.map((item) => {
+          const isActive = pathname.startsWith(item.href);
+          const badge =
+            item.href === '/app/billing' && billing
+              ? billingBadgeLabel(billing)
+              : null;
+
+          return (
+            <Link
+              href={item.href}
+              key={item.label}
+              className={cn(
+                'flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors',
+                isActive
+                  ? 'bg-app-surface-active text-app-text'
+                  : 'text-app-text-secondary hover:bg-app-surface-hover hover:text-app-text',
+              )}>
+              <item.icon className="h-4 w-4 shrink-0" />
+              <span className="flex-1">{item.label}</span>
+              {badge ? (
+                <span
+                  className={cn(
+                    'rounded-full px-1.5 py-0.5 text-[10px] font-medium leading-none',
+                    badge.urgent
+                      ? 'bg-red-500/15 text-red-400'
+                      : 'bg-app-surface-active text-app-text-muted',
+                  )}>
+                  {badge.text}
+                </span>
+              ) : null}
+            </Link>
+          );
+        })}
       </nav>
 
       <div className="border-t border-app-border-subtle px-3 py-3">
-        {accountOpen ? (
-          <button
-            type="button"
-            className="fixed inset-0 z-40 bg-black/40"
-            aria-label="Close account menu"
-            onClick={() => setAccountOpen(false)}
+        <Link
+          href="/app/account"
+          className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors hover:bg-app-surface-hover">
+          {/* Avatar */}
+          <Avatar
+            size="sm"
+            theme="app"
+            name={user.name ?? user.email}
+            image={user.image}
           />
-        ) : null}
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm text-app-text">
+              {user.name ?? 'Account'}
+            </p>
+            <p className="truncate text-xs text-app-text-muted">
+              {user.email ?? ''}
+            </p>
+          </div>
+        </Link>
 
-        <div className="relative w-full">
-          {accountOpen ? (
-            <AccountMenuPanel
-              user={user}
-              onClose={() => setAccountOpen(false)}
-              className="absolute bottom-full left-0 z-50 mb-2 w-full"
-            />
-          ) : null}
-
-          <button
-            type="button"
-            onClick={() => setAccountOpen((open) => !open)}
-            aria-expanded={accountOpen}
-            aria-haspopup="menu"
-            className={cn(
-              'relative z-50 flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors',
-              accountOpen
-                ? 'bg-app-surface-hover'
-                : 'hover:bg-app-surface-hover',
-            )}>
-            {/* Avatar */}
-            <Avatar
-              size="sm"
-              theme="app"
-              name={user.name ?? user.email}
-              image={user.image}
-            />
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm text-app-text">
-                {user.name ?? 'Account'}
-              </p>
-              <p className="truncate text-xs text-app-text-muted">
-                {user.email ?? 'View menu'}
-              </p>
-            </div>
-            <ChevronUpDownIcon className="h-3.5 w-3.5 shrink-0 text-app-text-muted" />
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => {
+            void authClient.signOut({
+              fetchOptions: {
+                onSuccess: () => {
+                  window.location.href = '/';
+                },
+              },
+            });
+          }}
+          className="mt-1 flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-sm text-appweaver-orange transition-colors hover:bg-appweaver-orange/10">
+          <SignOutIcon className="h-3.5 w-3.5 shrink-0" />
+          Sign out
+        </button>
       </div>
     </aside>
   );
 }
 
-function ChevronUpDownIcon({ className }: { className?: string }) {
+function billingBadgeLabel(billing: {
+  creditBalance: number;
+  plan: string;
+  daysUntilRenewal: number | null;
+}): { text: string; urgent: boolean } | null {
+  // Prioritize the more urgent/actionable signal: depleted/low credits over
+  // an upcoming renewal reminder.
+  if (billing.creditBalance <= 0) {
+    return { text: '0 credits', urgent: true };
+  }
+  if (billing.creditBalance <= 20) {
+    return { text: `${billing.creditBalance} left`, urgent: true };
+  }
+  if (billing.daysUntilRenewal != null && billing.daysUntilRenewal <= 3) {
+    return {
+      text: `${billing.daysUntilRenewal}d left`,
+      urgent: billing.daysUntilRenewal <= 1,
+    };
+  }
+  return { text: `${billing.creditBalance} credits`, urgent: false };
+}
+
+function SignOutIcon({ className }: { className?: string }) {
   return (
     <svg
       className={className}
@@ -175,7 +231,13 @@ function ChevronUpDownIcon({ className }: { className?: string }) {
       fill="none"
       aria-hidden="true">
       <path
-        d="M8 9.5 12 5.5l4 4M8 14.5l4 4 4-4"
+        d="M10 7V6a2 2 0 0 1 2-2h7v16h-7a2 2 0 0 1-2-2v-1"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+      <path
+        d="M14 12H4m0 0 3-3M4 12l3 3"
         stroke="currentColor"
         strokeWidth="1.5"
         strokeLinecap="round"

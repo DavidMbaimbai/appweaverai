@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation';
 import { AppShell } from '@/components/app/shell/app-shell';
 import { getCachedSession, getCachedUserWorkspaces } from '@/lib/auth/cached';
+import { getSidebarBillingSummary } from '@/lib/queries/billing';
 import { prisma } from '@/lib/prisma';
 
 export default async function AppDashbaordLayout({
@@ -11,6 +12,7 @@ export default async function AppDashbaordLayout({
   const session = await getCachedSession();
 
   let workspaces: Awaited<ReturnType<typeof getCachedUserWorkspaces>> = [];
+  let billing: Awaited<ReturnType<typeof getSidebarBillingSummary>> = null;
 
   if (session?.user?.id && process.env.DATABASE_URL) {
     // Admin Console accounts share the same auth session as regular
@@ -27,11 +29,13 @@ export default async function AppDashbaordLayout({
     }
 
     workspaces = await getCachedUserWorkspaces(session.user.id);
+    billing = await getSidebarBillingSummary(session.user.id);
   }
 
   return (
     <AppShell
       workspaces={workspaces}
+      billing={billing}
       user={{
         name: session?.user?.name ?? 'Guest',
         email: session?.user?.email ?? null,

@@ -1,5 +1,6 @@
 import { headers } from 'next/headers';
 
+import { prisma } from '@/lib/prisma';
 import { recordAuditLog } from '@/lib/admin/audit';
 
 /**
@@ -43,17 +44,36 @@ type UserActivityInput = {
  * system activity is visible in one place (Admin Console → Audit Logs) and
  * can be aggregated for the Analytics dashboard.
  *
+ * `userEmail` and `ipAddress` are resolved automatically (from the DB and
+ * the current request headers, respectively) when not explicitly provided,
+ * so callers only need to supply the minimum: userId, action, targetType.
+ *
  * Best-effort: a logging failure must never block the user-facing action.
  */
 export async function recordUserActivity(input: UserActivityInput) {
-  await recordAuditLog({
-    adminId: input.userId,
-    adminEmail: input.userEmail ?? null,
-    action: input.action,
-    targetType: input.targetType,
-    targetId: input.targetId ?? null,
-    before: input.before,
-    after: input.after,
-    ipAddress: input.ipAddress ?? null,
-  });
+  try {
+    const ipAddress = input.ipAddress ?? (await getRequestIp());
+
+    let userEmail = input.userEmail;
+    if (userEmail === undefined) {
+      const user = await prisma.user.findUnique({
+        where: { id: input.userId },
+        select: { email: true },
+      });
+      userEmail = user?.email ?? null;
+    }
+
+    await recordAuditLog({
+      adminId: input.userId,
+      adminEmail: userEmail ?? null,
+      action: input.action,
+      targetType: input.targetType,
+      targetId: input.targetId ?? null,
+      before: input.before,
+      after: input.after,
+      ipAddress: ipAddress ?? null,
+    });
+  } catch (error) {
+    console.error(`Failed to record user activity (${input.action}):`, error);
+  }
 }

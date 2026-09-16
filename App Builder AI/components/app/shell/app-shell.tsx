@@ -6,10 +6,17 @@ import { AppSidebar } from './app-sidebar';
 import { CommandPalette } from './command-pallete';
 import { FeedbackWidget } from '@/components/app/feedback/feedback-widget';
 
+type BillingSummary = {
+  creditBalance: number;
+  plan: string;
+  daysUntilRenewal: number | null;
+} | null;
+
 type AppSheellProps = {
   children: React.ReactNode;
   workspaces: AppWorkspace[];
   activeWorkspaceSlug?: string;
+  billing?: BillingSummary;
   user: {
     name?: string | null;
     email?: string | null;
@@ -21,6 +28,7 @@ export function AppShell({
   children,
   workspaces,
   activeWorkspaceSlug,
+  billing,
   user,
 }: AppSheellProps) {
   const [commandOpen, setCommandOpen] = useState(false);
@@ -48,6 +56,7 @@ export function AppShell({
         workspaces={workspaces}
         activeWorkspaceSlug={activeWorkspaceSlug}
         user={user}
+        billing={billing}
         onOpenSearch={openCommand}
       />
 

@@ -19,6 +19,7 @@ import {
   type PublishVisibility,
 } from "@/lib/publish/visibility";
 import { prisma } from "@/lib/prisma";
+import { recordUserActivity } from "@/lib/activity/record-user-activity";
 
 const publishSchema = z.object({
   projectId: z.string().min(1),
@@ -142,6 +143,14 @@ export async function publishProjectAction(
   revalidatePath("/app/projects");
   revalidatePath(`/app/projects/${project.workspace.slug}/${project.slug}`);
   revalidatePath(urlPath);
+
+  await recordUserActivity({
+    userId,
+    action: "project.published",
+    targetType: "Project",
+    targetId: projectId,
+    after: { url: urlPath, visibility },
+  });
 
   return {
     success: true,

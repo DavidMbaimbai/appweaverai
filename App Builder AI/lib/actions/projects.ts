@@ -27,6 +27,7 @@ import {
   savePromptAttachmentsToArtifact,
 } from '../project-attachments';
 import { getAccessibleProject } from '../projects/access';
+import { recordUserActivity } from '../activity/record-user-activity';
 
 const projectIdSchema = z.object({
   projectId: z.string().min(1),
@@ -244,6 +245,14 @@ export async function createProjectAction(formData: FormData) {
     }
   }
 
+  await recordUserActivity({
+    userId,
+    action: 'project.created',
+    targetType: 'Project',
+    targetId: project.id,
+    after: { name: baseName, slug: project.slug },
+  });
+
   redirect(`/app/projects/${project.workspace.slug}/${project.slug}`);
 }
 
@@ -281,6 +290,13 @@ export async function moveProjectToTrashAction(projectId: string) {
 
   revalidateProjectPaths();
 
+  await recordUserActivity({
+    userId,
+    action: 'project.moved_to_trash',
+    targetType: 'Project',
+    targetId: project.id,
+  });
+
   return { success: true };
 }
 
@@ -312,6 +328,13 @@ export async function restoreProjectAction(projectId: string) {
 
   revalidateProjectPaths();
 
+  await recordUserActivity({
+    userId,
+    action: 'project.restored',
+    targetType: 'Project',
+    targetId: project.id,
+  });
+
   return { success: true };
 }
 
@@ -340,6 +363,14 @@ export async function permanentlyDeleteProjectAction(projectId: string) {
   await removeProjectFilesFromDisk(project.id);
 
   revalidateProjectPaths();
+
+  await recordUserActivity({
+    userId,
+    action: 'project.permanently_deleted',
+    targetType: 'Project',
+    targetId: project.id,
+    before: { slug: project.slug },
+  });
 
   return { success: true };
 }

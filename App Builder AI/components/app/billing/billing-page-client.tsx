@@ -32,6 +32,7 @@ type BillingPageClientProps = {
   plan: 'free' | 'pro';
   status: string | null;
   hasCustomer: boolean;
+  creditBalance: number;
   proPlan: ProPlanInfo;
   subscription: SubscriptionDisplayInfo | null;
   justUpgraded?: boolean;
@@ -52,6 +53,7 @@ function proPriceLabel(proPlan: ProPlanInfo) {
 export function BillingPageClient({
   plan,
   hasCustomer,
+  creditBalance,
   proPlan,
   subscription,
   justUpgraded = false,
@@ -136,6 +138,62 @@ export function BillingPageClient({
             Welcome to Pro — your subscription is active.
           </p>
         ) : null}
+
+        <div className="grid gap-3 tablet-up:grid-cols-2">
+          <div
+            className={cn(
+              'rounded-xl border px-4 py-3.5',
+              creditBalance <= 0
+                ? 'border-red-500/30 bg-red-500/10'
+                : creditBalance <= 20
+                  ? 'border-amber-500/30 bg-amber-500/10'
+                  : 'border-app-border bg-app-surface',
+            )}>
+            <p className="text-xs font-medium uppercase tracking-wide text-app-text-muted">
+              Credits left
+            </p>
+            <p
+              className={cn(
+                'mt-1 text-2xl font-semibold',
+                creditBalance <= 0
+                  ? 'text-red-400'
+                  : creditBalance <= 20
+                    ? 'text-amber-300'
+                    : 'text-app-text',
+              )}>
+              {creditBalance}
+            </p>
+            {creditBalance <= 0 ? (
+              <p className="mt-1 text-xs text-red-300">
+                Depleted — upgrade or top up to keep going.
+              </p>
+            ) : creditBalance <= 20 ? (
+              <p className="mt-1 text-xs text-amber-200">Running low.</p>
+            ) : null}
+          </div>
+
+          <div className="rounded-xl border border-app-border bg-app-surface px-4 py-3.5">
+            <p className="text-xs font-medium uppercase tracking-wide text-app-text-muted">
+              Next renewal
+            </p>
+            <p className="mt-1 text-2xl font-semibold text-app-text">
+              {plan === 'pro' && subscription?.daysUntilPeriodEnd != null
+                ? `${subscription.daysUntilPeriodEnd}d`
+                : '—'}
+            </p>
+            {plan === 'pro' && subscription?.periodEndLabel ? (
+              <p className="mt-1 text-xs text-app-text-muted">
+                {subscription.cancelAtPeriodEnd
+                  ? `Access ends ${subscription.periodEndLabel}`
+                  : `Renews ${subscription.periodEndLabel}`}
+              </p>
+            ) : (
+              <p className="mt-1 text-xs text-app-text-muted">
+                {plan === 'pro' ? 'No upcoming renewal date.' : 'No active subscription.'}
+              </p>
+            )}
+          </div>
+        </div>
 
         {isAutoRedirecting ? (
           <p className="flex items-center gap-2 rounded-xl border border-app-accent/30 bg-app-accent/10 px-4 py-3 text-sm text-app-text">

@@ -69,7 +69,11 @@ export function FeedbackWidget() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-5">
-              {tab === 'message' ? <MessageTab /> : <ReviewTab />}
+              {tab === 'message' ? (
+                <MessageTab onSent={() => setTab('review')} />
+              ) : (
+                <ReviewTab onDone={() => setOpen(false)} />
+              )}
             </div>
           </div>
         </div>
@@ -102,7 +106,7 @@ function TabButton({
   );
 }
 
-function MessageTab() {
+function MessageTab({ onSent }: { onSent: () => void }) {
   const [message, setMessage] = useState('');
   const [history, setHistory] = useState<FeedbackMessageItem[]>([]);
   const [isPending, startTransition] = useTransition();
@@ -113,6 +117,22 @@ function MessageTab() {
       .then((items) => setHistory(items))
       .catch(() => {});
   }, []);
+
+  // Poll for updates while any message is still awaiting a reply, so an
+  // admin's response shows up here soon after they send it without the
+  // user needing to close and reopen the feedback widget.
+  useEffect(() => {
+    const hasPending = history.some((item) => !item.response);
+    if (!hasPending) return;
+
+    const interval = setInterval(() => {
+      getMyFeedbackMessagesAction()
+        .then((items) => setHistory(items))
+        .catch(() => {});
+    }, 10_000);
+
+    return () => clearInterval(interval);
+  }, [history]);
 
   const send = () => {
     startTransition(async () => {
@@ -125,6 +145,9 @@ function MessageTab() {
       setMessage('');
       const items = await getMyFeedbackMessagesAction().catch(() => []);
       setHistory(items);
+      // Give the user a moment to see the confirmation before nudging them
+      // to also leave a star rating, rather than jumping tabs instantly.
+      setTimeout(onSent, 1200);
     });
   };
 
@@ -182,7 +205,7 @@ function MessageTab() {
   );
 }
 
-function ReviewTab() {
+function ReviewTab({ onDone }: { onDone: () => void }) {
   const [rating, setRating] = useState(0);
   const [comment, setComment] = useState('');
   const [isPending, startTransition] = useTransition();
@@ -202,6 +225,9 @@ function ReviewTab() {
       toast.success('Thanks for the review!');
       setRating(0);
       setComment('');
+      // Give the user a moment to see the confirmation toast before the
+      // widget closes on its own.
+      setTimeout(onDone, 1200);
     });
   };
 

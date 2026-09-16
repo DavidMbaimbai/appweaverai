@@ -1,6 +1,7 @@
 'use client';
 
 import { Avatar } from '@/components/ui/avatar';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useToast } from '@/components/ui/toast';
 import {
   removeAccountAvatarAction,
@@ -8,7 +9,7 @@ import {
 } from '@/lib/actions/account';
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
-import { useRef, useTransition } from 'react';
+import { useRef, useState, useTransition } from 'react';
 
 type ProfilePhotoSectionProps = {
   name?: string | null;
@@ -25,6 +26,7 @@ export function ProfilePhotoSection({
   const { success, error: toastError } = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
   const [isPending, startTransition] = useTransition();
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
@@ -57,6 +59,7 @@ export function ProfilePhotoSection({
         return;
       }
 
+      setConfirmOpen(false);
       success('Profile photo removed');
       router.refresh();
     });
@@ -100,19 +103,49 @@ export function ProfilePhotoSection({
               'h-9 rounded-lg border border-app-border bg-app-input-bg px-4 text-sm text-app-text transition-colors',
               'hover:bg-app-surface-hover disabled:cursor-not-allowed disabled:opacity-50',
             )}>
-            {isPending ? 'Uploading...' : 'Change photo'}
+            {isPending ? 'Uploading...' : image ? 'Change photo' : 'Upload photo'}
           </button>
           {image ? (
             <button
               type="button"
-              onClick={handleRemove}
+              onClick={() => setConfirmOpen(true)}
               disabled={isPending}
-              className="h-9 rounded-lg px-4 text-sm text-app-text-muted transition-colors hover:bg-app-surface-hover hover:text-app-text disabled:opacity-50">
+              className="flex h-9 items-center gap-1.5 rounded-lg px-4 text-sm text-red-500 transition-colors hover:bg-red-500/10 hover:text-red-500 disabled:opacity-50">
+              <TrashIcon className="h-3.5 w-3.5 shrink-0" />
               Remove
             </button>
           ) : null}
         </div>
       </div>
+
+      <ConfirmDialog
+        open={confirmOpen}
+        onClose={() => setConfirmOpen(false)}
+        onConfirm={handleRemove}
+        title="Remove profile photo?"
+        description="Your profile photo will be deleted. You can upload a new one anytime."
+        confirmLabel="Remove photo"
+        variant="destructive"
+        isPending={isPending}
+      />
     </section>
+  );
+}
+
+function TrashIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true">
+      <path
+        d="M5 7h14M9 7V5.5A1.5 1.5 0 0 1 10.5 4h3A1.5 1.5 0 0 1 15 5.5V7m2 0v11.5A1.5 1.5 0 0 1 15.5 20h-7A1.5 1.5 0 0 1 7 18.5V7"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
