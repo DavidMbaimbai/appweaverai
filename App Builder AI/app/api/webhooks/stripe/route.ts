@@ -3,6 +3,7 @@ import type Stripe from 'stripe';
 
 import { prisma } from '@/lib/prisma';
 import { syncUserSubscription } from '@/lib/billing/stripe-subscription';
+import { grantPlanCredits } from '@/lib/billing/credits';
 import {
   PAID_PLAN_LABELS,
   sendPaymentReceiptEmail,
@@ -140,6 +141,43 @@ export async function POST(request: Request) {
           : null;
 
         if (userId) {
+          // Refill the plan's monthly credit allotment on every paid
+          // invoice (initial activation + each renewal). Resolving the plan
+          // from the live subscription (rather than trusting stale
+          // metadata) keeps this correct across upgrades/downgrades that
+          // generate a proration invoice.
+          const invoiceSubscription =
+            invoice.parent?.subscription_details?.subscription;
+          const subscriptionId =
+            typeof invoiceSubscription === 'string'
+              ? invoiceSubscription
+              : invoiceSubscription?.id;
+
+          if (subscriptionId) {
+            try {
+              const subscription =
+                await stripe.subscriptions.retrieve(subscriptionId);
+              const priceId = subscription.items.data[0]?.price?.id;
+              const planId = priceId ? getPlanIdsByPriceId()[priceId] : null;
+              const isActive =
+                subscription.status === 'active' ||
+                subscription.status === 'trialing';
+
+              if (planId && isActive) {
+                await grantPlanCredits(
+                  userId,
+                  planId,
+                  `${planId} plan credits (invoice ${invoice.id})`,
+                );
+              }
+            } catch (error) {
+              console.error(
+                `Failed to grant renewal credits for user ${userId}:`,
+                error,
+              );
+            }
+          }
+
           await notifyUser(userId, (user) =>
             sendPaymentReceiptEmail({
               email: user.email,

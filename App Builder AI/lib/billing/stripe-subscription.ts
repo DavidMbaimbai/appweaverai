@@ -6,6 +6,7 @@ import {
   getSubscriptionPeriodEnd,
   type SubscriptionDisplayInfo,
 } from '@/lib/billing/subscription-display';
+import { grantPlanCredits } from '@/lib/billing/credits';
 import { prisma } from '@/lib/prisma';
 import {
   getStripeClient,
@@ -73,7 +74,7 @@ export async function syncUserSubscription(
   const periodEnd = getSubscriptionPeriodEnd(subscription);
   const previousUser = await prisma.user.findUnique({
     where: { id: userId },
-    select: { subscriptionCurrentPeriodEnd: true },
+    select: { subscriptionCurrentPeriodEnd: true, subscriptionPlan: true },
   });
 
   // Reset the "already reminded" marker whenever the billing period end
@@ -94,6 +95,22 @@ export async function syncUserSubscription(
       ...(periodEndChanged ? { renewalReminderSentForEnd: null } : {}),
     },
   });
+
+  // Grant the plan's monthly credit allotment whenever a paid plan is newly
+  // activated or changed (upgrade/downgrade). Renewals within the same plan
+  // are refilled separately from `invoice.paid` in the webhook handler, so
+  // we deliberately don't re-grant here just because this subscription
+  // object was re-synced without an actual plan change (that would wipe out
+  // credits the user already spent this period).
+  if (isActive && previousUser?.subscriptionPlan !== resolvedPlanId) {
+    await grantPlanCredits(
+      userId,
+      resolvedPlanId,
+      previousUser?.subscriptionPlan && previousUser.subscriptionPlan !== 'free'
+        ? `Plan changed to ${resolvedPlanId}`
+        : `${resolvedPlanId} plan activated`,
+    );
+  }
 }
 
 export async function syncUserFromCheckoutSession(
