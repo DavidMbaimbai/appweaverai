@@ -6,6 +6,7 @@ import { useAuthModal } from './auth-modal-provider';
 import { useMounted } from '@/lib/use-mounted';
 import type { AuthNavUser } from '@/lib/types/account';
 import { cn } from '@/lib/utils';
+import { useAuthSession } from './session-provider';
 
 const navGhostClass =
   'flex h-8 items-center rounded-md px-2 text-text-secondary transition-colors hover:bg-[#e8e7e3] hover:text-[#212225]';
@@ -92,10 +93,10 @@ export function AuthNavActions({
   createAccountClassName,
 }: AuthNavActionsProps) {
   const mounted = useMounted();
-  const { data: session, isPending } = authClient.useSession();
+  const { data: session, status } = useAuthSession();
   const user = mounted ? (session?.user ?? initialUser) : initialUser;
 
-  if (mounted && isPending) {
+  if (mounted && status === 'loading') {
     return <AuthNavSkeleton className={className} />;
   }
 

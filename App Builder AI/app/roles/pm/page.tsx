@@ -1,34 +1,33 @@
-import { ProductPage } from '@/components/marketing/product-page';
+import { RolePage } from '@/components/marketing/role-page';
 
 export default function PmRolePage() {
   return (
-    <ProductPage
-      eyebrow="Roles"
+    <RolePage
       title="AppWeaver AI for Product Managers"
-      description="Turn a spec into a working prototype yourself — validate ideas with real, clickable software instead of static mockups, without waiting on engineering."
-      highlights={[
-        {
-          title: "Spec to prototype",
-          description:
-            "Describe the feature you're planning and get something real to react to the same day.",
-        },
-        {
-          title: "Stakeholder-ready demos",
-          description:
-            "Share a live link in your next review instead of a slide deck of screenshots.",
-        },
-        {
-          title: "De-risk the roadmap",
-          description:
-            "Validate assumptions before committing an engineering team to a full build.",
-        },
-        {
-          title: "Faster discovery",
-          description:
-            "Run more experiments per quarter by removing the cost of building a first version.",
-        },
+      description="Turn a spec into a working prototype yourself, validate ideas with real software, and give engineering a clearer starting point."
+      forWhom="Product managers who need to explore workflows, prove value, and align stakeholders before a full engineering cycle starts."
+      canBuild={[
+        'Clickable product prototypes for discovery calls and user tests.',
+        'Internal MVPs that demonstrate a new workflow end to end.',
+        'Demo-ready feature concepts for roadmap reviews.',
+      ]}
+      capabilities={[
+        'Prompt-to-app generation for fast first drafts.',
+        'Live preview and visual editing for quick copy and layout changes.',
+        'Publishing so stakeholders can test a real link.',
+        'Version history and project workspaces for iteration.',
+      ]}
+      workflow={[
+        'Write the user problem and desired flow in plain language.',
+        'Review the generated app, then refine screens and data fields.',
+        'Share a published prototype with users or stakeholders.',
+        'Use feedback to revise the prompt or hand the working app to engineering.',
+      ]}
+      benefits={[
+        'De-risk roadmap bets before committing a sprint.',
+        'Replace static mockups with realistic, interactive experiences.',
+        'Run more discovery experiments with less engineering dependency.',
       ]}
     />
   );
 }
-

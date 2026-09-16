@@ -16,9 +16,12 @@ export function FooterClock() {
   const [now, setNow] = useState<Date | null>(null);
 
   useEffect(() => {
-    setNow(new Date());
+    const timeout = setTimeout(() => setNow(new Date()), 0);
     const interval = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(interval);
+    return () => {
+      clearTimeout(timeout);
+      clearInterval(interval);
+    };
   }, []);
 
   const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;

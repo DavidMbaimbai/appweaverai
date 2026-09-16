@@ -8,10 +8,22 @@ import { CloseIcon, EyeIcon, EyeOffIcon } from './auth-icons';
 import { useAuthModal } from './auth-modal-provider';
 import { OAuthButton } from './oauth-button';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { AppWeaverLogo } from '../ui/appweaver-logo';
 import { recordEmailVerifiedAction } from '@/lib/auth/actions';
+import { useAuthSession } from './session-provider';
 
 const DEFAULT_CALLBACK_URL = '/app';
+const AUTH_QUERY_KEYS = [
+  'auth',
+  'error',
+  'callbackUrl',
+  'callbackurl',
+  'callbackURL',
+  'code',
+  'state',
+  'token',
+] as const;
 
 const modeCopy: Record<
   AuthMode,
@@ -94,7 +106,15 @@ function AuthField({
 
 export function AuthModal() {
   const router = useRouter();
-  const { isOpen, mode, closeAuthModal, setAuthMode } = useAuthModal();
+  const { refetch: refetchSession } = useAuthSession();
+  const {
+    isOpen,
+    mode,
+    initialError,
+    enabledOAuthProviders,
+    closeAuthModal,
+    setAuthMode,
+  } = useAuthModal();
   const titleId = useId();
   const descriptionId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -139,7 +159,9 @@ export function AuthModal() {
   const alternateMode: AuthMode = mode === 'login' ? 'register' : 'login';
   const callbackUrl =
     typeof window !== 'undefined'
-      ? new URLSearchParams(window.location.search).get('callbackUrl')
+      ? (new URLSearchParams(window.location.search).get('callbackUrl') ??
+        new URLSearchParams(window.location.search).get('callbackurl') ??
+        new URLSearchParams(window.location.search).get('callbackURL'))
       : null;
   const redirectHint =
     callbackUrl === '/app'
@@ -148,20 +170,43 @@ export function AuthModal() {
         ? 'Sign in to continue'
         : null;
 
+  const cleanAuthQuery = useCallback(() => {
+    const params = new URLSearchParams(window.location.search);
+    const hasAuthQuery = AUTH_QUERY_KEYS.some((key) => params.has(key));
+
+    if (!hasAuthQuery) {
+      return;
+    }
+
+    for (const key of AUTH_QUERY_KEYS) {
+      params.delete(key);
+    }
+
+    const query = params.toString();
+    const cleanUrl = query
+      ? `${window.location.pathname}?${query}`
+      : window.location.pathname;
+
+    window.history.replaceState(null, '', cleanUrl);
+    router.replace(cleanUrl);
+  }, [router]);
+
+  const completeAuthSuccess = useCallback(
+    (target: string) => {
+      setError(null);
+      closeAuthModal();
+      cleanAuthQuery();
+      void refetchSession();
+      router.replace(target);
+      router.refresh();
+    },
+    [cleanAuthQuery, closeAuthModal, refetchSession, router],
+  );
+
   const handleClose = useCallback(() => {
     closeAuthModal();
-
-    const params = new URLSearchParams(window.location.search);
-    if (!params.has('auth') && !params.has('callbackUrl')) return;
-
-    params.delete('auth');
-    params.delete('callbackUrl');
-    const query = params.toString();
-
-    router.replace(
-      query ? `${window.location.pathname}?${query}` : window.location.pathname,
-    );
-  }, [closeAuthModal, router]);
+    cleanAuthQuery();
+  }, [cleanAuthQuery, closeAuthModal]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -196,7 +241,7 @@ export function AuthModal() {
       setConfirmPassword('');
       setShowPassword(false);
       setShowConfirmPassword(false);
-      setError(null);
+      setError(initialError);
       setIsLoading(false);
       setPendingVerificationEmail(null);
       setOtp('');
@@ -214,13 +259,16 @@ export function AuthModal() {
     };
 
     reset();
-  }, [isOpen]);
+  }, [initialError, isOpen]);
 
   function getCallbackUrl() {
     const params = new URLSearchParams(window.location.search);
-    const callback = params.get('callbackUrl');
+    const callback =
+      params.get('callbackUrl') ??
+      params.get('callbackurl') ??
+      params.get('callbackURL');
 
-    if (callback?.startsWith('/')) {
+    if (callback?.startsWith('/') && !callback.startsWith('//')) {
       return callback;
     }
     return DEFAULT_CALLBACK_URL;
@@ -278,8 +326,7 @@ export function AuthModal() {
       callbackURL: getCallbackUrl(),
       fetchOptions: {
         onSuccess: () => {
-          router.push(getCallbackUrl());
-          router.refresh();
+          completeAuthSuccess(getCallbackUrl());
         },
         onError: (ctx) => {
           setIsLoading(false);
@@ -311,8 +358,7 @@ export function AuthModal() {
 
           const target = getCallbackUrl();
           window.setTimeout(() => {
-            router.push(target);
-            router.refresh();
+            completeAuthSuccess(target);
           }, 2200);
         },
         onError: (ctx) => {
@@ -452,8 +498,7 @@ export function AuthModal() {
             callbackURL: getCallbackUrl(),
             fetchOptions: {
               onSuccess: () => {
-                router.push(getCallbackUrl());
-                router.refresh();
+                completeAuthSuccess(getCallbackUrl());
               },
               onError: () => {
                 setIsLoading(false);
@@ -1003,16 +1048,14 @@ export function AuthModal() {
           </div>
 
           <div className="space-y-3">
-            <OAuthButton
-              provider="google"
-              disabled={isLoading}
-              onClick={() => handleOAuthClick('google')}
-            />
-            <OAuthButton
-              provider="github"
-              disabled={isLoading}
-              onClick={() => handleOAuthClick('github')}
-            />
+            {enabledOAuthProviders.map((provider) => (
+              <OAuthButton
+                key={provider}
+                provider={provider}
+                disabled={isLoading}
+                onClick={() => handleOAuthClick(provider)}
+              />
+            ))}
           </div>
 
           {error && (
@@ -1139,17 +1182,17 @@ export function AuthModal() {
             {mode === 'register' && (
               <p className="text-xs leading-relaxed text-text-muted">
                 By creating an account, you agree to our{' '}
-                <a
+                <Link
                   href="/terms"
                   className="text-text-secondary underline underline-offset-2">
                   Terms of Service
-                </a>{' '}
+                </Link>{' '}
                 and{' '}
-                <a
+                <Link
                   href="/privacy"
                   className="text-text-secondary underline underline-offset-2">
                   Privacy Policy
-                </a>
+                </Link>
                 .
               </p>
             )}

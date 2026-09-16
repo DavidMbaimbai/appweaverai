@@ -1,34 +1,33 @@
-import { ProductPage } from '@/components/marketing/product-page';
+import { RolePage } from '@/components/marketing/role-page';
 
 export default function DevelopersRolePage() {
   return (
-    <ProductPage
-      eyebrow="Roles"
+    <RolePage
       title="AppWeaver AI for Software Developers"
-      description="Use Agent 4 as a force multiplier — offload scaffolding, boilerplate, and repetitive implementation work so you can focus on the hard problems."
-      highlights={[
-        {
-          title: "Skip the boilerplate",
-          description:
-            "Let the Agent handle auth, CRUD routes, and database schemas so you start from real code.",
-        },
-        {
-          title: "Parallel execution",
-          description:
-            "Run several agents on different parts of your codebase and review the diffs before merging.",
-        },
-        {
-          title: "Full code access",
-          description:
-            "Every generated file is real, editable code — no black-box output you can't inspect.",
-        },
-        {
-          title: "Bring your stack",
-          description:
-            "Import an existing GitHub repo and keep building on it with the Agent's help.",
-        },
+      description="Use Agent 4 as a force multiplier for scaffolding, repetitive implementation, and prototype branches while you keep control of the code."
+      forWhom="Developers and technical teams who want to move faster without giving up review, architecture, or source-code ownership."
+      canBuild={[
+        'Feature prototypes with real routes, state, and data models.',
+        'Admin dashboards, CRUD tools, and integration proofs of concept.',
+        'Production-ready starting points for apps and websites.',
+      ]}
+      capabilities={[
+        'Editable generated source files.',
+        'Agent task planning and step-by-step activity.',
+        'Project file inspection and live preview.',
+        'Built-in auth, database, publishing, and billing scaffolding.',
+      ]}
+      workflow={[
+        'Give the Agent a scoped implementation task.',
+        'Inspect generated files and preview the behavior.',
+        'Ask for targeted revisions or continue manually.',
+        'Publish or export once the implementation passes review.',
+      ]}
+      benefits={[
+        'Spend less time on boilerplate and more time on architecture.',
+        'Prototype integration paths before committing to a full build.',
+        'Keep human review in the loop for every meaningful change.',
       ]}
     />
   );
 }
-
