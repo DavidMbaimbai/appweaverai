@@ -21,6 +21,8 @@ import { GithubExportPanel } from './github-export-panel';
 import { CustomDomainPanel } from './custom-domain-panel';
 import { PresenceAvatars } from './presence-avatars';
 import { ActivityLogPanel } from './activity-log-panel';
+import { TerminalPanel } from './terminal-panel';
+import { AnalyticsPanel } from './analytics-panel';
 
 type EditorTopbarProps = {
   project: AppProjectDetail;
@@ -48,6 +50,8 @@ export function EditorTopBar({
   const [githubOpen, setGithubOpen] = useState(false);
   const [domainOpen, setDomainOpen] = useState(false);
   const [activityOpen, setActivityOpen] = useState(false);
+  const [terminalOpen, setTerminalOpen] = useState(false);
+  const [analyticsOpen, setAnalyticsOpen] = useState(false);
   const [visibility, setVisibility] = useState<PublishVisibility>(
     project.deployment?.visibility ?? 'private',
   );
@@ -304,6 +308,28 @@ export function EditorTopBar({
                 <button
                   type="button"
                   role="menuitem"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setTerminalOpen(true);
+                  }}
+                  className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-app-text-secondary transition-colors hover:bg-app-surface-hover hover:text-app-text">
+                  <TerminalMenuIcon className="h-3.5 w-3.5 shrink-0" />
+                  Terminal
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setAnalyticsOpen(true);
+                  }}
+                  className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-app-text-secondary transition-colors hover:bg-app-surface-hover hover:text-app-text">
+                  <AnalyticsIcon className="h-3.5 w-3.5 shrink-0" />
+                  Analytics
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
                   onClick={handleMoveToTrashClick}
                   disabled={isPending}
                   className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-appweaver-orange transition-colors hover:bg-appweaver-orange/10 disabled:opacity-50">
@@ -362,6 +388,27 @@ export function EditorTopBar({
         open={activityOpen}
         onClose={() => setActivityOpen(false)}
         projectId={project.id}
+      />
+
+      <TerminalPanel
+        open={terminalOpen}
+        onClose={() => setTerminalOpen(false)}
+        projectId={project.id}
+        artifacts={project.artifacts}
+        defaultArtifactSlug={
+          project.artifacts.find(
+            (artifact) => artifact.id === project.lastActiveArtifactId,
+          )?.slug ??
+          project.artifacts[0]?.slug ??
+          null
+        }
+      />
+
+      <AnalyticsPanel
+        open={analyticsOpen}
+        onClose={() => setAnalyticsOpen(false)}
+        projectId={project.id}
+        isPublished={isPublished}
       />
     </>
   );
@@ -546,6 +593,51 @@ function ActivityIcon({ className }: { className?: string }) {
       aria-hidden="true">
       <path
         d="M3 12h4l2-7 4 14 2-7h6"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function TerminalMenuIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true">
+      <rect
+        x="3"
+        y="4"
+        width="18"
+        height="16"
+        rx="2"
+        stroke="currentColor"
+        strokeWidth="1.5"
+      />
+      <path
+        d="M6.5 9.5 10 12l-3.5 2.5M12 15h5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function AnalyticsIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true">
+      <path
+        d="M4 20V10M11 20V4M18 20v-7"
         stroke="currentColor"
         strokeWidth="1.5"
         strokeLinecap="round"

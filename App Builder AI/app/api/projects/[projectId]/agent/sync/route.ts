@@ -3,6 +3,7 @@ import { headers } from 'next/headers';
 import { auth } from '@/lib/auth';
 import { getAccessibleProject } from '@/lib/projects/access';
 import { getActiveAgentRun } from '@/lib/agent/run-presence';
+import { listTypingUsers } from '@/lib/agent/typing-presence';
 import { prisma } from '@/lib/prisma';
 import type { AgentMessageMetadata } from '@/lib/agent/types';
 
@@ -79,5 +80,9 @@ export async function GET(
       ? { name: activeRun.name, startedAt: activeRun.startedAt }
       : null;
 
-  return Response.json({ messages, activeRun: otherUserRun });
+  const typingUsers = listTypingUsers(projectId, userId).map((entry) => ({
+    name: entry.name,
+  }));
+
+  return Response.json({ messages, activeRun: otherUserRun, typingUsers });
 }

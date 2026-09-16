@@ -3,6 +3,7 @@ import { notFound, redirect } from 'next/navigation';
 
 import { auth } from '@/lib/auth';
 import { getPublishedProjectBySlugs } from '@/lib/queries/published';
+import { recordPageView } from '@/lib/analytics/record-page-view';
 import { PublishedProjectViewer } from '@/components/app/published/published-project-viewer';
 
 type PublishedPageProps = {
@@ -13,7 +14,8 @@ export default async function PublishedProjectPage({
   params,
 }: PublishedPageProps) {
   const { workspaceSlug, projectSlug } = await params;
-  const session = await auth.api.getSession({ headers: await headers() });
+  const headerList = await headers();
+  const session = await auth.api.getSession({ headers: headerList });
   const userId = session?.user?.id ?? null;
 
   const result = await getPublishedProjectBySlugs(
@@ -32,6 +34,16 @@ export default async function PublishedProjectPage({
     }
     notFound();
   }
+
+  await recordPageView({
+    projectId: result.id,
+    path: `/p/${workspaceSlug}/${projectSlug}`,
+    referrer: headerList.get('referer'),
+    ip:
+      headerList.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+      headerList.get('x-real-ip'),
+    userAgent: headerList.get('user-agent'),
+  });
 
   return <PublishedProjectViewer project={result} />;
 }

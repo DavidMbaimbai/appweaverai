@@ -117,10 +117,15 @@ export function AgentPanel({
   const [otherUserRun, setOtherUserRun] = useState<{ name: string } | null>(
     null,
   );
+  const [otherTypingUsers, setOtherTypingUsers] = useState<
+    { name: string }[]
+  >([]);
   const initialReplyStarted = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const lastActivityKeyRef = useRef('');
   const isStreamingRef = useRef(isStreaming);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isTypingRef = useRef(false);
   const syncCursorRef = useRef<string | null>(
     project.messages.at(-1)?.createdAt ?? null,
   );
@@ -128,6 +133,41 @@ export function AgentPanel({
   useEffect(() => {
     isStreamingRef.current = isStreaming;
   }, [isStreaming]);
+
+  function sendTypingSignal(isTyping: boolean) {
+    if (isTypingRef.current === isTyping) return;
+    isTypingRef.current = isTyping;
+    void fetch(`/api/projects/${project.id}/agent/typing`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ isTyping }),
+      keepalive: true,
+    }).catch(() => {
+      // Best-effort signal — a dropped request just means teammates won't
+      // see the "typing…" indicator for this keystroke.
+    });
+  }
+
+  function handleInputChange(value: string) {
+    setInput(value);
+
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+
+    if (value.trim()) {
+      sendTypingSignal(true);
+      typingTimeoutRef.current = setTimeout(() => sendTypingSignal(false), 4000);
+    } else {
+      sendTypingSignal(false);
+    }
+  }
+
+  useEffect(() => {
+    return () => {
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      sendTypingSignal(false);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const activeArtifact =
     project.artifacts.find((artifact) => artifact.id === activeArtifactId) ??
@@ -439,6 +479,7 @@ export function AgentPanel({
         const data: {
           messages: AppAgentMessage[];
           activeRun: { name: string } | null;
+          typingUsers?: { name: string }[];
         } = await res.json();
         if (cancelled) return;
 
@@ -477,6 +518,7 @@ export function AgentPanel({
         }
 
         setOtherUserRun(data.activeRun ?? null);
+        setOtherTypingUsers(data.typingUsers ?? []);
       } catch {
         // Best-effort — a failed sync just gets retried next tick.
       }
@@ -498,6 +540,8 @@ export function AgentPanel({
     if (!content) {
       setInput('');
     }
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    sendTypingSignal(false);
 
     const optimisticUserMessage: AppAgentMessage = {
       id: `temp-${Date.now()}`,
@@ -768,6 +812,21 @@ export function AgentPanel({
       </div>
 
       <div className="border-t border-app-border-subtle bg-app-sidebar-bg/40 p-4">
+        {otherUserRun ? (
+          <p className="mb-2 flex items-center gap-1.5 rounded-lg border border-appweaver-orange/30 bg-appweaver-orange/10 px-3 py-2 text-xs font-medium text-appweaver-orange">
+            <span className="relative flex h-1.5 w-1.5 shrink-0">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-appweaver-orange opacity-75" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-appweaver-orange" />
+            </span>
+            {otherUserRun.name} is generating a response…
+          </p>
+        ) : otherTypingUsers.length > 0 ? (
+          <p className="mb-2 text-xs italic text-app-text-muted">
+            {otherTypingUsers.length === 1
+              ? `${otherTypingUsers[0].name} is typing…`
+              : `${otherTypingUsers.map((u) => u.name).join(', ')} are typing…`}
+          </p>
+        ) : null}
         {project.artifacts.length > 1 && activeArtifact ? (
           <p className="mb-2 text-xs text-app-text-muted">
             Building in{' '}
@@ -791,18 +850,21 @@ export function AgentPanel({
         <Textarea
           theme="app"
           value={input}
-          onChange={(event) => setInput(event.target.value)}
+          onChange={(event) => handleInputChange(event.target.value)}
           placeholder={
-            !activeArtifactBuildable && !planModeActive
-              ? 'Switch to a supported artifact to build...'
-              : planModeActive
-                ? 'Answer a question or add details...'
-                : 'Make, test, iterate...'
+            otherUserRun
+              ? `Waiting for ${otherUserRun.name} to finish…`
+              : !activeArtifactBuildable && !planModeActive
+                ? 'Switch to a supported artifact to build...'
+                : planModeActive
+                  ? 'Answer a question or add details...'
+                  : 'Make, test, iterate...'
           }
           rows={3}
           disabled={
             isStreaming ||
             !activeArtifact ||
+            Boolean(otherUserRun) ||
             (!activeArtifactBuildable && !planModeActive)
           }
           className="min-h-[72px] resize-none"
@@ -829,6 +891,7 @@ export function AgentPanel({
             onClick={() => handleSend()}
             disabled={
               !input.trim() ||
+              Boolean(otherUserRun) ||
               isStreaming ||
               !activeArtifact ||
               (!activeArtifactBuildable && !planModeActive)

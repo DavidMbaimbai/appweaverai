@@ -329,6 +329,7 @@ model Project {
   conversations AgentConversation[]
   aiUsageEvents AiUsageEvent[]
   flags         ProjectFlag[]
+  pageViews     ProjectPageView[]
 
   @@unique([workspaceId, slug])
   @@index([workspaceId, updatedAt])
@@ -671,6 +672,26 @@ model Deployment {
   @@index([projectId, isCurrent])
   @@index([domain])
   @@map("deployments")
+}
+
+/// One row per anonymous visit to a published project's public URL
+/// (app/p/[workspaceSlug]/[projectSlug]). Powers the owner-facing public
+/// analytics dashboard (page views, unique visitors, referrers, top paths).
+/// `visitorId` is a daily-rotating hash (never the raw IP/UA), so it's only
+/// good for a rough "unique visitors today/this week" count, not persistent
+/// cross-session tracking.
+model ProjectPageView {
+  id        String   @id @default(cuid())
+  projectId String   @map("project_id")
+  path      String
+  referrer  String?
+  visitorId String   @map("visitor_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+  @@map("project_page_views")
 }
 
 // -----------------------------------------------------------------------------
