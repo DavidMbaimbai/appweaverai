@@ -12,22 +12,22 @@ describe('agent constants env parsing', () => {
     process.env = { ...ORIGINAL_ENV };
   });
 
-  it('falls back to the default model when ANTHROPIC_MODEL is unset', async () => {
-    delete process.env.ANTHROPIC_MODEL;
+  it('falls back to the default Bedrock model when BEDROCK_MODEL_ID is unset', async () => {
+    delete process.env.BEDROCK_MODEL_ID;
     const { getAnthropicModel } = await loadConstants();
-    expect(getAnthropicModel()).toBe('claude-sonnet-4-6');
+    expect(getAnthropicModel()).toBe('eu.anthropic.claude-sonnet-4-5-20250929-v1:0');
   });
 
-  it('uses ANTHROPIC_MODEL when set', async () => {
-    process.env.ANTHROPIC_MODEL = 'claude-custom-model';
+  it('uses BEDROCK_MODEL_ID when set', async () => {
+    process.env.BEDROCK_MODEL_ID = 'custom.bedrock-model:0';
     const { getAnthropicModel } = await loadConstants();
-    expect(getAnthropicModel()).toBe('claude-custom-model');
+    expect(getAnthropicModel()).toBe('custom.bedrock-model:0');
   });
 
-  it('trims whitespace around ANTHROPIC_MODEL', async () => {
-    process.env.ANTHROPIC_MODEL = '  claude-custom-model  ';
+  it('trims whitespace around BEDROCK_MODEL_ID', async () => {
+    process.env.BEDROCK_MODEL_ID = '  custom.bedrock-model:0  ';
     const { getAnthropicModel } = await loadConstants();
-    expect(getAnthropicModel()).toBe('claude-custom-model');
+    expect(getAnthropicModel()).toBe('custom.bedrock-model:0');
   });
 
   it('falls back to defaults for invalid MAX_AGENT_TURNS', async () => {

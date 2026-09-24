@@ -16,7 +16,8 @@ export const MAX_AGENT_CONTINUE_NUDGES = readIntEnv(
   5,
 );
 
-const DEFAULT_MODEL = 'claude-sonnet-4-6';
+/** Cross-region inference profile ID for Claude Sonnet on Amazon Bedrock. */
+const DEFAULT_BEDROCK_MODEL = 'eu.anthropic.claude-sonnet-4-5-20250929-v1:0';
 
 function readIntEnv(value: string | undefined, fallback: number) {
   if (!value?.trim()) return fallback;
@@ -25,5 +26,5 @@ function readIntEnv(value: string | undefined, fallback: number) {
 }
 
 export function getAnthropicModel() {
-  return process.env.ANTHROPIC_MODEL?.trim() || DEFAULT_MODEL;
+  return process.env.BEDROCK_MODEL_ID?.trim() || DEFAULT_BEDROCK_MODEL;
 }

@@ -596,8 +596,8 @@ export async function runAgentLoop({
   limits,
   onEvent,
 }: RunAgentLoopOptions): Promise<AgentRunResult> {
-  if (!process.env.ANTHROPIC_API_KEY) {
-    throw new Error('Anthropic API key is not configured.');
+  if (!process.env.AWS_REGION) {
+    throw new Error('AWS_REGION is not configured (required for Amazon Bedrock).');
   }
 
   const agentLimits: AgentLimits = limits ?? {
@@ -987,7 +987,7 @@ async function recordAgentAiUsage({
       data: {
         userId: conversation?.userId,
         projectId,
-        provider: 'anthropic',
+        provider: 'bedrock',
         model,
         inputTokens: usage.inputTokens,
         outputTokens: usage.outputTokens,

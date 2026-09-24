@@ -34,7 +34,7 @@ This is an early-stage MVP intended to validate the core product experience. Exp
 
 - Node.js and npm
 - A PostgreSQL database (set `DATABASE_URL`)
-- An Anthropic API key for the agent (`ANTHROPIC_API_KEY`)
+- An AWS account with Bedrock access to Anthropic Claude models (`AWS_REGION`, plus AWS credentials)
 - (Optional) Google/GitHub OAuth credentials and a Stripe key for billing features
 
 ### Install & run
@@ -53,8 +53,12 @@ Create a `.env` file in the project root with at least:
 
 ```bash
 DATABASE_URL=postgres://...
-ANTHROPIC_API_KEY=...
 BETTER_AUTH_URL=http://localhost:3000
+# Amazon Bedrock (the only AI provider):
+AWS_REGION=eu-north-1
+# AWS_ACCESS_KEY_ID=...
+# AWS_SECRET_ACCESS_KEY=...
+# BEDROCK_MODEL_ID=eu.anthropic.claude-sonnet-4-5-20250929-v1:0
 # Optional:
 GOOGLE_CLIENT_ID=...
 GOOGLE_CLIENT_SECRET=...

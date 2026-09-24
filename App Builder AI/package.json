@@ -11,6 +11,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@anthropic-ai/bedrock-sdk": "^0.33.7",
     "@anthropic-ai/sdk": "^0.115.0",
     "@better-auth/prisma-adapter": "^1.6.23",
     "@better-auth/sso": "^1.7.5",

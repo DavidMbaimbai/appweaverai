@@ -1,6 +1,9 @@
 import { getAnthropicClient } from '@/lib/anthropic';
 
-const TRANSLATE_MODEL = 'claude-3-5-haiku-latest';
+/** Cross-region inference profile ID for Claude Haiku on Amazon Bedrock. */
+const TRANSLATE_MODEL =
+  process.env.BEDROCK_TRANSLATE_MODEL_ID?.trim() ||
+  'eu.anthropic.claude-3-5-haiku-20241022-v1:0';
 
 function extractJson(text: string): unknown {
   const match = text.match(/\{[\s\S]*\}/);
