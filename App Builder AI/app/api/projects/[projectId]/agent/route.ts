@@ -12,6 +12,10 @@ import { startAgentRun, endAgentRun } from '@/lib/agent/run-presence';
 import { createProjectCheckpoint } from '@/lib/project-checkpoints';
 import type { AgentMessageMetadata, AgentStreamEvent } from '@/lib/agent/types';
 import { getAgentLimits, getAppTier } from '@/lib/billing/entitlements';
+import {
+  getAgentModelOption,
+  resolveAgentModelId,
+} from '@/lib/agent/model-catalog';
 import { getUserBillingFields } from '@/lib/queries/billing';
 import { prisma } from '@/lib/prisma';
 
@@ -20,6 +24,7 @@ const bodySchema = z.object({
   artifactId: z.string().min(1),
   conversationId: z.string().min(1).optional(),
   initialReply: z.boolean().optional(),
+  modelId: z.string().min(1).optional(),
 });
 
 function encodeSse(event: AgentStreamEvent) {
@@ -72,7 +77,13 @@ export async function POST(
     (await ensureConversation(projectId, userId));
 
   const billingUser = await getUserBillingFields(userId);
-  const agentLimits = getAgentLimits(getAppTier(billingUser));
+  const modelOption = getAgentModelOption(
+    resolveAgentModelId(parsed.data.modelId),
+  );
+  const agentLimits = {
+    ...getAgentLimits(getAppTier(billingUser)),
+    model: modelOption.bedrockModelId,
+  };
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
@@ -154,6 +165,7 @@ export async function POST(
           buildValid: result.buildValid,
           planQuestion: result.planQuestion,
           planCompleted: result.planCompleted,
+          modelLabel: modelOption.label,
         };
 
         const assistantMessage = await prisma.agentMessage.create({

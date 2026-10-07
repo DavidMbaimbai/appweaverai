@@ -44,6 +44,8 @@ export type AgentMessageMetadata = {
    */
   authorId?: string;
   authorName?: string;
+  /** Which selectable model answered this turn (e.g. "Claude Opus"). */
+  modelLabel?: string;
 };
 
 export type AgentStreamEvent =
@@ -60,6 +62,17 @@ export type AgentStreamEvent =
   | { type: "text_delta"; content: string }
   | { type: "plan_question"; question: string; options: string[] }
   | { type: "plan_completed" }
+  | {
+      type: "tool_call_pending_approval";
+      toolCallId: string;
+      toolName: string;
+      input: Record<string, unknown>;
+    }
+  | {
+      type: "tool_call_decided";
+      toolCallId: string;
+      decision: "approved" | "denied" | "timed_out";
+    }
   | {
       type: "done";
       messageId: string;

@@ -302,6 +302,21 @@ export const AGENT_TOOLS = [
     },
   },
   {
+    name: 'delete_file',
+    description:
+      'Permanently delete a file from the artifact. This is destructive and requires the user to approve it before it runs — only call this when a file genuinely needs to be removed (e.g. replaced by a renamed/restructured file).',
+    input_schema: {
+      type: 'object' as const,
+      properties: {
+        path: {
+          type: 'string',
+          description: 'Relative file path to delete, e.g. old-component.jsx',
+        },
+      },
+      required: ['path'],
+    },
+  },
+  {
     name: 'complete_build',
     description:
       'Signal that building is complete and provide a markdown summary for the user (no code). Only succeeds when the preview builds successfully.',

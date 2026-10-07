@@ -56,8 +56,15 @@ import {
   listProjectFiles,
   readProjectFile,
   writeProjectFile,
+  deleteProjectFile,
 } from '@/lib/project-files';
 import { prisma } from '@/lib/prisma';
+import { getToolRiskLevel } from '@/lib/agent/tool-policy';
+import {
+  markToolCallResult,
+  recordToolCall,
+  waitForToolCallDecision,
+} from '@/lib/agent/tool-approval';
 
 const MAX_AGENT_MESSAGES = 50;
 const BUILD_NOT_READY_PREFIX = 'BUILD_NOT_READY:';
@@ -477,6 +484,40 @@ async function executeTool(
       return { result: `Saved ${filePath} (${content.length} bytes).` };
     }
 
+    case 'delete_file': {
+      if (ctx.planMode) {
+        return {
+          result:
+            'Plan mode is still active. Call complete_plan first, then build.',
+        };
+      }
+
+      const filePath = String(input.path ?? '');
+      if (!filePath) {
+        return { result: 'A file path is required.' };
+      }
+      if (!ctx.existingPaths.has(filePath)) {
+        return { result: `File not found: ${filePath}` };
+      }
+
+      await deleteProjectFile({
+        projectId: ctx.projectId,
+        artifactSlug: ctx.artifactSlug,
+        relativePath: filePath,
+      });
+
+      ctx.existingPaths.delete(filePath);
+      ctx.readCache.delete(filePath);
+      ctx.previewVersion += 1;
+      emitAction(
+        ctx,
+        `Deleted ${filePath}`,
+        `${ctx.artifactSlug}/${filePath}`,
+      );
+
+      return { result: `Deleted ${filePath}.` };
+    }
+
     case 'complete_build': {
       if (ctx.planMode) {
         return {
@@ -507,6 +548,83 @@ async function executeTool(
     default:
       return { result: `Unknown tool: ${name}` };
   }
+}
+
+/**
+ * Wraps executeTool with the approval gate: SAFE/REVIEW tools run
+ * immediately and are logged for audit; DESTRUCTIVE tools (e.g.
+ * delete_file) are persisted as a PENDING AgentToolCall, the loop blocks on
+ * a human decision, and the tool only runs if approved.
+ */
+async function runToolWithApprovalGate(
+  name: string,
+  input: Record<string, unknown>,
+  ctx: ToolContext,
+): Promise<{ result: string; stopForQuestion?: boolean }> {
+  const riskLevel = getToolRiskLevel(name);
+
+  if (riskLevel !== 'DESTRUCTIVE') {
+    const executed = await executeTool(name, input, ctx);
+    void recordToolCall({
+      conversationId: ctx.conversationId,
+      projectId: ctx.projectId,
+      toolName: name,
+      input,
+      riskLevel,
+    }).then((toolCall) =>
+      markToolCallResult(toolCall.id, {
+        status: 'EXECUTED',
+        result: executed.result,
+      }),
+    );
+    return executed;
+  }
+
+  const toolCall = await recordToolCall({
+    conversationId: ctx.conversationId,
+    projectId: ctx.projectId,
+    toolName: name,
+    input,
+    riskLevel,
+  });
+
+  ctx.onEvent?.({
+    type: 'tool_call_pending_approval',
+    toolCallId: toolCall.id,
+    toolName: name,
+    input,
+  });
+  emitAction(ctx, `Waiting for approval: ${name}`, undefined, 'running');
+
+  const outcome = await waitForToolCallDecision(toolCall.id);
+
+  if (outcome.decision !== 'APPROVED') {
+    const reason =
+      outcome.decision === 'DENIED'
+        ? 'denied by the user'
+        : 'timed out waiting for approval';
+    const result = `Action not performed (${reason}): ${name}.`;
+    ctx.onEvent?.({
+      type: 'tool_call_decided',
+      toolCallId: toolCall.id,
+      decision: outcome.decision === 'DENIED' ? 'denied' : 'timed_out',
+    });
+    emitAction(ctx, `Skipped ${name} (${reason})`);
+    return { result };
+  }
+
+  ctx.onEvent?.({
+    type: 'tool_call_decided',
+    toolCallId: toolCall.id,
+    decision: 'approved',
+  });
+
+  const executed = await executeTool(name, input, ctx);
+  await markToolCallResult(toolCall.id, {
+    status: 'EXECUTED',
+    result: executed.result,
+  });
+  return executed;
 }
 
 async function streamAssistantTurn(
@@ -800,7 +918,7 @@ export async function runAgentLoop({
 
     for (const toolUse of toolUses) {
       const input = (toolUse.input ?? {}) as Record<string, unknown>;
-      const { result, stopForQuestion: shouldStop } = await executeTool(
+      const { result, stopForQuestion: shouldStop } = await runToolWithApprovalGate(
         toolUse.name,
         input,
         ctx,

@@ -39,8 +39,17 @@ import { AgentActionSteps } from './agent-action-steps';
 import { AgentWorkingBadge } from './agent-activity-indicator';
 import { AgentFileWriteStream } from './agent-file-write-stream';
 import { AgentMessageContent } from './agent-message-content';
+import { AgentModelPicker } from './agent-model-picker';
 import { AgentPlanQuestion } from './agent-plan-question';
+import { AgentToolApproval } from './agent-tool-approval';
 import { TaskBoardDrawer, WorkingIndicator } from './task-board-drawer';
+import {
+  DEFAULT_AGENT_MODEL_ID,
+  resolveAgentModelId,
+  type AgentModelId,
+} from '@/lib/agent/model-catalog';
+
+const AGENT_MODEL_STORAGE_KEY = 'appweaver:agent-model';
 
 type AgentPanelProps = {
   project: AppProjectDetail;
@@ -66,6 +75,11 @@ type LiveRunState = {
   fileWrites: AgentFileWriteSnapshot[];
   summary?: string;
   planQuestion?: { question: string; options: string[] };
+  pendingToolApproval?: {
+    toolCallId: string;
+    toolName: string;
+    input: Record<string, unknown>;
+  };
 };
 
 function artifactIsReady(project: AppProjectDetail, artifactId: string | null) {
@@ -130,9 +144,23 @@ export const AgentPanel = forwardRef<AgentPanelHandle, AgentPanelProps>(
   const [liveRun, setLiveRun] = useState<LiveRunState | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const [planModeActive, setPlanModeActive] = useState(project.planMode);
+  const [selectedModelId, setSelectedModelId] = useState<AgentModelId>(
+    DEFAULT_AGENT_MODEL_ID,
+  );
   const [otherUserRun, setOtherUserRun] = useState<{ name: string } | null>(
     null,
   );
+
+  // Remember the user's last-picked model across sessions, like Cursor does.
+  useEffect(() => {
+    const stored = window.localStorage.getItem(AGENT_MODEL_STORAGE_KEY);
+    if (stored) setSelectedModelId(resolveAgentModelId(stored));
+  }, []);
+
+  function handleModelChange(modelId: AgentModelId) {
+    setSelectedModelId(modelId);
+    window.localStorage.setItem(AGENT_MODEL_STORAGE_KEY, modelId);
+  }
   const [otherTypingUsers, setOtherTypingUsers] = useState<
     { name: string }[]
   >([]);
@@ -227,6 +255,7 @@ export const AgentPanel = forwardRef<AgentPanelHandle, AgentPanelProps>(
         content: options.content,
         conversationId: project.conversationId,
         initialReply: options.initialReply,
+        modelId: options.initialReply ? undefined : selectedModelId,
         onEvent: (event: AgentStreamEvent) => {
           if (event.type === 'status') {
             setLiveRun((current) =>
@@ -353,6 +382,39 @@ export const AgentPanel = forwardRef<AgentPanelHandle, AgentPanelProps>(
 
           if (event.type === 'plan_completed') {
             setPlanModeActive(false);
+          }
+
+          if (event.type === 'tool_call_pending_approval') {
+            setLiveRun((current) =>
+              current
+                ? {
+                    ...current,
+                    pendingToolApproval: {
+                      toolCallId: event.toolCallId,
+                      toolName: event.toolName,
+                      input: event.input,
+                    },
+                  }
+                : {
+                    working: true,
+                    actionCount: 0,
+                    steps: [],
+                    fileWrites: [],
+                    pendingToolApproval: {
+                      toolCallId: event.toolCallId,
+                      toolName: event.toolName,
+                      input: event.input,
+                    },
+                  },
+            );
+          }
+
+          if (event.type === 'tool_call_decided') {
+            setLiveRun((current) =>
+              current && current.pendingToolApproval?.toolCallId === event.toolCallId
+                ? { ...current, pendingToolApproval: undefined }
+                : current,
+            );
           }
 
           if (event.type === 'text' || event.type === 'text_delta') {
@@ -583,6 +645,29 @@ export const AgentPanel = forwardRef<AgentPanelHandle, AgentPanelProps>(
 
   function handlePlanOptionSelect(option: string) {
     handleSend(option);
+  }
+
+  const [decidingToolCallId, setDecidingToolCallId] = useState<string | null>(
+    null,
+  );
+
+  async function handleToolApprovalDecision(
+    toolCallId: string,
+    decision: 'approved' | 'denied',
+  ) {
+    setDecidingToolCallId(toolCallId);
+    try {
+      await fetch(`/api/agent/tool-calls/${toolCallId}/decision`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ decision }),
+      });
+    } catch {
+      // Best-effort — if this fails the agent keeps waiting and the user
+      // can retry; no need to surface a toast for a transient network blip.
+    } finally {
+      setDecidingToolCallId(null);
+    }
   }
 
   const liveNonFileSteps = useMemo(
@@ -830,6 +915,30 @@ export const AgentPanel = forwardRef<AgentPanelHandle, AgentPanelProps>(
                 className="w-full max-w-full"
               />
             ) : null}
+
+            {liveRun.pendingToolApproval ? (
+              <AgentToolApproval
+                toolName={liveRun.pendingToolApproval.toolName}
+                input={liveRun.pendingToolApproval.input}
+                disabled={
+                  decidingToolCallId ===
+                  liveRun.pendingToolApproval.toolCallId
+                }
+                onApprove={() =>
+                  handleToolApprovalDecision(
+                    liveRun.pendingToolApproval!.toolCallId,
+                    'approved',
+                  )
+                }
+                onDeny={() =>
+                  handleToolApprovalDecision(
+                    liveRun.pendingToolApproval!.toolCallId,
+                    'denied',
+                  )
+                }
+                className="mt-2 w-full max-w-full"
+              />
+            ) : null}
           </div>
         ) : null}
 
@@ -901,12 +1010,14 @@ export const AgentPanel = forwardRef<AgentPanelHandle, AgentPanelProps>(
           }}
         />
         <div className="mt-3 flex items-center justify-between gap-3">
-          <div className="min-w-0">
-            <span className="text-xs text-app-text-muted">
-              {planModeActive ? 'Plan' : 'Economy'}
-            </span>
+          <div className="flex min-w-0 items-center gap-2">
+            <AgentModelPicker
+              value={selectedModelId}
+              onChange={handleModelChange}
+              disabled={isStreaming}
+            />
             {buildStatusLabel ? (
-              <p className="mt-0.5 text-xs font-medium text-emerald-400">
+              <p className="text-xs font-medium text-emerald-400">
                 {buildStatusLabel}
               </p>
             ) : null}

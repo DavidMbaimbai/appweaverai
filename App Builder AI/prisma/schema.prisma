@@ -91,6 +91,9 @@ model User {
   flags             UserFlag[]         @relation("FlaggedUser")
   ssoProvidersRegistered SsoProvider[]
 
+  cliDeviceAuthorizations CliDeviceAuthorization[]
+  cliTokens               CliToken[]
+
   @@index([adminRole])
   @@index([accountStatus])
   @@map("users")
@@ -131,6 +134,53 @@ model UserGithubConnection {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("user_github_connections")
+}
+
+enum CliDeviceAuthorizationStatus {
+  PENDING
+  APPROVED
+  DENIED
+  EXPIRED
+}
+
+/// OAuth-style device authorization grant (RFC 8628) used by the AppWeaverAI
+/// CLI to sign in: the CLI requests a device_code/user_code pair here, the
+/// user approves the user_code on the web, and the CLI then exchanges the
+/// device_code for a CliToken. Rows are single-use once consumed/expired.
+model CliDeviceAuthorization {
+  id         String                       @id @default(cuid())
+  deviceCode String                       @unique @map("device_code")
+  userCode   String                       @unique @map("user_code")
+  status     CliDeviceAuthorizationStatus @default(PENDING)
+  userId     String?                      @map("user_id")
+  clientName String?                      @map("client_name")
+  interval   Int                          @default(5)
+  expiresAt  DateTime                     @map("expires_at")
+  createdAt  DateTime                     @default(now()) @map("created_at")
+  updatedAt  DateTime                     @updatedAt @map("updated_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@map("cli_device_authorizations")
+}
+
+/// Long-lived CLI access tokens. Only a salted hash of the token is ever
+/// stored (see lib/crypto/token-hash.ts) since the CLI only needs equality
+/// verification, not retrieval of the plaintext.
+model CliToken {
+  id         String    @id @default(cuid())
+  userId     String    @map("user_id")
+  tokenHash  String    @unique @map("token_hash")
+  name       String?
+  lastUsedAt DateTime? @map("last_used_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  revokedAt  DateTime? @map("revoked_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("cli_tokens")
 }
 
 model Account {
@@ -357,6 +407,7 @@ model Project {
   deployments   Deployment[]
   checkpoints   ProjectCheckpoint[]
   conversations AgentConversation[]
+  agentToolCalls AgentToolCall[]
   aiUsageEvents AiUsageEvent[]
   flags         ProjectFlag[]
   pageViews     ProjectPageView[]
@@ -768,10 +819,59 @@ model AgentConversation {
   project  Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
   user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   messages AgentMessage[]
+  toolCalls AgentToolCall[]
 
   @@index([projectId, updatedAt])
   @@index([userId])
   @@map("agent_conversations")
+}
+
+enum AgentToolRiskLevel {
+  /// Read-only or purely informational; always auto-executed.
+  SAFE
+  /// Mutates project files but is easily reversible via checkpoints;
+  /// auto-executed and logged.
+  REVIEW
+  /// Destructive or hard-to-reverse (deletes, running commands, force
+  /// pushes, etc.); requires explicit user approval before executing.
+  DESTRUCTIVE
+}
+
+enum AgentToolCallStatus {
+  /// Awaiting the user's approve/deny decision (DESTRUCTIVE tools only).
+  PENDING
+  APPROVED
+  DENIED
+  /// Ran successfully (immediately, for SAFE/REVIEW tools, or after approval).
+  EXECUTED
+  FAILED
+}
+
+/// Persisted audit trail + approval gate for every tool call the coding
+/// agent makes. DESTRUCTIVE tool calls are created with status PENDING and
+/// the agent loop blocks on them until a human decides via the
+/// /api/agent/tool-calls/[id]/decision route; SAFE/REVIEW tool calls are
+/// recorded for audit purposes immediately after they execute.
+model AgentToolCall {
+  id             String              @id @default(cuid())
+  conversationId String              @map("conversation_id")
+  projectId      String              @map("project_id")
+  toolName       String              @map("tool_name")
+  input          Json
+  riskLevel      AgentToolRiskLevel  @map("risk_level")
+  status         AgentToolCallStatus @default(PENDING)
+  result         String?             @db.Text
+  decidedById    String?             @map("decided_by_id")
+  decidedAt      DateTime?           @map("decided_at")
+  createdAt      DateTime            @default(now()) @map("created_at")
+  updatedAt      DateTime            @updatedAt @map("updated_at")
+
+  conversation AgentConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  project      Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@index([projectId])
+  @@map("agent_tool_calls")
 }
 
 model AgentMessage {
