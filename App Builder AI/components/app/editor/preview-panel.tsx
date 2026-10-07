@@ -45,6 +45,7 @@ type PreviewPanelProps = {
   }) => void;
   onArtifactDeleted: (artifact: { id: string; slug: string }) => void;
   onError?: (message: string) => void;
+  onRuntimeError?: (error: { message: string; stack?: string }) => void;
 };
 
 export function PreviewPanel({
@@ -56,6 +57,7 @@ export function PreviewPanel({
   onArtifactCreated,
   onArtifactDeleted,
   onError,
+  onRuntimeError,
 }: PreviewPanelProps) {
   const { success } = useToast();
   const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -217,6 +219,7 @@ export function PreviewPanel({
             previewVersion={previewVersion}
             hasFiles={hasFiles}
             agentActivity={agentActivity}
+            onRuntimeError={onRuntimeError}
           />
         ) : (
           <div className="flex flex-1 items-center justify-center p-8">

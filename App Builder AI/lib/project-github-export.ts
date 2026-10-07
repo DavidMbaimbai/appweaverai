@@ -7,7 +7,9 @@ import { decryptSecret } from './crypto/secret-box';
 import {
   createGithubRepo,
   getGithubRepo,
+  gitBlobSha,
   pushFilesToGithub,
+  pushIncrementalChangesToGithub,
   GithubApiError,
 } from './integrations/github';
 
@@ -56,15 +58,93 @@ export type GithubExportResult = {
   htmlUrl: string;
   defaultBranch: string;
   fileCount: number;
-  commitSha: string;
+  commitSha: string | null;
+  noChanges?: boolean;
 };
+
+export type GithubDiffResult = {
+  hasLink: boolean;
+  added: string[];
+  changed: string[];
+  deleted: string[];
+};
+
+/**
+ * Compares the project's current files against the blob SHAs recorded from
+ * the last successful import/push (`ProjectGithubSyncedFile`) to determine
+ * what would be pushed next, without pushing anything.
+ */
+export async function computeGithubDiff(
+  projectId: string,
+): Promise<GithubDiffResult> {
+  const link = await prisma.projectGithubLink.findUnique({
+    where: { projectId },
+  });
+
+  if (!link) {
+    return { hasLink: false, added: [], changed: [], deleted: [] };
+  }
+
+  const files = await readAllProjectFiles(projectId);
+  const syncedFiles = await prisma.projectGithubSyncedFile.findMany({
+    where: { projectId },
+    select: { path: true, blobSha: true },
+  });
+
+  const syncedShaByPath = new Map(
+    syncedFiles.map((file) => [file.path, file.blobSha]),
+  );
+  const currentPaths = new Set(files.map((file) => file.path));
+
+  const shaEntries = await Promise.all(
+    files.map(async (file) => [file.path, await gitBlobSha(file.content)] as const),
+  );
+
+  const added: string[] = [];
+  const changed: string[] = [];
+  for (const [filePath, sha] of shaEntries) {
+    const previousSha = syncedShaByPath.get(filePath);
+    if (previousSha === undefined) {
+      added.push(filePath);
+    } else if (previousSha !== sha) {
+      changed.push(filePath);
+    }
+  }
+
+  const deleted = syncedFiles
+    .map((file) => file.path)
+    .filter((filePath) => !currentPaths.has(filePath));
+
+  return { hasLink: true, added, changed, deleted };
+}
+
+async function replaceSyncedFileSnapshot(
+  projectId: string,
+  blobShas: Record<string, string>,
+  deletedPaths: string[],
+) {
+  await prisma.$transaction([
+    prisma.projectGithubSyncedFile.deleteMany({
+      where: { projectId, path: { in: deletedPaths } },
+    }),
+    ...Object.entries(blobShas).map(([filePath, blobSha]) =>
+      prisma.projectGithubSyncedFile.upsert({
+        where: { projectId_path: { projectId, path: filePath } },
+        create: { projectId, path: filePath, blobSha },
+        update: { blobSha },
+      }),
+    ),
+  ]);
+}
 
 /**
  * Exports (or re-syncs) a project's current files to a GitHub repository.
  * On first export, creates the repo (using `repoName`/`isPrivate`) and
- * records the link; subsequent calls reuse the linked repo and push an
- * updated snapshot as a new commit (force-updating the branch tip), since
- * this is a one-way project export rather than a collaborative git flow.
+ * pushes a full snapshot as the initial commit. Subsequent calls reuse the
+ * linked repo and push only the files that changed since the last
+ * successful sync (diffed via git blob SHAs), as a real incremental commit
+ * on top of the branch tip — a fast-forward-only push that fails with a
+ * clear error if the remote branch has diverged (no merge logic).
  */
 export async function exportProjectToGithub({
   projectId,
@@ -147,15 +227,77 @@ export async function exportProjectToGithub({
     }
   }
 
-  const { commitSha } = await pushFilesToGithub(connection.token, {
-    owner,
-    repo,
-    branch: defaultBranch,
-    files,
-    message: existingLink
-      ? 'Sync from AppWeaverAI'
-      : 'Initial export from AppWeaverAI',
-  });
+  let commitSha: string | null;
+  let blobShas: Record<string, string>;
+  let fileCount: number;
+  const noChanges = false;
+  let deletedPaths: string[] = [];
+
+  if (existingLink) {
+    const syncedFiles = await prisma.projectGithubSyncedFile.findMany({
+      where: { projectId },
+      select: { path: true, blobSha: true },
+    });
+    const syncedShaByPath = new Map(
+      syncedFiles.map((file) => [file.path, file.blobSha]),
+    );
+    const currentPaths = new Set(files.map((file) => file.path));
+
+    const shaEntries = await Promise.all(
+      files.map(async (file) => ({
+        path: file.path,
+        content: file.content,
+        sha: await gitBlobSha(file.content),
+      })),
+    );
+
+    const changedFiles = shaEntries.filter(
+      (entry) => syncedShaByPath.get(entry.path) !== entry.sha,
+    );
+    deletedPaths = syncedFiles
+      .map((file) => file.path)
+      .filter((filePath) => !currentPaths.has(filePath));
+
+    if (changedFiles.length === 0 && deletedPaths.length === 0) {
+      return {
+        repoOwner: owner,
+        repoName: repo,
+        htmlUrl,
+        defaultBranch,
+        fileCount: 0,
+        commitSha: null,
+        noChanges: true,
+      };
+    }
+
+    const pushed = await pushIncrementalChangesToGithub(connection.token, {
+      owner,
+      repo,
+      branch: defaultBranch,
+      changedFiles: changedFiles.map((entry) => ({
+        path: entry.path,
+        content: entry.content,
+      })),
+      deletedPaths,
+      message: 'Sync from AppWeaverAI',
+    });
+
+    commitSha = pushed.commitSha;
+    blobShas = pushed.blobShas;
+    fileCount = changedFiles.length;
+  } else {
+    const pushed = await pushFilesToGithub(connection.token, {
+      owner,
+      repo,
+      branch: defaultBranch,
+      files,
+      message: 'Initial export from AppWeaverAI',
+    });
+
+    commitSha = pushed.commitSha;
+    blobShas = pushed.blobShas;
+    fileCount = files.length;
+  }
 
   await prisma.projectGithubLink.upsert({
     where: { projectId },
@@ -170,20 +312,25 @@ export async function exportProjectToGithub({
       connectedById: userId,
       lastSyncedAt: new Date(),
       lastSyncedById: userId,
+      lastSyncedCommitSha: commitSha,
     },
     update: {
       lastSyncedAt: new Date(),
       lastSyncedById: userId,
+      lastSyncedCommitSha: commitSha,
     },
   });
+
+  await replaceSyncedFileSnapshot(projectId, blobShas, deletedPaths);
 
   return {
     repoOwner: owner,
     repoName: repo,
     htmlUrl,
     defaultBranch,
-    fileCount: files.length,
+    fileCount,
     commitSha,
+    noChanges,
   };
 }
 

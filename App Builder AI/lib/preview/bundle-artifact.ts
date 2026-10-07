@@ -12,6 +12,7 @@ import {
 } from '@/lib/preview/detect-preview-mode';
 import { ensureReactEntryFiles } from '@/lib/preview/ensure-react-entry';
 import { artifactWorkspaceDir } from '@/lib/preview/list-workspace-paths';
+import { RUNTIME_ERROR_SHIM_SCRIPT } from '@/lib/preview/runtime-error-shim';
 
 type BundleCacheEntry = {
   bundleJs: string;
@@ -173,6 +174,7 @@ export async function buildBundledPreviewHtml({
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <base href="${baseHref}" />
+  ${RUNTIME_ERROR_SHIM_SCRIPT}
   ${importMap}
   ${userHead ? userHead : ''}
   <style>${defaultStyles}</style>

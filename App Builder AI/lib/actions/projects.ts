@@ -28,6 +28,7 @@ import {
 } from '../project-attachments';
 import { getAccessibleProject } from '../projects/access';
 import { recordUserActivity } from '../activity/record-user-activity';
+import { importRepoIntoProject } from '../project-github-import';
 
 const projectIdSchema = z.object({
   projectId: z.string().min(1),
@@ -251,6 +252,132 @@ export async function createProjectAction(formData: FormData) {
     targetType: 'Project',
     targetId: project.id,
     after: { name: baseName, slug: project.slug },
+  });
+
+  redirect(`/app/projects/${project.workspace.slug}/${project.slug}`);
+}
+
+export async function importGithubRepoAction(formData: FormData) {
+  const session = await getCachedSession();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    redirect('/?auth=login&callbackUrl=/app');
+  }
+
+  const owner = String(formData.get('owner') ?? '').trim();
+  const repoName = String(formData.get('repo') ?? '').trim();
+  const branch = String(formData.get('branch') ?? '').trim() || undefined;
+
+  if (!owner || !repoName) {
+    return { error: 'Choose a repository to import.' };
+  }
+
+  const workspace = await getDefaultWorkspace(userId);
+  if (!workspace) {
+    return { error: 'No workspace found. Try signing in again.' };
+  }
+
+  const billingUser = await getUserBillingFields(userId);
+  const projectLimit = getProjectLimit(getAppTier(billingUser));
+  if (projectLimit !== null) {
+    const activeProjectCount = await prisma.project.count({
+      where: {
+        deletedAt: null,
+        OR: [
+          { createdById: userId },
+          { workspace: { ownerId: userId } },
+          { members: { some: { userId } } },
+        ],
+      },
+    });
+
+    if (activeProjectCount >= projectLimit) {
+      return { error: projectLimitMessage(projectLimit) };
+    }
+  }
+
+  const baseName = `${owner}/${repoName}`;
+  const slug = await uniqueProjectSlug(workspace.id, projectSlugFromPrompt(baseName));
+
+  const project = await prisma.project.create({
+    data: {
+      name: repoName,
+      slug,
+      description: `Imported from GitHub (${baseName})`,
+      workspaceId: workspace.id,
+      createdById: userId,
+      members: {
+        create: { userId, role: 'OWNER' },
+      },
+      preferences: {
+        create: { userId, lastOpenedAt: new Date() },
+      },
+      artifacts: {
+        create: {
+          name: 'Main artifact',
+          slug: 'main',
+          type: 'WEB_APP',
+          status: 'DRAFT',
+        },
+      },
+      conversations: {
+        create: {
+          userId,
+          title: 'New conversation',
+          messages: {
+            create: [
+              {
+                role: 'USER' as const,
+                content: `I imported ${baseName} from GitHub. Please review the code and tell me what this app does.`,
+              },
+            ],
+          },
+        },
+      },
+    },
+    select: {
+      id: true,
+      slug: true,
+      workspace: { select: { slug: true } },
+      artifacts: {
+        where: { slug: 'main' },
+        select: { id: true, slug: true },
+        take: 1,
+      },
+    },
+  });
+
+  const mainArtifact = project.artifacts[0];
+  if (!mainArtifact) {
+    return { error: 'Could not initialize the new project.' };
+  }
+
+  try {
+    await importRepoIntoProject({
+      projectId: project.id,
+      artifactId: mainArtifact.id,
+      artifactSlug: mainArtifact.slug,
+      userId,
+      owner,
+      repo: repoName,
+      branch,
+    });
+  } catch (error) {
+    // Clean up the empty project shell so a failed import doesn't leave
+    // a dangling, file-less project in the dashboard.
+    await prisma.project.delete({ where: { id: project.id } }).catch(() => null);
+    const message =
+      error instanceof Error ? error.message : 'Could not import repository.';
+    return { error: message };
+  }
+
+  await recordUserActivity({
+    userId,
+    action: 'project.github_imported',
+    targetType: 'Project',
+    targetId: project.id,
+    after: { name: repoName, slug: project.slug, repo: baseName },
   });
 
   redirect(`/app/projects/${project.workspace.slug}/${project.slug}`);

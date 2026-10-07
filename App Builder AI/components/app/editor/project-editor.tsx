@@ -4,14 +4,14 @@ import {
   idleAgentActivity,
   type AgentActivity,
 } from '@/lib/agent/agent-activity';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { AppProjectDetail } from '@/lib/app-types';
 import type { AppTier } from '@/lib/billing/entitlements';
 import { setActiveArtifactPreferenceAction } from '@/lib/actions/artifacts';
 import { useToast } from '@/components/ui/toast';
 import { EditorTopBar } from './editor-topbar';
 import { LibrarySidebar } from './library-sidebar';
-import { AgentPanel } from './agent-panel';
+import { AgentPanel, type AgentPanelHandle } from './agent-panel';
 import { PreviewPanel } from './preview-panel';
 
 type ProjectEditorProps = {
@@ -59,6 +59,7 @@ export function ProjectEditor({ project, appTier }: ProjectEditorProps) {
   const [agentActivity, setAgentActivity] =
     useState<AgentActivity>(idleAgentActivity);
   const [deployment, setDeployment] = useState(project.deployment);
+  const agentPanelRef = useRef<AgentPanelHandle>(null);
 
   const editorProject = useMemo(
     () => ({ ...project, artifacts, files, deployment }),
@@ -112,6 +113,18 @@ export function ProjectEditor({ project, appTier }: ProjectEditorProps) {
     setAgentActivity(activity);
   }, []);
 
+  const handleRuntimeError = useCallback(
+    (error: { message: string; stack?: string }) => {
+      const details = error.stack
+        ? `${error.message}\n\n${error.stack}`
+        : error.message;
+      agentPanelRef.current?.sendMessage(
+        `The live preview threw a runtime error:\n\n\`\`\`\n${details}\n\`\`\`\n\nPlease fix it.`,
+      );
+    },
+    [],
+  );
+
   const handleAgentRunComplete = useCallback(
     async (result: {
       artifactId: string;
@@ -151,6 +164,7 @@ export function ProjectEditor({ project, appTier }: ProjectEditorProps) {
 
         <div className="flex min-w-0 flex-1">
           <AgentPanel
+            ref={agentPanelRef}
             project={editorProject}
             activeArtifactId={activeArtifactId}
             onPreviewVersionChange={handlePreviewVersionChange}
@@ -164,6 +178,7 @@ export function ProjectEditor({ project, appTier }: ProjectEditorProps) {
             previewVersion={previewVersion}
             agentActivity={agentActivity}
             onArtifactChange={handleArtifactChange}
+            onRuntimeError={handleRuntimeError}
             onArtifactCreated={(artifact) => {
               setArtifacts((current) => [...current, artifact]);
               setActiveArtifactId(artifact.id);

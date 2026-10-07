@@ -27,7 +27,24 @@ type ArtifactPreviewProps = {
   hasFiles: boolean;
   agentActivity?: AgentActivity;
   className?: string;
+  onRuntimeError?: (error: { message: string; stack?: string }) => void;
 };
+
+type RuntimeErrorMessage = {
+  source: 'appweaverai-preview';
+  type: 'runtime-error';
+  message: string;
+  stack?: string;
+};
+
+function isRuntimeErrorMessage(data: unknown): data is RuntimeErrorMessage {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    (data as Record<string, unknown>).source === 'appweaverai-preview' &&
+    (data as Record<string, unknown>).type === 'runtime-error'
+  );
+}
 
 const PREVIEW_CANVAS_PADDING = 32;
 
@@ -49,6 +66,7 @@ export function ArtifactPreview({
   hasFiles,
   agentActivity,
   className,
+  onRuntimeError,
 }: ArtifactPreviewProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
@@ -56,6 +74,22 @@ export function ArtifactPreview({
   const [isBuilding, setIsBuilding] = useState(false);
   const [deviceId, setDeviceId] = useState<PreviewDeviceId>('full');
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
+  const [runtimeError, setRuntimeError] = useState<{
+    message: string;
+    stack?: string;
+  } | null>(null);
+  const runtimeErrorResetKey = `${artifact.id}:${previewVersion}`;
+  const [lastRuntimeErrorResetKey, setLastRuntimeErrorResetKey] = useState(
+    runtimeErrorResetKey,
+  );
+
+  // A new build (or switching artifacts) likely fixed/replaced whatever was
+  // erroring before — clear it during render rather than in an effect, per
+  // React's "adjusting state when a prop changes" pattern.
+  if (lastRuntimeErrorResetKey !== runtimeErrorResetKey) {
+    setLastRuntimeErrorResetKey(runtimeErrorResetKey);
+    setRuntimeError(null);
+  }
 
   const device = useMemo(() => getPreviewDevicePreset(deviceId), [deviceId]);
   const isFullSize = device.width === null || device.height === null;
@@ -105,6 +139,23 @@ export function ArtifactPreview({
     const timer = window.setTimeout(() => setIsBuilding(false), 900);
     return () => window.clearTimeout(timer);
   }, [previewVersion]);
+
+  // A new build likely fixed (or replaced) whatever was erroring before
+  // (see `runtimeErrorResetKey` above). This effect only handles incoming
+  // postMessage reports.
+  useEffect(() => {
+    function handleMessage(event: MessageEvent) {
+      if (iframeRef.current && event.source !== iframeRef.current.contentWindow) {
+        return;
+      }
+      if (!isRuntimeErrorMessage(event.data)) return;
+
+      setRuntimeError({ message: event.data.message, stack: event.data.stack });
+    }
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -171,6 +222,12 @@ export function ArtifactPreview({
 
   function handleRefresh() {
     setRefreshKey((value) => value + 1);
+  }
+
+  function handleFixWithAgent() {
+    if (!runtimeError) return;
+    onRuntimeError?.(runtimeError);
+    setRuntimeError(null);
   }
 
   if (!hasFiles) {
@@ -325,6 +382,27 @@ export function ArtifactPreview({
           </div>
         ) : null}
 
+        {runtimeError && !isAgentWorking ? (
+          <div className="absolute inset-x-3 top-3 z-10 flex items-center gap-2 rounded-lg border border-red-500/30 bg-red-950/90 px-3 py-2 text-xs text-red-100 shadow-lg backdrop-blur">
+            <span className="min-w-0 flex-1 truncate" title={runtimeError.message}>
+              Runtime error: {runtimeError.message}
+            </span>
+            <button
+              type="button"
+              onClick={handleFixWithAgent}
+              className="shrink-0 rounded-md bg-red-500/20 px-2 py-1 font-medium text-red-50 transition-colors hover:bg-red-500/30">
+              Fix with Agent
+            </button>
+            <button
+              type="button"
+              aria-label="Dismiss error"
+              onClick={() => setRuntimeError(null)}
+              className="shrink-0 text-red-200/70 transition-colors hover:text-red-50">
+              <DismissIcon />
+            </button>
+          </div>
+        ) : null}
+
         <div className="pointer-events-none absolute bottom-3 right-3 flex items-center gap-2">
           {!isFullSize ? (
             <span className="rounded-md bg-black/70 px-2 py-1 text-[10px] text-white/70">
@@ -355,6 +433,24 @@ function RefreshIcon() {
         strokeWidth="1.5"
         strokeLinecap="round"
         strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function DismissIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true">
+      <path
+        d="M6 6l12 12M18 6L6 18"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
       />
     </svg>
   );

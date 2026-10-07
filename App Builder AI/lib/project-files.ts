@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { prisma } from "./prisma";
 
@@ -204,4 +204,26 @@ export async function writeProjectFile({
     relativePath: normalized,
     updatedAt: file.updatedAt.toISOString(),
   };
+}
+
+export async function deleteProjectFile({
+  projectId,
+  artifactSlug,
+  relativePath,
+}: {
+  projectId: string;
+  artifactSlug: string;
+  relativePath: string;
+}) {
+  const normalized = normalizeRelativePath(relativePath);
+  if (!normalized) return;
+
+  const dbPath = buildDbPath(artifactSlug, normalized);
+  const absolute = getAbsolutePath(projectId, artifactSlug, normalized);
+
+  await prisma.projectFile
+    .delete({ where: { projectId_path: { projectId, path: dbPath } } })
+    .catch(() => null);
+
+  await unlink(absolute).catch(() => null);
 }

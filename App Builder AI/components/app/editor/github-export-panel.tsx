@@ -4,9 +4,11 @@ import { useEffect, useState } from 'react';
 
 import { AppModalBackdrop } from '@/components/ui/app-modal';
 import { Button } from '@/components/ui/button';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/toast';
 import Link from 'next/link';
+import { GithubRepoPicker, type GithubRepoOption } from './github-repo-picker';
 
 type GithubLink = {
   repoOwner: string;
@@ -18,11 +20,18 @@ type GithubLink = {
   lastSyncedAt: string | null;
 } | null;
 
+type GithubDiff = {
+  added: string[];
+  changed: string[];
+  deleted: string[];
+};
+
 type GithubExportPanelProps = {
   open: boolean;
   onClose: () => void;
   projectId: string;
   defaultRepoName: string;
+  activeArtifactId: string | null;
 };
 
 function formatRelativeTime(iso: string | null) {
@@ -42,6 +51,7 @@ export function GithubExportPanel({
   onClose,
   projectId,
   defaultRepoName,
+  activeArtifactId,
 }: GithubExportPanelProps) {
   const { success, error: toastError } = useToast();
   const [isLoading, setIsLoading] = useState(true);
@@ -52,6 +62,10 @@ export function GithubExportPanel({
   const [repoName, setRepoName] = useState(defaultRepoName);
   const [isPrivate, setIsPrivate] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [isPulling, setIsPulling] = useState(false);
+  const [pullConflict, setPullConflict] = useState<GithubDiff | null>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -85,6 +99,12 @@ export function GithubExportPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, projectId]);
 
+  async function reloadLink() {
+    const linkRes = await fetch(`/api/projects/${projectId}/github`);
+    const linkData = await linkRes.json();
+    setLink(linkData.link ?? null);
+  }
+
   async function handleExport() {
     setIsSubmitting(true);
     try {
@@ -98,16 +118,92 @@ export function GithubExportPanel({
         toastError(data.error);
         return;
       }
-      success(
-        link ? 'Pushed the latest changes to GitHub.' : 'Exported to GitHub.',
-      );
-      const linkRes = await fetch(`/api/projects/${projectId}/github`);
-      const linkData = await linkRes.json();
-      setLink(linkData.link ?? null);
+      if (data.noChanges) {
+        success('Already up to date — no changes to push.');
+      } else {
+        success(
+          link ? 'Pushed the latest changes to GitHub.' : 'Exported to GitHub.',
+        );
+      }
+      await reloadLink();
     } catch {
       toastError('Could not export to GitHub.');
     } finally {
       setIsSubmitting(false);
+    }
+  }
+
+  async function handleImportSelect(repo: GithubRepoOption, branch: string) {
+    if (!activeArtifactId) {
+      toastError('Open a project artifact before importing.');
+      return;
+    }
+
+    setIsImporting(true);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/github/import`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          owner: repo.owner,
+          repo: repo.name,
+          branch,
+          artifactId: activeArtifactId,
+        }),
+      });
+      const data = await res.json();
+      if (data.error) {
+        toastError(data.error);
+        return;
+      }
+      success(`Imported ${repo.fullName} (${data.fileCount} files).`);
+      setPickerOpen(false);
+      await reloadLink();
+    } catch {
+      toastError('Could not import from GitHub.');
+    } finally {
+      setIsImporting(false);
+    }
+  }
+
+  async function handlePull(force = false) {
+    if (!activeArtifactId) {
+      toastError('Open a project artifact before pulling.');
+      return;
+    }
+
+    setIsPulling(true);
+    try {
+      const res = await fetch(`/api/projects/${projectId}/github/pull`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ artifactId: activeArtifactId, force }),
+      });
+      const data = await res.json();
+      if (data.error) {
+        toastError(data.error);
+        return;
+      }
+      if (data.conflict) {
+        setPullConflict(data.localDiff);
+        return;
+      }
+      setPullConflict(null);
+      if (data.upToDate) {
+        success('Already up to date with GitHub.');
+      } else {
+        success(
+          `Pulled ${data.fileCount} file${data.fileCount === 1 ? '' : 's'}` +
+            (data.deletedCount
+              ? ` and removed ${data.deletedCount} deleted file${data.deletedCount === 1 ? '' : 's'}.`
+              : '.'),
+        );
+      }
+      await reloadLink();
+    } catch {
+      toastError('Could not pull from GitHub.');
+    } finally {
+      setIsPulling(false);
     }
   }
 
@@ -172,9 +268,18 @@ export function GithubExportPanel({
                 type="button"
                 theme="app"
                 className="w-full"
-                disabled={isSubmitting}
+                disabled={isSubmitting || isPulling}
                 onClick={handleExport}>
                 {isSubmitting ? 'Pushing…' : 'Push latest changes'}
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                theme="app"
+                className="w-full"
+                disabled={isSubmitting || isPulling}
+                onClick={() => handlePull(false)}>
+                {isPulling ? 'Pulling…' : 'Pull latest changes'}
               </Button>
             </div>
           ) : (
@@ -205,10 +310,48 @@ export function GithubExportPanel({
                 onClick={handleExport}>
                 {isSubmitting ? 'Exporting…' : 'Create repo & push'}
               </Button>
+              <div className="relative flex items-center py-1 text-xs text-app-text-muted">
+                <span className="flex-1 border-t border-app-border-subtle" />
+                <span className="px-2">or</span>
+                <span className="flex-1 border-t border-app-border-subtle" />
+              </div>
+              <Button
+                type="button"
+                variant="secondary"
+                theme="app"
+                className="w-full"
+                onClick={() => setPickerOpen(true)}>
+                Import an existing repository
+              </Button>
             </div>
           )}
         </div>
       </div>
+
+      <GithubRepoPicker
+        open={pickerOpen}
+        onClose={() => setPickerOpen(false)}
+        onSelect={handleImportSelect}
+        isSubmitting={isImporting}
+        title="Import from GitHub"
+        description="Pick a repository and branch to bring its files into this project."
+        confirmLabel="Import repository"
+      />
+
+      <ConfirmDialog
+        open={pullConflict !== null}
+        onClose={() => setPullConflict(null)}
+        onConfirm={() => handlePull(true)}
+        title="Overwrite local changes?"
+        description={
+          pullConflict
+            ? `This project has ${pullConflict.added.length + pullConflict.changed.length} unpushed change(s) and ${pullConflict.deleted.length} pending deletion(s) that haven't been pushed to GitHub yet. Pulling now will overwrite them with the repo's latest commit. Push your changes first if you want to keep them.`
+            : ''
+        }
+        confirmLabel="Overwrite & pull"
+        variant="destructive"
+        isPending={isPulling}
+      />
     </AppModalBackdrop>
   );
 }

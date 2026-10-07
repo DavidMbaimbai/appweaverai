@@ -10,6 +10,7 @@ import { resolveProjectStack } from '@/lib/preview/detect-preview-mode';
 import { formatBundleError } from '@/lib/preview/format-bundle-error';
 import { artifactWorkspaceDir } from '@/lib/preview/list-workspace-paths';
 import { buildPreviewErrorHtml } from '@/lib/preview/preview-error-html';
+import { injectRuntimeErrorShim } from '@/lib/preview/runtime-error-shim';
 import {
   getMimeType,
   injectPreviewBaseHref,
@@ -68,7 +69,9 @@ export async function serveArtifactIndex(
   }
 
   const content = await readFile(absolute, 'utf8');
-  const html = injectPreviewBaseHref(content, projectId, artifactSlug);
+  const html = injectRuntimeErrorShim(
+    injectPreviewBaseHref(content, projectId, artifactSlug),
+  );
   return {
     body: html,
     contentType: getMimeType('index.html'),

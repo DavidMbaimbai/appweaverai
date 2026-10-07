@@ -351,6 +351,7 @@ model Project {
   databases     ProjectDatabase[]
   storage       ProjectStorage?
   githubLink    ProjectGithubLink?
+  githubSyncedFiles ProjectGithubSyncedFile[]
   customDomain  ProjectCustomDomain?
   secrets       ProjectSecret[]
   deployments   Deployment[]
@@ -544,6 +545,9 @@ model ProjectGithubLink {
   htmlUrl        String    @map("html_url")
   private        Boolean   @default(true)
   connectedById  String    @map("connected_by_id")
+  /// Git commit SHA of the last successful import or push, used to detect
+  /// whether the remote branch has moved since (fast-forward safety check).
+  lastSyncedCommitSha String?   @map("last_synced_commit_sha")
   lastSyncedAt   DateTime? @map("last_synced_at")
   lastSyncedById String?   @map("last_synced_by_id")
   createdAt      DateTime  @default(now()) @map("created_at")
@@ -553,6 +557,23 @@ model ProjectGithubLink {
   connectedBy  User    @relation("ProjectGithubLinkConnector", fields: [connectedById], references: [id], onDelete: Restrict)
 
   @@map("project_github_links")
+}
+
+/// Tracks the git blob SHA of each file as of the last successful GitHub
+/// import/push, so the next push can diff current project files against
+/// this snapshot and commit only what actually changed (incremental sync)
+/// instead of force-overwriting the whole branch.
+model ProjectGithubSyncedFile {
+  id        String   @id @default(cuid())
+  projectId String   @map("project_id")
+  path      String
+  blobSha   String   @map("blob_sha")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, path])
+  @@map("project_github_synced_files")
 }
 
 /// A verified custom domain pointing at a project's published deployment.

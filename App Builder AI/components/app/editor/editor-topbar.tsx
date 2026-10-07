@@ -281,7 +281,7 @@ export function EditorTopBar({
                   }}
                   className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-app-text-secondary transition-colors hover:bg-app-surface-hover hover:text-app-text">
                   <GithubIcon className="h-3.5 w-3.5 shrink-0" />
-                  Export to GitHub
+                  GitHub (export / import)
                 </button>
                 <button
                   type="button"
@@ -376,6 +376,9 @@ export function EditorTopBar({
         onClose={() => setGithubOpen(false)}
         projectId={project.id}
         defaultRepoName={project.slug}
+        activeArtifactId={
+          project.lastActiveArtifactId ?? project.artifacts[0]?.id ?? null
+        }
       />
 
       <CustomDomainPanel

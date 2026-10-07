@@ -14,7 +14,11 @@ import {
   clearHeroPromptState,
   loadHeroPromptDraft,
 } from '@/lib/hero-prompt-draft';
-import { createProjectAction } from '@/lib/actions/projects';
+import { createProjectAction, importGithubRepoAction } from '@/lib/actions/projects';
+import {
+  GithubRepoPicker,
+  type GithubRepoOption,
+} from '@/components/app/editor/github-repo-picker';
 
 type AppHomeProps = {
   user?: {
@@ -43,6 +47,8 @@ export function AppHome({ user }: AppHomeProps) {
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const autostartedRef = useRef(false);
+  const [githubPickerOpen, setGithubPickerOpen] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
 
   const displayName = getDisplayName(user?.name, user?.email);
 
@@ -121,6 +127,24 @@ export function AppHome({ user }: AppHomeProps) {
     setValue(text);
   }
 
+  async function handleImportSelect(repo: GithubRepoOption, branch: string) {
+    setIsImporting(true);
+    setError(null);
+    try {
+      const formData = new FormData();
+      formData.set('owner', repo.owner);
+      formData.set('repo', repo.name);
+      formData.set('branch', branch);
+      const result = await importGithubRepoAction(formData);
+      if (result && 'error' in result && result.error) {
+        setError(result.error);
+        toastError(result.error);
+      }
+    } finally {
+      setIsImporting(false);
+    }
+  }
+
   return (
     <main className="flex min-h-0 flex-1 flex-col overflow-y-auto">
       <div className="flex w-full flex-1 flex-col items-center justify-center px-4 py-8 tablet-up:px-8">
@@ -154,6 +178,16 @@ export function AppHome({ user }: AppHomeProps) {
               Creating your project...
             </p>
           ) : null}
+
+          <div className="mt-3 text-center">
+            <button
+              type="button"
+              onClick={() => setGithubPickerOpen(true)}
+              disabled={isPending || isImporting}
+              className="text-sm text-app-text-muted underline-offset-2 transition-colors hover:text-app-text hover:underline disabled:opacity-50">
+              {isImporting ? 'Importing…' : 'or import an existing GitHub repo →'}
+            </button>
+          </div>
         </div>
 
         <div className="mx-auto mt-[17px] w-full max-w-hero-prompt tablet-up:max-w-hero-prompt-tablet">
@@ -168,6 +202,16 @@ export function AppHome({ user }: AppHomeProps) {
           <ExamplePrompts variant="app" onSelect={handleExampleSelect} />
         </div>
       </div>
+
+      <GithubRepoPicker
+        open={githubPickerOpen}
+        onClose={() => setGithubPickerOpen(false)}
+        onSelect={handleImportSelect}
+        isSubmitting={isImporting}
+        title="Import from GitHub"
+        description="Pick a repository and branch to start a new project from it."
+        confirmLabel="Import & create project"
+      />
     </main>
   );
 }

@@ -1,6 +1,13 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 
 import { streamAgentRequest } from '@/lib/agent/stream-client';
 import {
@@ -45,6 +52,11 @@ type AgentPanelProps = {
     previewVersion: number;
   }) => void;
   onAgentActivityChange?: (activity: AgentActivity) => void;
+};
+
+export type AgentPanelHandle = {
+  /** Sends a message as if typed by the user (e.g. "Fix with Agent" from the preview). */
+  sendMessage: (content: string) => void;
 };
 
 type LiveRunState = {
@@ -100,13 +112,17 @@ function shouldAutoRunInitialReply(
   return true;
 }
 
-export function AgentPanel({
-  project,
-  activeArtifactId,
-  onPreviewVersionChange,
-  onAgentRunComplete,
-  onAgentActivityChange,
-}: AgentPanelProps) {
+export const AgentPanel = forwardRef<AgentPanelHandle, AgentPanelProps>(
+  function AgentPanel(
+    {
+      project,
+      activeArtifactId,
+      onPreviewVersionChange,
+      onAgentRunComplete,
+      onAgentActivityChange,
+    },
+    ref,
+  ) {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<AppAgentMessage[]>(project.messages);
   const [expandedStepsFor, setExpandedStepsFor] = useState<string | null>(null);
@@ -556,6 +572,15 @@ export function AgentPanel({
     });
   }
 
+  useImperativeHandle(
+    ref,
+    () => ({
+      sendMessage: (content: string) => handleSend(content),
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [isStreaming, activeArtifact],
+  );
+
   function handlePlanOptionSelect(option: string) {
     handleSend(option);
   }
@@ -913,4 +938,5 @@ export function AgentPanel({
       />
     </section>
   );
-}
+},
+);
