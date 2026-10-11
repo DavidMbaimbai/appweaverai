@@ -3,9 +3,9 @@ import { ProductPage } from '@/components/marketing/product-page';
 export default function AgentPage() {
   return (
     <ProductPage
-      eyebrow="Agent"
-      title="Meet Agent 4, your AI builder"
-      description="Describe what you want in plain language and Agent 4 plans, writes, tests, and iterates on real, working code — handling auth, data, and design so you don't have to."
+      eyebrow="AI APP BUILDER"
+      title="Meet AppWeaver AI"
+      description="Describe what you want in plain language and AppWeaver AI plans, writes, tests, and iterates on real, working code — handling auth, data, and design so you don't have to."
       highlights={[
         {
           title: 'Infinite Canvas',
