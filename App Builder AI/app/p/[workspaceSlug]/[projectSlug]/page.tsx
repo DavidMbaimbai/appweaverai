@@ -1,5 +1,6 @@
 import { headers } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
+import type { Metadata } from 'next';
 
 import { auth } from '@/lib/auth';
 import { getPublishedProjectBySlugs } from '@/lib/queries/published';
@@ -9,6 +10,39 @@ import { PublishedProjectViewer } from '@/components/app/published/published-pro
 type PublishedPageProps = {
   params: Promise<{ workspaceSlug: string; projectSlug: string }>;
 };
+
+export async function generateMetadata({
+  params,
+}: PublishedPageProps): Promise<Metadata> {
+  const { workspaceSlug, projectSlug } = await params;
+  const result = await getPublishedProjectBySlugs(workspaceSlug, projectSlug);
+
+  if (!result || 'forbidden' in result) {
+    return {};
+  }
+
+  const title = result.seo.title || result.name;
+  const description = result.seo.description ?? undefined;
+  const images = result.seo.imageUrl ? [{ url: result.seo.imageUrl }] : undefined;
+
+  return {
+    title,
+    description,
+    icons: result.seo.faviconUrl ? { icon: result.seo.faviconUrl } : undefined,
+    openGraph: {
+      title,
+      description,
+      images,
+      type: 'website',
+    },
+    twitter: {
+      card: images ? 'summary_large_image' : 'summary',
+      title,
+      description,
+      images,
+    },
+  };
+}
 
 export default async function PublishedProjectPage({
   params,

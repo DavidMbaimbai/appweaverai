@@ -10,6 +10,7 @@ export function useHeroPromptDraftRestore() {
   const [value, setValue] = useState('');
   const [attachments, setAttachments] = useState<PromptAttachment[]>([]);
   const [planMode, setPlanMode] = useState(false);
+  const [websiteType, setWebsiteType] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] =
     useState<ProjectCategory | null>(null);
   const [ready, setReady] = useState(false);
@@ -22,6 +23,7 @@ export function useHeroPromptDraftRestore() {
       if (draft) {
         setValue(draft.value);
         setPlanMode(draft.planMode);
+        setWebsiteType(draft.websiteType ?? null);
         if (draft.categoryId) {
           const category = projectCategories.find(
             (item) => item.id === draft.categoryId,
@@ -47,6 +49,8 @@ export function useHeroPromptDraftRestore() {
     setAttachments,
     planMode,
     setPlanMode,
+    websiteType,
+    setWebsiteType,
     selectedCategory,
     setSelectedCategory,
     ready,

@@ -15,6 +15,11 @@ import {
   projectLimitMessage,
 } from '../billing/entitlements';
 import { prisma } from '../prisma';
+import { getWebsiteType, withWebsiteTypeGuidance } from '../website-types';
+import {
+  getUserBrandKit,
+  hasBrandKitValues,
+} from '../brand-kit/project-brand-kit';
 import {
   projectSlugFromPrompt,
   uniqueProjectSlug,
@@ -143,6 +148,12 @@ export async function createProjectAction(formData: FormData) {
         ]
       : 'WEB_APP';
 
+  const defaultKit = await getUserBrandKit(userId);
+  const agentPrompt = withWebsiteTypeGuidance(
+    effectivePrompt,
+    getWebsiteType(formData.get('websiteType')),
+  );
+
   const project = await prisma.project.create({
     data: {
       name: baseName,
@@ -150,6 +161,9 @@ export async function createProjectAction(formData: FormData) {
       description: effectivePrompt,
       workspaceId: workspace.id,
       createdById: userId,
+      ...(hasBrandKitValues(defaultKit)
+        ? { brandKit: { create: defaultKit } }
+        : {}),
       members: {
         create: {
           userId,
@@ -186,7 +200,7 @@ export async function createProjectAction(formData: FormData) {
                 : []),
               {
                 role: 'USER' as const,
-                content: effectivePrompt,
+                content: agentPrompt,
               },
             ],
           },
@@ -219,7 +233,7 @@ export async function createProjectAction(formData: FormData) {
     });
 
     const userMessageContent =
-      effectivePrompt + formatAttachmentManifest(storedAttachments);
+      agentPrompt + formatAttachmentManifest(storedAttachments);
 
     const conversation = await prisma.agentConversation.findFirst({
       where: { projectId: project.id },
@@ -427,6 +441,77 @@ export async function moveProjectToTrashAction(projectId: string) {
   return { success: true };
 }
 
+/** Flow 10, step 46: lets a duplicated website get its own name. The URL slug is unchanged. */
+export async function renameProjectAction(projectId: string, name: string) {
+  const session = await getCachedSession();
+  const userId = session?.user?.id;
+  if (!userId) return { error: 'Unauthorized' };
+
+  const parsed = projectIdSchema.safeParse({ projectId });
+  if (!parsed.success) return { error: 'Invalid project.' };
+
+  const trimmed = name.trim().slice(0, 80);
+  if (!trimmed) return { error: 'Enter a name for this website.' };
+
+  const project = await getAccessibleProject(
+    parsed.data.projectId,
+    userId,
+    { id: true, name: true },
+  );
+  if (!project) return { error: 'Project not found.' };
+
+  await prisma.project.update({
+    where: { id: project.id },
+    data: { name: trimmed },
+  });
+
+  revalidateProjectPaths();
+
+  await recordUserActivity({
+    userId,
+    action: 'project.renamed',
+    targetType: 'Project',
+    targetId: project.id,
+    before: { name: project.name },
+    after: { name: trimmed },
+  });
+
+  return { success: true, name: trimmed };
+}
+
+/** Sets (or clears, with an empty string) where form-submission emails go. */
+export async function setNotificationEmailAction(
+  projectId: string,
+  email: string,
+) {
+  const session = await getCachedSession();
+  const userId = session?.user?.id;
+  if (!userId) return { error: 'Unauthorized' };
+
+  const parsed = projectIdSchema.safeParse({ projectId });
+  if (!parsed.success) return { error: 'Invalid project.' };
+
+  const trimmed = email.trim().toLowerCase();
+  if (
+    trimmed &&
+    (trimmed.length > 254 || !/^[^@ ]+@[^@ ]+[.][^@ ]+$/.test(trimmed))
+  ) {
+    return { error: 'Enter a valid email address.' };
+  }
+
+  const project = await getAccessibleProject(parsed.data.projectId, userId, {
+    id: true,
+  });
+  if (!project) return { error: 'Project not found.' };
+
+  await prisma.project.update({
+    where: { id: project.id },
+    data: { notificationEmail: trimmed || null },
+  });
+
+  return { success: true, email: trimmed };
+}
+
 export async function restoreProjectAction(projectId: string) {
   const session = await getCachedSession();
   const userId = session?.user?.id;
@@ -463,6 +548,54 @@ export async function restoreProjectAction(projectId: string) {
   });
 
   return { success: true };
+}
+
+export async function toggleProjectFavoriteAction(
+  projectId: string,
+  isPinned: boolean,
+) {
+  const session = await getCachedSession();
+  const userId = session?.user?.id;
+
+  if (!userId) return { error: 'Unauthorized' };
+
+  const parsed = projectIdSchema.safeParse({ projectId });
+  if (!parsed.success) return { error: 'Invalid project.' };
+
+  const project = await getAccessibleProject(
+    parsed.data.projectId,
+    userId,
+    authorizedProjectForActionsSelect,
+  );
+  if (!project) return { error: 'Project not found.' };
+
+  await prisma.userProjectPreference.upsert({
+    where: {
+      userId_projectId: {
+        userId,
+        projectId: project.id,
+      },
+    },
+    create: {
+      userId,
+      projectId: project.id,
+      isPinned,
+    },
+    update: {
+      isPinned,
+    },
+  });
+
+  revalidateProjectPaths();
+
+  await recordUserActivity({
+    userId,
+    action: isPinned ? 'project.favorited' : 'project.unfavorited',
+    targetType: 'Project',
+    targetId: project.id,
+  });
+
+  return { success: true, isPinned };
 }
 
 export async function permanentlyDeleteProjectAction(projectId: string) {

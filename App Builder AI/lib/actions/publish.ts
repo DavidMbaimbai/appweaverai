@@ -21,11 +21,95 @@ import {
 import { prisma } from "@/lib/prisma";
 import { recordUserActivity } from "@/lib/activity/record-user-activity";
 import { captureProjectScreenshots } from "@/lib/gallery/capture-screenshot";
+import { listProjectFiles, readProjectFile } from "@/lib/project-files";
+import { checkHtmlPage, type PreflightIssue } from "@/lib/publish/preflight";
+import {
+  removePublishedSnapshots,
+  snapshotArtifactForPublish,
+} from "@/lib/publish/snapshot";
 
 const publishSchema = z.object({
   projectId: z.string().min(1),
   visibility: z.enum(["private", "workspace", "public"]),
 });
+
+/** Flow 6, step 26: scans each HTML page for missing content and broken links. */
+export async function checkPublishReadinessAction(projectId: string) {
+  const session = await getCachedSession();
+  const userId = session?.user?.id;
+  if (!userId) return { error: "You must be signed in." };
+
+  const project = await getAccessibleProject(projectId, userId, {
+    id: true,
+    seoTitle: true,
+    seoDescription: true,
+    artifacts: { select: { slug: true } },
+  });
+  if (!project) return { error: "Project not found." };
+
+  const issues: PreflightIssue[] = [];
+  const seo = { title: project.seoTitle, description: project.seoDescription };
+
+  for (const artifact of project.artifacts) {
+    const files = await listProjectFiles(projectId, artifact.slug);
+    const prefix = `${artifact.slug}/`;
+    const known = new Set(files.map((f) => f.path.slice(prefix.length)));
+
+    for (const relative of known) {
+      if (!/\.html?$/i.test(relative)) continue;
+      const html = await readProjectFile(projectId, artifact.slug, relative);
+      if (html) issues.push(...checkHtmlPage(relative, html, known, seo));
+    }
+  }
+
+  return { issues: issues.slice(0, 50) };
+}
+
+/** Takes a published website offline; the project goes back to Draft. */
+export async function unpublishProjectAction(projectId: string) {
+  const session = await getCachedSession();
+  const userId = session?.user?.id;
+  if (!userId) return { error: "You must be signed in." };
+
+  const project = await getAccessibleProject(projectId, userId, {
+    id: true,
+    slug: true,
+    workspace: { select: { slug: true } },
+  });
+  if (!project) return { error: "Project not found." };
+
+  const urlPath = publishedPath(project.workspace.slug, project.slug);
+
+  const result = await prisma.$transaction(async (tx) => {
+    const updated = await tx.deployment.updateMany({
+      where: { projectId, isCurrent: true },
+      data: { isCurrent: false, status: "SUPERSEDED" },
+    });
+    await tx.artifact.updateMany({
+      where: { projectId },
+      data: { publishedUrl: null },
+    });
+    return updated.count;
+  });
+
+  if (result === 0) return { error: "This website is not published." };
+
+  await removePublishedSnapshots(projectId).catch(() => null);
+
+  revalidatePath("/app/projects");
+  revalidatePath(`/app/projects/${project.workspace.slug}/${project.slug}`);
+  revalidatePath(urlPath);
+
+  await recordUserActivity({
+    userId,
+    action: "project.unpublished",
+    targetType: "Project",
+    targetId: projectId,
+    after: { url: urlPath },
+  });
+
+  return { success: true };
+}
 
 export async function publishProjectAction(
   projectId: string,
@@ -115,6 +199,12 @@ export async function publishProjectAction(
   const nextVersion = (latestDeployment?.version ?? 0) + 1;
   const urlPath = publishedPath(project.workspace.slug, project.slug);
   const deploymentVisibility = toDeploymentVisibility(visibility);
+
+  await Promise.all(
+    project.artifacts.map((artifact) =>
+      snapshotArtifactForPublish(projectId, artifact.slug).catch(() => null),
+    ),
+  );
 
   await prisma.$transaction(async (tx) => {
     await tx.deployment.updateMany({

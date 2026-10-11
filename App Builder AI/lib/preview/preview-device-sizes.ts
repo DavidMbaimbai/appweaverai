@@ -88,3 +88,18 @@ export function isDeviceFramedPreview(id: PreviewDeviceId) {
 export function previewDeviceStorageKey(projectId: string) {
   return `appweaver:preview-device:${projectId}`;
 }
+
+export function previewOrientationStorageKey(projectId: string) {
+  return `appweaver:preview-landscape:${projectId}`;
+}
+
+/** Swaps width and height for framed devices when previewing in landscape. */
+export function applyPreviewOrientation(
+  preset: PreviewDevicePreset,
+  landscape: boolean,
+): PreviewDevicePreset {
+  if (!landscape || preset.width === null || preset.height === null) {
+    return preset;
+  }
+  return { ...preset, width: preset.height, height: preset.width };
+}

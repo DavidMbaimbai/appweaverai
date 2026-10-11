@@ -5,8 +5,10 @@ import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { CategoryIcon } from '@/components/shared/category-icons';
 import {
+  DuplicateIcon,
   ExternalLinkIcon,
   OpenProjectIcon,
+  StarIcon,
   TrashIcon,
 } from '../shell/user-area-icons';
 import { Badge } from '@/components/ui/badge';
@@ -28,7 +30,13 @@ import {
 } from './project-list-layout';
 import { useToast } from '@/components/ui/toast';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
-import { moveProjectToTrashAction } from '@/lib/actions/projects';
+import { duplicateProjectAction } from '@/lib/actions/duplicate';
+import { unpublishProjectAction } from '@/lib/actions/publish';
+import {
+  moveProjectToTrashAction,
+  renameProjectAction,
+  toggleProjectFavoriteAction,
+} from '@/lib/actions/projects';
 
 type ProjectListItemProps = {
   project: AppProject;
@@ -38,7 +46,25 @@ export function ProjectListItem({ project }: ProjectListItemProps) {
   const router = useRouter();
   const { success, error: toastError } = useToast();
   const [trashDialogOpen, setTrashDialogOpen] = useState(false);
+  const [unpublishDialogOpen, setUnpublishDialogOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const [isPinned, setIsPinned] = useState(project.isPinned);
+  const [isFavoritePending, startFavoriteTransition] = useTransition();
+  const [renaming, setRenaming] = useState(false);
+  const [nameDraft, setNameDraft] = useState(project.name);
+
+  function handleRename() {
+    startTransition(async () => {
+      const result = await renameProjectAction(project.id, nameDraft);
+      if (result?.error) {
+        toastError(result.error);
+        return;
+      }
+      setRenaming(false);
+      success('Website renamed.');
+      router.refresh();
+    });
+  }
 
   const href = `/app/projects/${project.workspaceSlug}/${project.slug}`;
   const status = getProjectStatus(project);
@@ -48,6 +74,49 @@ export function ProjectListItem({ project }: ProjectListItemProps) {
   const updatedLabel = formatRelativeTime(project.updatedAt);
   const subtitle = projectDisplaySubtitle(project);
   const metaLine = projectMetaLine(project);
+
+  function handleToggleFavorite() {
+    const nextPinned = !isPinned;
+    setIsPinned(nextPinned);
+
+    startFavoriteTransition(async () => {
+      const result = await toggleProjectFavoriteAction(
+        project.id,
+        nextPinned,
+      );
+
+      if (result?.error) {
+        setIsPinned(!nextPinned);
+        toastError(result.error);
+        return;
+      }
+
+      router.refresh();
+    });
+  }
+
+  function handleDuplicate() {
+    startTransition(async () => {
+      // On success the action redirects to the copy, so only errors return.
+      const result = await duplicateProjectAction(project.id);
+      if (result?.error) toastError(result.error);
+    });
+  }
+
+  function handleConfirmUnpublish() {
+    startTransition(async () => {
+      const result = await unpublishProjectAction(project.id);
+
+      if (result?.error) {
+        toastError(result.error);
+        return;
+      }
+
+      setUnpublishDialogOpen(false);
+      success('Website unpublished. It is now a draft.');
+      router.refresh();
+    });
+  }
 
   function handleConfirmTrash() {
     startTransition(async () => {
@@ -74,12 +143,53 @@ export function ProjectListItem({ project }: ProjectListItemProps) {
         <div className={cn('flex flex-col gap-4', PROJECT_LIST_GRID)}>
           {/* Project */}
           <div className="min-w-0 space-y-1">
-            <Link
-              href={href}
-              className="block text-sm font-medium leading-snug text-app-text transition-colors group-hover:text-appweaver-orange"
-              title={project.name}>
-              <span className="line-clamp-2">{project.name}</span>
-            </Link>
+            {renaming ? (
+              <form
+                className="flex items-center gap-2"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  handleRename();
+                }}>
+                <input
+                  autoFocus
+                  value={nameDraft}
+                  maxLength={80}
+                  aria-label="Website name"
+                  onChange={(event) => setNameDraft(event.target.value)}
+                  className="min-w-0 flex-1 rounded-md border border-app-border-subtle bg-transparent px-2 py-1 text-sm text-app-text"
+                />
+                <button
+                  type="submit"
+                  disabled={isPending || !nameDraft.trim()}
+                  className="text-xs text-appweaver-orange disabled:opacity-50">
+                  Save
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRenaming(false);
+                    setNameDraft(project.name);
+                  }}
+                  className="text-xs text-app-text-muted">
+                  Cancel
+                </button>
+              </form>
+            ) : (
+              <div className="flex items-baseline gap-2">
+                <Link
+                  href={href}
+                  className="block min-w-0 text-sm font-medium leading-snug text-app-text transition-colors group-hover:text-appweaver-orange"
+                  title={project.name}>
+                  <span className="line-clamp-2">{project.name}</span>
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => setRenaming(true)}
+                  className="shrink-0 text-xs text-app-text-muted hover:text-appweaver-orange">
+                  Rename
+                </button>
+              </div>
+            )}
 
             <p className="text-xs text-app-text-muted">{metaLine}</p>
 
@@ -139,6 +249,15 @@ export function ProjectListItem({ project }: ProjectListItemProps) {
                 ? `${status.detail} · ${formatRelativeTime(project.deployment.publishedAt)}`
                 : status.detail}
             </p>
+            {project.deployment ? (
+              <button
+                type="button"
+                onClick={() => setUnpublishDialogOpen(true)}
+                disabled={isPending}
+                className="text-xs text-app-text-muted underline-offset-2 transition-colors hover:text-appweaver-orange hover:underline">
+                Unpublish
+              </button>
+            ) : null}
           </div>
 
           {/* Last opened */}
@@ -154,7 +273,20 @@ export function ProjectListItem({ project }: ProjectListItemProps) {
 
           {/* Actions - fixed icons slots */}
           <div className="flex items-center justify-end">
-            <div className="inline-grid grid-cols-[2rem_2rem_2rem] items-center gap-1.5">
+            <div className="inline-grid grid-cols-[2rem_2rem_2rem_2rem_2rem] items-center gap-1.5">
+              <IconButton
+                label={isPinned ? 'Remove from favorites' : 'Add to favorites'}
+                size="sm"
+                theme="app"
+                onClick={handleToggleFavorite}
+                disabled={isFavoritePending}
+                className={cn(
+                  isPinned
+                    ? 'text-appweaver-orange'
+                    : 'text-app-text-muted hover:text-appweaver-orange',
+                )}>
+                <StarIcon className="h-3.5 w-3.5" filled={isPinned} />
+              </IconButton>
               <Link
                 href={href}
                 aria-label="Open project"
@@ -184,6 +316,15 @@ export function ProjectListItem({ project }: ProjectListItemProps) {
                 ) : null}
               </div>
               <IconButton
+                label="Duplicate website"
+                size="sm"
+                theme="app"
+                onClick={handleDuplicate}
+                disabled={isPending}
+                className="text-app-text-muted hover:text-appweaver-orange">
+                <DuplicateIcon className="h-3.5 w-3.5" />
+              </IconButton>
+              <IconButton
                 label="Move to trash"
                 size="sm"
                 theme="app"
@@ -196,6 +337,17 @@ export function ProjectListItem({ project }: ProjectListItemProps) {
           </div>
         </div>
       </li>
+
+      <ConfirmDialog
+        open={unpublishDialogOpen}
+        onClose={() => setUnpublishDialogOpen(false)}
+        onConfirm={handleConfirmUnpublish}
+        title="Unpublish this website?"
+        description="The live site will go offline and the project will return to Draft. You can publish it again anytime."
+        itemName={project.name}
+        confirmLabel="Unpublish"
+        isPending={isPending}
+      />
 
       <ConfirmDialog
         open={trashDialogOpen}

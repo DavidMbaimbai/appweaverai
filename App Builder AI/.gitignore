@@ -13,6 +13,9 @@
 # testing
 /coverage
 
+# published website snapshots
+/.published
+
 # next.js
 /.next/
 /out/

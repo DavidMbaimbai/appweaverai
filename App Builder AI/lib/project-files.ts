@@ -38,8 +38,9 @@ export function injectPreviewBaseHref(
   html: string,
   projectId: string,
   artifactSlug: string,
+  segment: "preview" | "live" = "preview",
 ) {
-  const baseHref = `/api/projects/${projectId}/preview/${artifactSlug}/`;
+  const baseHref = `/api/projects/${projectId}/${segment}/${artifactSlug}/`;
   const baseTag = `<base href="${baseHref}" />`;
 
   if (/<base\s/i.test(html)) {

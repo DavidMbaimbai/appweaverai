@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Link from 'next/link';
 
 import { AppModalBackdrop } from '@/components/ui/app-modal';
 import { Button } from '@/components/ui/button';
@@ -28,6 +29,7 @@ export function CustomDomainPanel({
   const { success, error: toastError } = useToast();
   const [isLoading, setIsLoading] = useState(true);
   const [record, setRecord] = useState<DomainRecord>(null);
+  const [allowed, setAllowed] = useState(true);
   const [domainInput, setDomainInput] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
@@ -45,6 +47,7 @@ export function CustomDomainPanel({
         const data = await res.json();
         if (cancelled) return;
         setRecord(data.domain ?? null);
+        setAllowed(data.canUseCustomDomain !== false);
       } catch {
         if (!cancelled) toastError('Could not load custom domain status.');
       } finally {
@@ -156,6 +159,19 @@ export function CustomDomainPanel({
               <p className="py-6 text-center text-sm text-app-text-muted">
                 Loading…
               </p>
+            ) : !record && !allowed ? (
+              <div className="space-y-3 text-sm text-app-text-secondary">
+                <p>
+                  Your site is live on its AppWeaver address. Custom domains are
+                  a Pro feature, so you can connect your own domain whenever you
+                  upgrade.
+                </p>
+                <Link
+                  href="/app/billing"
+                  className="inline-block font-medium text-appweaver-orange">
+                  Upgrade to Pro
+                </Link>
+              </div>
             ) : !record ? (
               <div className="space-y-3">
                 <label className="block text-xs font-medium text-app-text-secondary">

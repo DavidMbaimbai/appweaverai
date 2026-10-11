@@ -71,12 +71,23 @@ export function canPublishVisibility(
   return visibility === 'private';
 }
 
+export function canUseCustomDomain(tier: AppTier): boolean {
+  return tier === 'pro';
+}
+
+export const CUSTOM_DOMAIN_UPGRADE_MESSAGE =
+  'Custom domains are a Pro feature. Upgrade to Pro to connect your own domain.';
+
 export function getProjectLimit(tier: AppTier): number | null {
   if (tier === 'free') {
     return FREE_PROJECT_LIMIT;
   }
 
   return null;
+}
+
+export function getDailyDesignSuggestionLimit(tier: AppTier): number {
+  return tier === 'pro' ? 100 : 10;
 }
 
 export function publishUpgradeMessage(visibility: PublishVisibility): string {
@@ -106,5 +117,6 @@ export const PRO_PLAN_FEATURES = [
   'Unlimited projects',
   'Full agent limits and premium models',
   'Public and workspace publishing',
+  'Custom domains',
   'Commercial use',
 ] as const;

@@ -1,5 +1,7 @@
 'use client';
 
+import { trackSave } from '@/lib/save-tracker';
+
 import { useEffect, useState } from 'react';
 
 import { AppModalBackdrop } from '@/components/ui/app-modal';
@@ -110,11 +112,12 @@ export function HistoryPanel({ open, onClose, projectId }: HistoryPanelProps) {
     if (!restoreTarget) return;
 
     setIsRestoring(true);
-    void fetch(
-      `/api/projects/${projectId}/checkpoints/${restoreTarget.id}/restore`,
-      { method: 'POST' },
+    void trackSave(
+      fetch(
+        `/api/projects/${projectId}/checkpoints/${restoreTarget.id}/restore`,
+        { method: 'POST' },
+      ).then((res) => res.json()),
     )
-      .then((res) => res.json())
       .then((data) => {
         if (data.error) {
           toastError(data.error);

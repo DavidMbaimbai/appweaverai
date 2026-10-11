@@ -1,5 +1,7 @@
 'use client';
 
+import { trackSave } from '@/lib/save-tracker';
+
 import { useMemo, useState, useTransition } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
@@ -46,6 +48,9 @@ type PreviewPanelProps = {
   onArtifactDeleted: (artifact: { id: string; slug: string }) => void;
   onError?: (message: string) => void;
   onRuntimeError?: (error: { message: string; stack?: string }) => void;
+  onVisualEditApplied?: () => void;
+  onSaveStateChange?: (state: 'saving' | 'saved' | 'error') => void;
+  onAskAi?: (prompt: string) => void;
 };
 
 export function PreviewPanel({
@@ -58,6 +63,9 @@ export function PreviewPanel({
   onArtifactDeleted,
   onError,
   onRuntimeError,
+  onVisualEditApplied,
+  onSaveStateChange,
+  onAskAi,
 }: PreviewPanelProps) {
   const { success } = useToast();
   const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -85,7 +93,9 @@ export function PreviewPanel({
     if (!deleteTarget) return;
 
     startDeleteTransition(async () => {
-      const result = await deleteArtifactAction(project.id, deleteTarget.id);
+      const result = await trackSave(
+        deleteArtifactAction(project.id, deleteTarget.id),
+      );
 
       if (result.error) {
         onError?.(result.error);
@@ -220,6 +230,10 @@ export function PreviewPanel({
             hasFiles={hasFiles}
             agentActivity={agentActivity}
             onRuntimeError={onRuntimeError}
+            onError={onError}
+            onVisualEditApplied={onVisualEditApplied}
+            onSaveStateChange={onSaveStateChange}
+            onAskAi={onAskAi}
           />
         ) : (
           <div className="flex flex-1 items-center justify-center p-8">

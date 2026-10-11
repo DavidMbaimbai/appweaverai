@@ -16,7 +16,7 @@ export function PublishedProjectViewer({
   project,
 }: PublishedProjectViewerProps) {
   const artifactSlug = project.mainArtifact?.slug ?? 'main';
-  const previewUrl = `/api/projects/${project.id}/preview/${artifactSlug}`;
+  const previewUrl = `/api/projects/${project.id}/live/${artifactSlug}`;
 
   return (
     <div className="flex h-screen flex-col bg-black text-white">

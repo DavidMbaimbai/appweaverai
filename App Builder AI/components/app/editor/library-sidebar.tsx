@@ -11,6 +11,11 @@ import type { AppProjectDetail } from '@/lib/app-types';
 import { cn } from '@/lib/utils';
 import { AgentActivityPulse } from './agent-activity-indicator';
 import { LibraryProjectFiles } from './library-project-files';
+import { SectionLibraryPanel } from './section-library-panel';
+import { MySectionsPanel } from './my-sections-panel';
+import { ContentAssistantPanel } from './content-assistant-panel';
+import { DesignSuggestionsPanel } from './design-suggestions-panel';
+import type { WebsiteTemplateSummary } from '@/lib/queries/templates';
 
 type LibrarySidebarProps = {
   project: AppProjectDetail;
@@ -18,6 +23,10 @@ type LibrarySidebarProps = {
   agentActivity: AgentActivity;
   open: boolean;
   onToggle: () => void;
+  activeArtifactId: string | null;
+  sections: WebsiteTemplateSummary[];
+  onSectionInserted: () => void;
+  onApplySuggestion: (prompt: string) => void;
 };
 
 export function LibrarySidebar({
@@ -26,6 +35,10 @@ export function LibrarySidebar({
   agentActivity,
   open,
   onToggle,
+  activeArtifactId,
+  sections,
+  onSectionInserted,
+  onApplySuggestion,
 }: LibrarySidebarProps) {
   return (
     <div
@@ -95,6 +108,31 @@ export function LibrarySidebar({
               })}
             </ul>
           </section>
+
+          <DesignSuggestionsPanel
+            projectId={project.id}
+            activeArtifactId={activeArtifactId}
+            onApply={onApplySuggestion}
+          />
+
+          <ContentAssistantPanel
+            projectId={project.id}
+            activeArtifactId={activeArtifactId}
+            onApply={onApplySuggestion}
+          />
+
+          <MySectionsPanel
+            projectId={project.id}
+            activeArtifactId={activeArtifactId}
+            onInserted={onSectionInserted}
+          />
+
+          <SectionLibraryPanel
+            projectId={project.id}
+            activeArtifactId={activeArtifactId}
+            sections={sections}
+            onInserted={onSectionInserted}
+          />
 
           <LibraryProjectFiles
             project={project}

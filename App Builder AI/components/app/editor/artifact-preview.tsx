@@ -15,10 +15,18 @@ import {
   isDeviceFramedPreview,
   isPreviewDeviceId,
   previewDeviceStorageKey,
+  previewOrientationStorageKey,
+  applyPreviewOrientation,
   type PreviewDeviceId,
 } from '@/lib/preview/preview-device-sizes';
 import { hideDevicePreviewScrollbars } from '@/lib/preview/hide-device-preview-scrollbars';
 import { PreviewDeviceMenu } from './preview-device-menu';
+import { applyVisualEditAction } from '@/lib/actions/visual-edit';
+import type { VisualEditPatch } from '@/lib/preview/visual-edit';
+import { buildElementEditPrompt } from '@/lib/preview/element-prompt';
+import { saveElementAsTemplateAction } from '@/lib/actions/saved-sections';
+import { SAVED_SECTIONS_CHANGED_EVENT } from '@/lib/saved-sections-events';
+import { useToast } from '@/components/ui/toast';
 
 type ArtifactPreviewProps = {
   projectId: string;
@@ -28,6 +36,10 @@ type ArtifactPreviewProps = {
   agentActivity?: AgentActivity;
   className?: string;
   onRuntimeError?: (error: { message: string; stack?: string }) => void;
+  onError?: (message: string) => void;
+  onVisualEditApplied?: () => void;
+  onSaveStateChange?: (state: 'saving' | 'saved' | 'error') => void;
+  onAskAi?: (prompt: string) => void;
 };
 
 type RuntimeErrorMessage = {
@@ -36,6 +48,79 @@ type RuntimeErrorMessage = {
   message: string;
   stack?: string;
 };
+
+type VisualEditReadyMessage = {
+  source: 'appweaverai-preview';
+  type: 'visual-edit-ready';
+};
+
+type VisualEditCommitMessage = {
+  source: 'appweaverai-preview';
+  type: 'visual-edit-commit';
+  elementId: string;
+  patch: VisualEditPatch;
+};
+
+function isVisualEditReadyMessage(
+  data: unknown,
+): data is VisualEditReadyMessage {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    (data as Record<string, unknown>).source === 'appweaverai-preview' &&
+    (data as Record<string, unknown>).type === 'visual-edit-ready'
+  );
+}
+
+type VisualEditAskAiMessage = {
+  source: 'appweaverai-preview';
+  type: 'visual-edit-ask-ai';
+  instruction: string;
+  tag: string;
+  html: string;
+};
+
+function isVisualEditAskAiMessage(
+  data: unknown,
+): data is VisualEditAskAiMessage {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    (data as Record<string, unknown>).source === 'appweaverai-preview' &&
+    (data as Record<string, unknown>).type === 'visual-edit-ask-ai' &&
+    typeof (data as Record<string, unknown>).instruction === 'string'
+  );
+}
+
+type VisualEditSaveTemplateMessage = {
+  source: 'appweaverai-preview';
+  type: 'visual-edit-save-template';
+  elementId: string;
+  name: string;
+};
+
+function isVisualEditSaveTemplateMessage(
+  data: unknown,
+): data is VisualEditSaveTemplateMessage {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    (data as Record<string, unknown>).source === 'appweaverai-preview' &&
+    (data as Record<string, unknown>).type === 'visual-edit-save-template' &&
+    typeof (data as Record<string, unknown>).name === 'string'
+  );
+}
+
+function isVisualEditCommitMessage(
+  data: unknown,
+): data is VisualEditCommitMessage {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    (data as Record<string, unknown>).source === 'appweaverai-preview' &&
+    (data as Record<string, unknown>).type === 'visual-edit-commit'
+  );
+}
 
 function isRuntimeErrorMessage(data: unknown): data is RuntimeErrorMessage {
   return (
@@ -67,13 +152,21 @@ export function ArtifactPreview({
   agentActivity,
   className,
   onRuntimeError,
+  onError,
+  onVisualEditApplied,
+  onSaveStateChange,
+  onAskAi,
 }: ArtifactPreviewProps) {
+  const { error: toastError, success: toastSuccess } = useToast();
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [isBuilding, setIsBuilding] = useState(false);
   const [deviceId, setDeviceId] = useState<PreviewDeviceId>('full');
+  const [landscape, setLandscape] = useState(false);
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 });
+  const [visualEditSupported, setVisualEditSupported] = useState(false);
+  const [visualEditActive, setVisualEditActive] = useState(false);
   const [runtimeError, setRuntimeError] = useState<{
     message: string;
     stack?: string;
@@ -91,7 +184,19 @@ export function ArtifactPreview({
     setRuntimeError(null);
   }
 
-  const device = useMemo(() => getPreviewDevicePreset(deviceId), [deviceId]);
+  const [lastVisualEditArtifactId, setLastVisualEditArtifactId] = useState(
+    artifact.id,
+  );
+  if (lastVisualEditArtifactId !== artifact.id) {
+    setLastVisualEditArtifactId(artifact.id);
+    setVisualEditSupported(false);
+    setVisualEditActive(false);
+  }
+
+  const device = useMemo(
+    () => applyPreviewOrientation(getPreviewDevicePreset(deviceId), landscape),
+    [deviceId, landscape],
+  );
   const isFullSize = device.width === null || device.height === null;
   const isFramedDevice = isDeviceFramedPreview(deviceId);
 
@@ -127,6 +232,15 @@ export function ArtifactPreview({
   useEffect(() => {
     setTimeout(() => {
       setDeviceId(readStoredDeviceId(projectId));
+      try {
+        setLandscape(
+          window.localStorage.getItem(
+            previewOrientationStorageKey(projectId),
+          ) === '1',
+        );
+      } catch {
+        // Ignore storage errors.
+      }
     }, 0);
   }, [projectId]);
 
@@ -140,6 +254,56 @@ export function ArtifactPreview({
     return () => window.clearTimeout(timer);
   }, [previewVersion]);
 
+  const postVisualEditToggle = useCallback((enabled: boolean) => {
+    const iframeWindow = iframeRef.current?.contentWindow;
+    if (!iframeWindow) return;
+    try {
+      iframeWindow.postMessage(
+        { source: 'appweaverai-editor', type: 'toggle-visual-edit', enabled },
+        '*',
+      );
+    } catch {
+      // Cross-origin or sandboxed iframe — ignore.
+    }
+  }, []);
+
+  const handleVisualEditCommit = useCallback(
+    async (elementId: string, patch: VisualEditPatch) => {
+      onSaveStateChange?.('saving');
+      let result: Awaited<ReturnType<typeof applyVisualEditAction>>;
+      try {
+        result = await applyVisualEditAction({
+          projectId,
+          artifactId: artifact.id,
+          elementId,
+          patch,
+        });
+      } catch {
+        onSaveStateChange?.('error');
+        onError?.('Could not save your change.');
+        return;
+      }
+
+      if (result?.error) {
+        onSaveStateChange?.('error');
+        onError?.(result.error);
+        return;
+      }
+
+      onSaveStateChange?.('saved');
+      onVisualEditApplied?.();
+    },
+    [artifact.id, onError, onSaveStateChange, onVisualEditApplied, projectId],
+  );
+
+  function handleToggleVisualEdit() {
+    setVisualEditActive((current) => {
+      const next = !current;
+      postVisualEditToggle(next);
+      return next;
+    });
+  }
+
   // A new build likely fixed (or replaced) whatever was erroring before
   // (see `runtimeErrorResetKey` above). This effect only handles incoming
   // postMessage reports.
@@ -148,14 +312,63 @@ export function ArtifactPreview({
       if (iframeRef.current && event.source !== iframeRef.current.contentWindow) {
         return;
       }
-      if (!isRuntimeErrorMessage(event.data)) return;
 
-      setRuntimeError({ message: event.data.message, stack: event.data.stack });
+      if (isRuntimeErrorMessage(event.data)) {
+        setRuntimeError({
+          message: event.data.message,
+          stack: event.data.stack,
+        });
+        return;
+      }
+
+      if (isVisualEditReadyMessage(event.data)) {
+        setVisualEditSupported(true);
+        return;
+      }
+
+      if (isVisualEditAskAiMessage(event.data)) {
+        onAskAi?.(
+          buildElementEditPrompt({
+            instruction: event.data.instruction,
+            tag: String(event.data.tag),
+            html: String(event.data.html ?? ''),
+          }),
+        );
+        return;
+      }
+
+      if (isVisualEditSaveTemplateMessage(event.data)) {
+        void saveElementAsTemplateAction({
+          projectId,
+          artifactId: artifact.id,
+          elementId: String(event.data.elementId),
+          name: String(event.data.name),
+        }).then((result) => {
+          if (result.error || !result.section) {
+            toastError(result.error ?? 'Could not save the template.');
+            return;
+          }
+          window.dispatchEvent(new Event(SAVED_SECTIONS_CHANGED_EVENT));
+          toastSuccess(`Saved "${result.section.name}" to your library.`);
+        });
+        return;
+      }
+
+      if (isVisualEditCommitMessage(event.data)) {
+        void handleVisualEditCommit(event.data.elementId, event.data.patch);
+      }
     }
 
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
-  }, []);
+  }, [
+    handleVisualEditCommit,
+    onAskAi,
+    toastError,
+    toastSuccess,
+    projectId,
+    artifact.id,
+  ]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -220,6 +433,19 @@ export function ArtifactPreview({
     }
   }
 
+  function handleToggleLandscape() {
+    const next = !landscape;
+    setLandscape(next);
+    try {
+      window.localStorage.setItem(
+        previewOrientationStorageKey(projectId),
+        next ? '1' : '0',
+      );
+    } catch {
+      // Ignore storage errors.
+    }
+  }
+
   function handleRefresh() {
     setRefreshKey((value) => value + 1);
   }
@@ -277,7 +503,31 @@ export function ArtifactPreview({
               {artifact.slug}.appweaverai.app
             </span>
           </div>
-          <PreviewDeviceMenu value={deviceId} onChange={handleDeviceChange} />
+          <PreviewDeviceMenu
+            value={deviceId}
+            onChange={handleDeviceChange}
+            landscape={landscape}
+            onToggleLandscape={handleToggleLandscape}
+          />
+          <button
+            type="button"
+            onClick={handleToggleVisualEdit}
+            disabled={!visualEditSupported}
+            title={
+              visualEditSupported
+                ? 'Click elements in the preview to edit text, images, links, or delete them.'
+                : 'Visual edit is available for static HTML pages.'
+            }
+            className={cn(
+              'inline-flex h-8 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition-colors',
+              visualEditActive
+                ? 'border-appweaver-orange/50 bg-appweaver-orange/15 text-appweaver-orange'
+                : 'border-app-border text-app-text-muted hover:bg-app-surface-hover hover:text-app-text-secondary',
+              !visualEditSupported && 'cursor-not-allowed opacity-50',
+            )}>
+            <EditIcon />
+            {visualEditActive ? 'Editing' : 'Visual edit'}
+          </button>
           <IconButton
             label="Refresh preview"
             size="sm"
@@ -357,6 +607,9 @@ export function ArtifactPreview({
                 onLoad={() => {
                   setIsBuilding(false);
                   notifyIframeResize();
+                  if (visualEditActive) {
+                    postVisualEditToggle(true);
+                  }
                 }}
               />
             </div>
@@ -469,6 +722,24 @@ function OpenIcon() {
         stroke="currentColor"
         strokeWidth="1.5"
         strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function EditIcon() {
+  return (
+    <svg
+      width="14"
+      height="14"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true">
+      <path
+        d="m16.5 3.5 4 4L7 21l-4.5 1 1-4.5L16.5 3.5Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
         strokeLinejoin="round"
       />
     </svg>

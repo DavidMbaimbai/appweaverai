@@ -65,6 +65,33 @@ export function BillingIcon({ className }: { className?: string }) {
   );
 }
 
+export function DuplicateIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true">
+      <rect
+        x="8"
+        y="8"
+        width="11"
+        height="11"
+        rx="1.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+      />
+      <path
+        d="M16 8V6.5A1.5 1.5 0 0 0 14.5 5h-8A1.5 1.5 0 0 0 5 6.5v8A1.5 1.5 0 0 0 6.5 16H8"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export function TrashIcon({ className }: { className?: string }) {
   return (
     <svg
@@ -120,6 +147,29 @@ export function PencilIcon({ className }: { className?: string }) {
         stroke="currentColor"
         strokeWidth="1.5"
         strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+export function StarIcon({
+  className,
+  filled = false,
+}: {
+  className?: string;
+  filled?: boolean;
+}) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill={filled ? 'currentColor' : 'none'}
+      aria-hidden="true">
+      <path
+        d="m12 3.5 2.47 5.17 5.53.76-4 3.98.95 5.6L12 16.4l-4.95 2.6.95-5.6-4-3.98 5.53-.76L12 3.5Z"
+        stroke="currentColor"
+        strokeWidth="1.5"
         strokeLinejoin="round"
       />
     </svg>

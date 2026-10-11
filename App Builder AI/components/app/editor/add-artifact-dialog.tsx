@@ -1,5 +1,7 @@
 'use client';
 
+import { trackSave } from '@/lib/save-tracker';
+
 import { CategoryIcon } from '@/components/shared/category-icons';
 import { AppModalBackdrop } from '@/components/ui/app-modal';
 import { createArtifactAction } from '@/lib/actions/artifacts';
@@ -49,7 +51,7 @@ export function AddArtifactDialog({
     if (isPending || atLimit) return;
 
     startTransition(async () => {
-      const result = await createArtifactAction(projectId, type);
+      const result = await trackSave(createArtifactAction(projectId, type));
 
       if (result.error) {
         onError?.(result.error);

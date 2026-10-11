@@ -18,6 +18,11 @@ export async function getPublishedProjectBySlugs(
       id: true,
       name: true,
       slug: true,
+      description: true,
+      seoTitle: true,
+      seoDescription: true,
+      seoImageUrl: true,
+      faviconUrl: true,
       workspace: {
         select: {
           slug: true,
@@ -55,6 +60,12 @@ export async function getPublishedProjectBySlugs(
     mainArtifact: project.artifacts[0] ?? null,
     visibility: fromDeploymentVisibility(visibility),
     publishedUrl: deployment.domain,
+    seo: {
+      title: project.seoTitle,
+      description: project.seoDescription ?? project.description,
+      imageUrl: project.seoImageUrl,
+      faviconUrl: project.faviconUrl,
+    },
   };
 }
 

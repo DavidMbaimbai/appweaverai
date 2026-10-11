@@ -9,14 +9,17 @@ import type { AppProjectDetail } from '@/lib/app-types';
 import type { AppTier } from '@/lib/billing/entitlements';
 import { setActiveArtifactPreferenceAction } from '@/lib/actions/artifacts';
 import { useToast } from '@/components/ui/toast';
-import { EditorTopBar } from './editor-topbar';
+import { subscribeSaveState } from '@/lib/save-tracker';
+import { EditorTopBar, type SaveStatus } from './editor-topbar';
 import { LibrarySidebar } from './library-sidebar';
 import { AgentPanel, type AgentPanelHandle } from './agent-panel';
 import { PreviewPanel } from './preview-panel';
+import type { WebsiteTemplateSummary } from '@/lib/queries/templates';
 
 type ProjectEditorProps = {
   project: AppProjectDetail;
   appTier: AppTier;
+  sections: WebsiteTemplateSummary[];
 };
 
 function getInitialActiveArtifactId(project: AppProjectDetail) {
@@ -45,7 +48,7 @@ function getInitialPreviewVersion(project: AppProjectDetail) {
     .length;
 }
 
-export function ProjectEditor({ project, appTier }: ProjectEditorProps) {
+export function ProjectEditor({ project, appTier, sections }: ProjectEditorProps) {
   const { error: toastError } = useToast();
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [artifacts, setArtifacts] = useState(project.artifacts);
@@ -60,7 +63,30 @@ export function ProjectEditor({ project, appTier }: ProjectEditorProps) {
     useState<AgentActivity>(idleAgentActivity);
   const [deployment, setDeployment] = useState(project.deployment);
   const agentPanelRef = useRef<AgentPanelHandle>(null);
+  const [manualSave, setManualSave] = useState<SaveStatus>('saved');
+  const [savedAt, setSavedAt] = useState<Date | null>(null);
 
+  const handleSaveStateChange = useCallback((state: SaveStatus) => {
+    setManualSave(state);
+    if (state === 'saved') setSavedAt(new Date());
+  }, []);
+
+  useEffect(() => subscribeSaveState(handleSaveStateChange), [handleSaveStateChange]);
+
+  // The agent writes files as it works, so treat it as an in-progress save.
+  const saveStatus: SaveStatus = agentActivity.isWorking
+    ? 'saving'
+    : manualSave;
+
+  // Warn before leaving while a save is still running.
+  useEffect(() => {
+    if (saveStatus !== 'saving') return;
+    function warn(event: BeforeUnloadEvent) {
+      event.preventDefault();
+    }
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [saveStatus]);
   const editorProject = useMemo(
     () => ({ ...project, artifacts, files, deployment }),
     [artifacts, deployment, files, project],
@@ -151,6 +177,9 @@ export function ProjectEditor({ project, appTier }: ProjectEditorProps) {
         project={editorProject}
         appTier={appTier}
         onPublished={(nextDeployment) => setDeployment(nextDeployment)}
+        onUnpublished={() => setDeployment(null)}
+        saveStatus={saveStatus}
+        savedAt={savedAt}
       />
 
       <div className="flex min-h-0 flex-1">
@@ -160,6 +189,13 @@ export function ProjectEditor({ project, appTier }: ProjectEditorProps) {
           agentActivity={agentActivity}
           open={libraryOpen}
           onToggle={() => setLibraryOpen((value) => !value)}
+          activeArtifactId={activeArtifactId}
+          sections={sections}
+          onApplySuggestion={(prompt) => agentPanelRef.current?.sendMessage(prompt)}
+          onSectionInserted={() => {
+            handlePreviewVersionChange(1);
+            handleSaveStateChange('saved');
+          }}
         />
 
         <div className="flex min-w-0 flex-1">
@@ -206,6 +242,9 @@ export function ProjectEditor({ project, appTier }: ProjectEditorProps) {
               });
             }}
             onError={toastError}
+            onVisualEditApplied={() => handlePreviewVersionChange(1)}
+            onSaveStateChange={handleSaveStateChange}
+            onAskAi={(prompt) => agentPanelRef.current?.sendMessage(prompt)}
           />
         </div>
       </div>

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   FREE_PROJECT_LIMIT,
   canPublishVisibility,
+  canUseCustomDomain,
   getAgentLimits,
   getAppTier,
   getProjectLimit,
@@ -90,6 +91,14 @@ describe('canPublishVisibility', () => {
 
   it('restricts guests the same as free users', () => {
     expect(canPublishVisibility('guest', 'public')).toBe(false);
+  });
+});
+
+describe('canUseCustomDomain', () => {
+  it('is allowed only on the pro tier', () => {
+    expect(canUseCustomDomain('pro')).toBe(true);
+    expect(canUseCustomDomain('free')).toBe(false);
+    expect(canUseCustomDomain('guest')).toBe(false);
   });
 });
 

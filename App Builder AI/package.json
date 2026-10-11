@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "seed:templates": "tsx prisma/seed-website-templates.ts"
   },
   "dependencies": {
     "@anthropic-ai/bedrock-sdk": "^0.33.7",
@@ -22,6 +23,7 @@
     "dotenv": "^17.4.2",
     "esbuild": "^0.28.1",
     "next": "16.2.9",
+    "node-html-parser": "^9.0.4",
     "nodemailer": "^10.0.10",
     "pg": "^8.22.0",
     "prisma": "^7.8.0",
@@ -43,6 +45,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
     "tailwindcss": "^4",
+    "tsx": "^4.23.15",
     "typescript": "^5",
     "vitest": "^4.1.11"
   }

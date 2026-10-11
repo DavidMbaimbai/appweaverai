@@ -93,6 +93,10 @@ model User {
 
   cliDeviceAuthorizations CliDeviceAuthorization[]
   cliTokens               CliToken[]
+  savedSections           UserSavedSection[]
+  brandKitDefault         UserBrandKit?
+  savedPages              UserSavedPage[]
+  templateFavorites       UserTemplateFavorite[]
 
   @@index([adminRole])
   @@index([accountStatus])
@@ -391,6 +395,16 @@ model Project {
   /// (Replit/Lovable-style community discovery).
   remixedFromProjectId String? @map("remixed_from_project_id")
 
+  /// SEO metadata surfaced for the published site: <title>/<meta
+  /// description>, the Open Graph/Twitter share image, and a custom
+  /// favicon. All optional — falls back to the project name when unset.
+  seoTitle       String? @map("seo_title")
+  seoDescription String? @map("seo_description") @db.Text
+  seoImageUrl    String? @map("seo_image_url")
+  faviconUrl     String? @map("favicon_url")
+  /// Where form-submission emails go; falls back to the project owner.
+  notificationEmail String? @map("notification_email")
+
   workspace     Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   createdBy     User                    @relation("ProjectCreator", fields: [createdById], references: [id], onDelete: Restrict)
   members       ProjectMember[]
@@ -411,6 +425,8 @@ model Project {
   aiUsageEvents AiUsageEvent[]
   flags         ProjectFlag[]
   pageViews     ProjectPageView[]
+  brandKit      ProjectBrandKit?
+  formSubmissions ProjectFormSubmission[]
   remixedFrom   Project?                @relation("ProjectRemixes", fields: [remixedFromProjectId], references: [id], onDelete: SetNull)
   remixes       Project[]               @relation("ProjectRemixes")
 
@@ -723,6 +739,166 @@ model ProjectCheckpointFile {
   @@unique([checkpointId, path])
   @@index([checkpointId])
   @@map("project_checkpoint_files")
+}
+
+// -----------------------------------------------------------------------------
+// Website template & section library — curated starting points users can
+// launch a new project from (full templates) or insert into an existing
+// artifact (sections). Content is stored as text in the DB and copied onto
+// disk (same layout the AI agent writes to) when used.
+// -----------------------------------------------------------------------------
+
+enum TemplateKind {
+  /// A full starter website (index.html + styles.css + script.js).
+  FULL_TEMPLATE
+  /// A single reusable block (hero, pricing, testimonials, footer, etc.)
+  /// meant to be inserted into an existing artifact.
+  SECTION
+}
+
+enum TemplateMarket {
+  FREELANCER
+  SMALL_BUSINESS
+  AGENCY
+  SAAS
+  GENERAL
+}
+
+model WebsiteTemplate {
+  id              String         @id @default(cuid())
+  slug            String         @unique
+  name            String
+  description     String?        @db.Text
+  kind            TemplateKind
+  market          TemplateMarket @default(GENERAL)
+  previewImageUrl String?        @map("preview_image_url")
+  sortOrder       Int            @default(0) @map("sort_order")
+  isPublished     Boolean        @default(true) @map("is_published")
+  createdAt       DateTime       @default(now()) @map("created_at")
+  updatedAt       DateTime       @updatedAt @map("updated_at")
+
+  files WebsiteTemplateFile[]
+  favorites UserTemplateFavorite[]
+  @@index([kind, market, sortOrder])
+  @@index([isPublished])
+  @@map("website_templates")
+}
+
+/// Relative paths mirror the artifact file layout (index.html, styles.css,
+/// script.js). For SECTION templates, path is a fixed virtual name
+/// ("section.html") since sections are inserted rather than copied wholesale.
+model WebsiteTemplateFile {
+  id         String @id @default(cuid())
+  templateId String @map("template_id")
+  path       String
+  content    String @db.Text
+
+  template WebsiteTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@unique([templateId, path])
+  @@map("website_template_files")
+}
+
+/// Account-level brand kit: new websites start with these values.
+model UserBrandKit {
+  userId         String   @id @map("user_id")
+  logoUrl        String?  @map("logo_url")
+  primaryColor   String?  @map("primary_color")
+  secondaryColor String?  @map("secondary_color")
+  accentColor    String?  @map("accent_color")
+  fontFamily     String?  @map("font_family")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_brand_kits")
+}
+
+/// A section a user saved from one of their websites ("Save as Template",
+/// Flow 5). `html` is the section's self-contained outerHTML.
+model UserSavedSection {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  name      String
+  html      String   @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("user_saved_sections")
+}
+
+/// A whole page (index.html + assets) saved as a personal template.
+/// `files` is an array of { path, content } text files.
+model UserSavedPage {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  name      String
+  files     Json
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("user_saved_pages")
+}
+
+/// Starred built-in templates/sections for quick access.
+model UserTemplateFavorite {
+  userId     String   @map("user_id")
+  templateId String   @map("template_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  template WebsiteTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@id([userId, templateId])
+  @@map("user_template_favorites")
+}
+
+// -----------------------------------------------------------------------------
+// Brand kit — logo/colors/font saved per project. Applied to the live site as
+// a block of CSS custom properties written into the main artifact's
+// stylesheet, so it has an immediate, visible effect without requiring the
+// user (or agent) to manually restyle every element.
+// -----------------------------------------------------------------------------
+
+model ProjectBrandKit {
+  id             String   @id @default(cuid())
+  projectId      String   @unique @map("project_id")
+  logoUrl        String?  @map("logo_url")
+  primaryColor   String?  @map("primary_color")
+  secondaryColor String?  @map("secondary_color")
+  accentColor    String?  @map("accent_color")
+  fontFamily     String?  @map("font_family")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("project_brand_kits")
+}
+
+// -----------------------------------------------------------------------------
+// Form submissions — lets static-HTML contact/lead forms (e.g. the seeded
+// "Contact Form" section) actually deliver messages somewhere. The preview
+// runtime posts submissions to a public API route; the project owner reads
+// them from the editor's Forms panel.
+// -----------------------------------------------------------------------------
+
+model ProjectFormSubmission {
+  id        String   @id @default(cuid())
+  projectId String   @map("project_id")
+  formName  String   @map("form_name")
+  data      Json
+  visitorId String?  @map("visitor_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+  @@map("project_form_submissions")
 }
 
 // -----------------------------------------------------------------------------

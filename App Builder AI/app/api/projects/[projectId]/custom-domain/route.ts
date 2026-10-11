@@ -8,6 +8,12 @@ import {
   removeProjectCustomDomain,
   setProjectCustomDomain,
 } from '@/lib/domains/custom-domain';
+import {
+  CUSTOM_DOMAIN_UPGRADE_MESSAGE,
+  canUseCustomDomain,
+  getAppTier,
+} from '@/lib/billing/entitlements';
+import { getUserBillingFields } from '@/lib/queries/billing';
 import { recordUserActivity } from '@/lib/activity/record-user-activity';
 
 const setSchema = z.object({
@@ -40,8 +46,12 @@ export async function GET(
   const access = await requireProjectAccess(projectId);
   if ('error' in access) return access.error;
 
+  const user = await getUserBillingFields(access.userId);
   const record = await getProjectCustomDomain(projectId);
-  return Response.json({ domain: record });
+  return Response.json({
+    domain: record,
+    canUseCustomDomain: canUseCustomDomain(getAppTier(user)),
+  });
 }
 
 export async function POST(
@@ -51,6 +61,14 @@ export async function POST(
   const { projectId } = await context.params;
   const access = await requireProjectAccess(projectId);
   if ('error' in access) return access.error;
+
+  const user = await getUserBillingFields(access.userId);
+  if (!canUseCustomDomain(getAppTier(user))) {
+    return Response.json(
+      { error: CUSTOM_DOMAIN_UPGRADE_MESSAGE, upgradeRequired: true },
+      { status: 403 },
+    );
+  }
 
   const json = await request.json().catch(() => null);
   const parsed = setSchema.safeParse(json);

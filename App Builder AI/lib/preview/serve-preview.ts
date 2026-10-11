@@ -11,6 +11,11 @@ import { formatBundleError } from '@/lib/preview/format-bundle-error';
 import { artifactWorkspaceDir } from '@/lib/preview/list-workspace-paths';
 import { buildPreviewErrorHtml } from '@/lib/preview/preview-error-html';
 import { injectRuntimeErrorShim } from '@/lib/preview/runtime-error-shim';
+import { injectVisualEditShim } from '@/lib/preview/visual-edit-shim';
+import { annotateHtmlForVisualEdit } from '@/lib/preview/visual-edit';
+import { injectBrandKitShim } from '@/lib/preview/brand-kit-shim';
+import { injectFormSubmitShim } from '@/lib/preview/form-submit-shim';
+import { getProjectBrandKit } from '@/lib/brand-kit/project-brand-kit';
 import {
   getMimeType,
   injectPreviewBaseHref,
@@ -69,8 +74,26 @@ export async function serveArtifactIndex(
   }
 
   const content = await readFile(absolute, 'utf8');
-  const html = injectRuntimeErrorShim(
-    injectPreviewBaseHref(content, projectId, artifactSlug),
+  const brandKit = await getProjectBrandKit(projectId).catch(() => null);
+  const html = injectFormSubmitShim(
+    injectRuntimeErrorShim(
+      injectVisualEditShim(
+        injectBrandKitShim(
+          injectPreviewBaseHref(
+            annotateHtmlForVisualEdit(content),
+            projectId,
+            artifactSlug,
+          ),
+          brandKit ?? {
+            logoUrl: null,
+            primaryColor: null,
+            secondaryColor: null,
+            accentColor: null,
+            fontFamily: null,
+          },
+        ),
+      ),
+    ),
   );
   return {
     body: html,

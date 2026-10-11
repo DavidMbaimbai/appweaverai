@@ -11,6 +11,7 @@ export type HeroPromptDraft = {
   categoryId: string | null;
   planMode: boolean;
   autostart: boolean;
+  websiteType?: string | null;
 };
 
 export function saveHeroPromptDraft(draft: HeroPromptDraft) {
@@ -32,6 +33,8 @@ export function loadHeroPromptDraft(): HeroPromptDraft | null {
         typeof parsed.categoryId === 'string' ? parsed.categoryId : null,
       planMode: Boolean(parsed.planMode),
       autostart: Boolean(parsed.autostart),
+      websiteType:
+        typeof parsed.websiteType === 'string' ? parsed.websiteType : null,
     };
   } catch {
     return null;
@@ -49,18 +52,21 @@ export async function persistHeroPromptState({
   planMode,
   attachments,
   autostart = false,
+  websiteType = null,
 }: {
   value: string;
   categoryId: string | null;
   planMode: boolean;
   attachments: PromptAttachment[];
   autostart?: boolean;
+  websiteType?: string | null;
 }) {
   saveHeroPromptDraft({
     value,
     categoryId,
     planMode,
     autostart,
+    websiteType,
   });
   await saveHeroPromptAttachments(attachments);
 }
@@ -69,11 +75,13 @@ export function buildProjectFormData({
   prompt,
   planMode,
   categoryId,
+  websiteType,
   attachments,
 }: {
   prompt: string;
   planMode: boolean;
   categoryId?: string | null;
+  websiteType?: string | null;
   attachments: PromptAttachment[];
 }) {
   const formData = new FormData();
@@ -82,6 +90,9 @@ export function buildProjectFormData({
 
   if (categoryId) {
     formData.append('categoryId', categoryId);
+  }
+  if (websiteType) {
+    formData.append('websiteType', websiteType);
   }
 
   attachments.forEach((attachment, index) => {

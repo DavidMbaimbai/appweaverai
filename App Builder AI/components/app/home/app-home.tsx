@@ -3,11 +3,13 @@
 import { CategoryCarousel } from '@/components/shared/category-carousel';
 import { ExamplePrompts } from '@/components/shared/example-prompts';
 import { getDisplayName } from '@/lib/app-data';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import type { ProjectCategory } from '@/lib/types';
 import { useToast } from '@/components/ui/toast';
 import { AppPromptInput } from './app-prompt-input';
+import { WebsiteTypeSelector } from './website-type-selector';
 import { useHeroPromptDraftRestore } from '@/lib/hooks/use-hero-prompt-draft';
 import {
   buildProjectFormData,
@@ -39,6 +41,8 @@ export function AppHome({ user }: AppHomeProps) {
     setAttachments,
     planMode,
     setPlanMode,
+    websiteType,
+    setWebsiteType,
     selectedCategory,
     setSelectedCategory,
     ready,
@@ -65,6 +69,7 @@ export function AppHome({ user }: AppHomeProps) {
         prompt,
         planMode: nextPlanMode,
         categoryId: nextCategory?.id,
+        websiteType,
         attachments: nextAttachments,
       });
 
@@ -167,6 +172,12 @@ export function AppHome({ user }: AppHomeProps) {
             disabled={isPending}
           />
 
+          <WebsiteTypeSelector
+            value={websiteType}
+            onChange={setWebsiteType}
+            disabled={isPending}
+          />
+
           {error ? (
             <p className="mt-3 text-center text-sm text-appweaver-orange">
               {error}
@@ -179,7 +190,7 @@ export function AppHome({ user }: AppHomeProps) {
             </p>
           ) : null}
 
-          <div className="mt-3 text-center">
+          <div className="mt-3 flex items-center justify-center gap-2 text-center">
             <button
               type="button"
               onClick={() => setGithubPickerOpen(true)}
@@ -187,6 +198,12 @@ export function AppHome({ user }: AppHomeProps) {
               className="text-sm text-app-text-muted underline-offset-2 transition-colors hover:text-app-text hover:underline disabled:opacity-50">
               {isImporting ? 'Importing…' : 'or import an existing GitHub repo →'}
             </button>
+            <span className="text-sm text-app-text-muted">·</span>
+            <Link
+              href="/app/templates"
+              className="text-sm text-app-text-muted underline-offset-2 transition-colors hover:text-app-text hover:underline">
+              or start from a template →
+            </Link>
           </div>
         </div>
 

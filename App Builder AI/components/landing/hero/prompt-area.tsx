@@ -9,6 +9,7 @@ import { CategoryCarousel } from '@/components/landing/hero/category-carousel';
 import { useAuthModal } from '@/components/auth/auth-modal-provider';
 import { useHeroPromptDraftRestore } from '@/lib/hooks/use-hero-prompt-draft';
 import { AppPromptInput } from '@/components/app/home/app-prompt-input';
+import { WebsiteTypeSelector } from '@/components/app/home/website-type-selector';
 import { persistHeroPromptState } from '@/lib/hero-prompt-draft';
 import { useAuthSession } from '@/components/auth/session-provider';
 
@@ -26,6 +27,8 @@ export function HeroPromptArea() {
     setAttachments,
     planMode,
     setPlanMode,
+    websiteType,
+    setWebsiteType,
     selectedCategory,
     setSelectedCategory,
     ready,
@@ -39,8 +42,9 @@ export function HeroPromptArea() {
       planMode,
       attachments,
       autostart: false,
+      websiteType,
     });
-  }, [value, selectedCategory, planMode, attachments, ready]);
+  }, [value, selectedCategory, planMode, attachments, websiteType, ready]);
 
   function handleSelect(text: string) {
     setValue(text);
@@ -59,6 +63,7 @@ export function HeroPromptArea() {
       planMode,
       attachments,
       autostart: true,
+      websiteType,
     });
 
     const params = new URLSearchParams(window.location.search);
@@ -76,6 +81,7 @@ export function HeroPromptArea() {
       planMode,
       attachments,
       autostart: true,
+      websiteType,
     });
 
     if (status === 'loading') return;
@@ -104,6 +110,7 @@ export function HeroPromptArea() {
           onPlanModeChange={setPlanMode}
           onError={toastError}
         />
+        <WebsiteTypeSelector value={websiteType} onChange={setWebsiteType} />
       </div>
 
       <div className="mx-auto mt-[17px] w-full max-w-hero-prompt tablet-up:max-w-hero-prompt-tablet">

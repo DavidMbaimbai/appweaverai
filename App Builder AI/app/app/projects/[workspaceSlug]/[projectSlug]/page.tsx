@@ -3,6 +3,7 @@ import { getCachedSession } from '@/lib/auth/cached';
 import { getAppTier } from '@/lib/billing/entitlements';
 import { getUserBillingFields } from '@/lib/queries/billing';
 import { getProjectBySlugs } from '@/lib/queries/projects';
+import { listWebsiteTemplates } from '@/lib/queries/templates';
 import { notFound } from 'next/navigation';
 
 type ProjectPageProps = {
@@ -27,7 +28,16 @@ export default async function ProjectPage({ params }: ProjectPageProps) {
     notFound();
   }
 
-  const billingUser = await getUserBillingFields(userId);
+  const [billingUser, sections] = await Promise.all([
+    getUserBillingFields(userId),
+    listWebsiteTemplates({ kind: 'SECTION' }),
+  ]);
 
-  return <ProjectEditor project={project} appTier={getAppTier(billingUser)} />;
+  return (
+    <ProjectEditor
+      project={project}
+      appTier={getAppTier(billingUser)}
+      sections={sections}
+    />
+  );
 }

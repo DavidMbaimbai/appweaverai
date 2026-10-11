@@ -15,7 +15,14 @@ import type { AppProjectDetail } from '@/lib/app-types';
 import type { PublishVisibility } from '@/lib/publish/visibility';
 import { focusVisibleRingStyles } from '@/lib/ui-theme';
 import { cn } from '@/lib/utils';
-import { publishProjectAction } from '@/lib/actions/publish';
+import {
+  checkPublishReadinessAction,
+  publishProjectAction,
+  unpublishProjectAction,
+} from '@/lib/actions/publish';
+import { AppModalBackdrop } from '@/components/ui/app-modal';
+import type { PreflightIssue } from '@/lib/publish/preflight';
+import { hasUnpublishedChanges } from '@/lib/publish/unpublished-changes';
 import { HistoryPanel } from './history-panel';
 import { GithubExportPanel } from './github-export-panel';
 import { CustomDomainPanel } from './custom-domain-panel';
@@ -23,13 +30,22 @@ import { PresenceAvatars } from './presence-avatars';
 import { ActivityLogPanel } from './activity-log-panel';
 import { TerminalPanel } from './terminal-panel';
 import { AnalyticsPanel } from './analytics-panel';
+import { AltTextPanel } from './alt-text-panel';
+import { BrandKitPanel } from './brand-kit-panel';
+import { SeoPanel } from './seo-panel';
+import { FormSubmissionsPanel } from './form-submissions-panel';
+
+export type SaveStatus = 'saving' | 'saved' | 'error';
 
 type EditorTopbarProps = {
   project: AppProjectDetail;
   appTier: AppTier;
+  saveStatus?: SaveStatus;
+  savedAt?: Date | null;
   onPublished?: (
     deployment: NonNullable<AppProjectDetail['deployment']>,
   ) => void;
+  onUnpublished?: () => void;
 };
 
 const linkMenuItems = [
@@ -40,18 +56,47 @@ const linkMenuItems = [
 export function EditorTopBar({
   project,
   appTier,
+  saveStatus = 'saved',
+  savedAt = null,
   onPublished,
+  onUnpublished,
 }: EditorTopbarProps) {
   const router = useRouter();
+  const [panelSave, setPanelSave] = useState<{
+    status: SaveStatus;
+    at: Date | null;
+  }>({ status: 'saved', at: null });
+  const handlePanelSave = (status: SaveStatus) =>
+    setPanelSave({ status, at: status === 'saved' ? new Date() : null });
+  const effectiveStatus: SaveStatus =
+    saveStatus === 'saving' || panelSave.status === 'saving'
+      ? 'saving'
+      : saveStatus === 'error' || panelSave.status === 'error'
+        ? 'error'
+        : 'saved';
+  const effectiveSavedAt =
+    savedAt && panelSave.at
+      ? savedAt > panelSave.at
+        ? savedAt
+        : panelSave.at
+      : (savedAt ?? panelSave.at);
   const { success, error: toastError } = useToast();
   const [menuOpen, setMenuOpen] = useState(false);
   const [trashDialogOpen, setTrashDialogOpen] = useState(false);
+  const [unpublishDialogOpen, setUnpublishDialogOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [githubOpen, setGithubOpen] = useState(false);
   const [domainOpen, setDomainOpen] = useState(false);
   const [activityOpen, setActivityOpen] = useState(false);
   const [terminalOpen, setTerminalOpen] = useState(false);
   const [analyticsOpen, setAnalyticsOpen] = useState(false);
+  const [brandKitOpen, setBrandKitOpen] = useState(false);
+  const [seoOpen, setSeoOpen] = useState(false);
+  const [altTextOpen, setAltTextOpen] = useState(false);
+  const [formsOpen, setFormsOpen] = useState(false);
+  const [preflightIssues, setPreflightIssues] = useState<
+    PreflightIssue[] | null
+  >(null);
   const [visibility, setVisibility] = useState<PublishVisibility>(
     project.deployment?.visibility ?? 'private',
   );
@@ -75,6 +120,22 @@ export function EditorTopBar({
 
   function handlePublish() {
     startPublishTransition(async () => {
+      const check = await checkPublishReadinessAction(project.id);
+      if (check.issues && check.issues.length > 0) {
+        setPreflightIssues(check.issues);
+        return;
+      }
+      await runPublish();
+    });
+  }
+
+  function handlePublishAnyway() {
+    setPreflightIssues(null);
+    startPublishTransition(runPublish);
+  }
+
+  async function runPublish() {
+    {
       const result = await publishProjectAction(project.id, visibility);
 
       if (result.error) {
@@ -98,7 +159,7 @@ export function EditorTopBar({
         );
         router.refresh();
       }
-    });
+    }
   }
 
   useEffect(() => {
@@ -133,7 +194,28 @@ export function EditorTopBar({
     });
   }
 
+  function handleConfirmUnpublish() {
+    startTransition(async () => {
+      const result = await unpublishProjectAction(project.id);
+
+      if (result?.error) {
+        toastError(result.error);
+        return;
+      }
+
+      setUnpublishDialogOpen(false);
+      onUnpublished?.();
+      success('Website unpublished. It is now a draft.');
+      router.refresh();
+    });
+  }
+
   const isPublished = Boolean(project.deployment);
+  const unpublishedChanges = hasUnpublishedChanges({
+    publishedAt: project.deployment?.publishedAt,
+    fileUpdatedAts: project.files.map((file) => file.updatedAt),
+    lastSavedAt: effectiveSavedAt,
+  });
 
   return (
     <>
@@ -168,6 +250,26 @@ export function EditorTopBar({
           <Badge variant={isPublished ? 'orange' : 'muted'} theme="app">
             {isPublished ? 'Published' : 'Draft'}
           </Badge>
+          {isPublished && unpublishedChanges ? (
+            <Badge variant="muted" theme="app">
+              Unpublished changes
+            </Badge>
+          ) : null}
+          <span
+            role="status"
+            aria-live="polite"
+            className={cn(
+              'hidden text-xs tablet-up:inline',
+              effectiveStatus === 'error' ? 'text-red-400' : 'text-app-text-muted',
+            )}>
+            {effectiveStatus === 'saving'
+              ? 'Saving…'
+              : effectiveStatus === 'error'
+                ? 'Not saved — try again'
+                : effectiveSavedAt
+                  ? `Saved at ${effectiveSavedAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                  : 'All changes saved'}
+          </span>
         </div>
 
         <div className="flex shrink-0 items-center gap-2">
@@ -212,9 +314,18 @@ export function EditorTopBar({
             {isPublishing
               ? 'Publishing...'
               : isPublished
-                ? 'Republish'
+                ? 'Publish updates'
                 : 'Publish'}
           </Button>
+
+          {isPublished ? (
+            <button
+              type="button"
+              onClick={() => setUnpublishDialogOpen(true)}
+              className="hidden h-9 shrink-0 items-center rounded-lg border border-app-border bg-app-surface px-3 text-xs font-medium text-app-text-secondary transition-colors hover:bg-app-surface-hover hover:text-app-text tablet-up:inline-flex">
+              Unpublish
+            </button>
+          ) : null}
 
           {isPublished && project.deployment ? (
             <Link
@@ -330,6 +441,50 @@ export function EditorTopBar({
                 <button
                   type="button"
                   role="menuitem"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setBrandKitOpen(true);
+                  }}
+                  className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-app-text-secondary transition-colors hover:bg-app-surface-hover hover:text-app-text">
+                  <BrandKitIcon className="h-3.5 w-3.5 shrink-0" />
+                  Brand kit
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setSeoOpen(true);
+                  }}
+                  className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-app-text-secondary transition-colors hover:bg-app-surface-hover hover:text-app-text">
+                  <SeoIcon className="h-3.5 w-3.5 shrink-0" />
+                  SEO
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setAltTextOpen(true);
+                  }}
+                  className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-app-text-secondary transition-colors hover:bg-app-surface-hover hover:text-app-text">
+                  <AltTextIcon className="h-3.5 w-3.5 shrink-0" />
+                  Image alt text
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setFormsOpen(true);
+                  }}
+                  className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-app-text-secondary transition-colors hover:bg-app-surface-hover hover:text-app-text">
+                  <FormsIcon className="h-3.5 w-3.5 shrink-0" />
+                  Form submissions
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
                   onClick={handleMoveToTrashClick}
                   disabled={isPending}
                   className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-appweaver-orange transition-colors hover:bg-appweaver-orange/10 disabled:opacity-50">
@@ -353,6 +508,17 @@ export function EditorTopBar({
           </div>
         </div>
       </header>
+
+      <ConfirmDialog
+        open={unpublishDialogOpen}
+        onClose={() => setUnpublishDialogOpen(false)}
+        onConfirm={handleConfirmUnpublish}
+        title="Unpublish this website?"
+        description="The live site will go offline and the project will return to Draft. You can publish it again anytime."
+        itemName={project.name}
+        confirmLabel="Unpublish"
+        isPending={isPending}
+      />
 
       <ConfirmDialog
         open={trashDialogOpen}
@@ -412,6 +578,83 @@ export function EditorTopBar({
         onClose={() => setAnalyticsOpen(false)}
         projectId={project.id}
         isPublished={isPublished}
+      />
+
+      <BrandKitPanel
+        open={brandKitOpen}
+        onClose={() => setBrandKitOpen(false)}
+        projectId={project.id}
+        onSaveStateChange={handlePanelSave}
+      />
+
+      <AppModalBackdrop
+        open={preflightIssues !== null}
+        onClose={() => setPreflightIssues(null)}
+        className="flex items-center justify-center p-4"
+        panelClassName="w-full max-w-lg rounded-xl border border-app-border bg-app-surface p-5 shadow-xl">
+        <h2 className="text-base font-semibold text-app-text">
+          Check before publishing
+        </h2>
+        <p className="mt-1 text-sm text-app-text-muted">
+          We found a few things you may want to fix first.
+        </p>
+        <ul className="mt-3 max-h-72 space-y-2 overflow-y-auto text-sm">
+          {preflightIssues?.map((issue, i) => (
+            <li key={i} className="flex gap-2 text-app-text-secondary">
+              <span
+                className={
+                  issue.severity === 'error'
+                    ? 'text-red-400'
+                    : 'text-appweaver-orange'
+                }>
+                {issue.severity === 'error' ? 'Error' : 'Warning'}
+              </span>
+              <span>
+                {issue.message}{' '}
+                <span className="text-app-text-muted">({issue.file})</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+        <div className="mt-4 flex justify-end gap-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            theme="app"
+            onClick={() => setPreflightIssues(null)}>
+            Go back and fix
+          </Button>
+          <Button
+            variant="primary"
+            size="sm"
+            theme="app"
+            onClick={handlePublishAnyway}>
+            Publish anyway
+          </Button>
+        </div>
+      </AppModalBackdrop>
+
+      <SeoPanel
+        open={seoOpen}
+        onClose={() => setSeoOpen(false)}
+        projectId={project.id}
+        onSaveStateChange={handlePanelSave}
+      />
+
+      <AltTextPanel
+        open={altTextOpen}
+        onClose={() => setAltTextOpen(false)}
+        projectId={project.id}
+        artifactId={
+          project.lastActiveArtifactId ?? project.artifacts[0]?.id ?? null
+        }
+        onSaveStateChange={handlePanelSave}
+      />
+
+      <FormSubmissionsPanel
+        open={formsOpen}
+        onClose={() => setFormsOpen(false)}
+        projectId={project.id}
       />
     </>
   );
@@ -627,6 +870,97 @@ function TerminalMenuIcon({ className }: { className?: string }) {
         strokeWidth="1.5"
         strokeLinecap="round"
         strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function BrandKitIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true">
+      <circle cx="8" cy="8" r="3.5" stroke="currentColor" strokeWidth="1.5" />
+      <circle cx="16" cy="8" r="3.5" stroke="currentColor" strokeWidth="1.5" />
+      <circle
+        cx="12"
+        cy="15.5"
+        r="3.5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+      />
+    </svg>
+  );
+}
+
+function SeoIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true">
+      <circle cx="10.5" cy="10.5" r="6" stroke="currentColor" strokeWidth="1.5" />
+      <path
+        d="m20 20-4.8-4.8"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function AltTextIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true">
+      <rect
+        x="3.5"
+        y="4.5"
+        width="17"
+        height="15"
+        rx="2"
+        stroke="currentColor"
+        strokeWidth="1.5"
+      />
+      <circle cx="9" cy="10" r="1.5" stroke="currentColor" strokeWidth="1.5" />
+      <path
+        d="m4 17 5-4.5 3.5 3 3-2.5L20 17"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function FormsIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true">
+      <rect
+        x="4"
+        y="3.5"
+        width="16"
+        height="17"
+        rx="2"
+        stroke="currentColor"
+        strokeWidth="1.5"
+      />
+      <path
+        d="M8 8h8M8 12h8M8 16h5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
       />
     </svg>
   );
