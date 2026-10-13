@@ -121,6 +121,10 @@ export function EditorTopBar({
   function handlePublish() {
     startPublishTransition(async () => {
       const check = await checkPublishReadinessAction(project.id);
+      if ('error' in check && check.error) {
+        toastError(check.error);
+        return;
+      }
       if (check.issues && check.issues.length > 0) {
         setPreflightIssues(check.issues);
         return;

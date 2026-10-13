@@ -200,11 +200,19 @@ export async function publishProjectAction(
   const urlPath = publishedPath(project.workspace.slug, project.slug);
   const deploymentVisibility = toDeploymentVisibility(visibility);
 
-  await Promise.all(
+  const snapshotResults = await Promise.allSettled(
     project.artifacts.map((artifact) =>
-      snapshotArtifactForPublish(projectId, artifact.slug).catch(() => null),
+      snapshotArtifactForPublish(projectId, artifact.slug),
     ),
   );
+  const snapshotFailed = snapshotResults.some(
+    (result) =>
+      result.status === "rejected" &&
+      (result.reason as NodeJS.ErrnoException)?.code !== "ENOENT",
+  );
+  if (snapshotFailed) {
+    return { error: "Publishing failed while saving your site. Please try again." };
+  }
 
   await prisma.$transaction(async (tx) => {
     await tx.deployment.updateMany({

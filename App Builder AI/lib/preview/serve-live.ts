@@ -6,7 +6,12 @@ import { injectBrandKitShim } from '@/lib/preview/brand-kit-shim';
 import { injectFormSubmitShim } from '@/lib/preview/form-submit-shim';
 import { injectRuntimeErrorShim } from '@/lib/preview/runtime-error-shim';
 import { getMimeType, injectPreviewBaseHref } from '@/lib/project-files';
-import { publishedSnapshotDir } from '@/lib/publish/snapshot';
+import { injectSeoTags } from '@/lib/preview/seo-shim';
+import {
+  PUBLISH_META_FILE,
+  publishedSnapshotDir,
+  readPublishMeta,
+} from '@/lib/publish/snapshot';
 
 const EMPTY_BRAND_KIT = {
   logoUrl: null,
@@ -22,6 +27,8 @@ export async function serveLiveFile(
   artifactSlug: string,
   relativePath: string,
 ) {
+  if (path.basename(relativePath) === PUBLISH_META_FILE) return null;
+
   const root = publishedSnapshotDir(projectId, artifactSlug);
   const absolute = path.resolve(root, relativePath);
   if (!absolute.startsWith(path.resolve(root))) throw new Error('Invalid path.');
@@ -42,14 +49,20 @@ export async function serveLiveFile(
     artifactSlug,
     'live',
   );
-  if (relativePath !== 'index.html') {
-    return { body: based, contentType };
-  }
-
-  const brandKit = await getProjectBrandKit(projectId).catch(() => null);
+  // Use the values frozen at publish time so brand kit/SEO edits stay drafts
+  // until the user republishes; older snapshots fall back to the current ones.
+  const meta = await readPublishMeta(projectId, artifactSlug);
+  const brandKit =
+    meta?.brandKit ??
+    (await getProjectBrandKit(projectId).catch(() => null)) ??
+    EMPTY_BRAND_KIT;
+  const withSeo =
+    relativePath === 'index.html' && meta
+      ? injectSeoTags(based, meta.seo)
+      : based;
   return {
     body: injectFormSubmitShim(
-      injectRuntimeErrorShim(injectBrandKitShim(based, brandKit ?? EMPTY_BRAND_KIT)),
+      injectRuntimeErrorShim(injectBrandKitShim(withSeo, brandKit)),
     ),
     contentType,
   };

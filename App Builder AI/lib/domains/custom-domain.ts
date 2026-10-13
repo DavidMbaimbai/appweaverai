@@ -47,10 +47,14 @@ export async function setProjectCustomDomain(
 
   const conflicting = await prisma.projectCustomDomain.findUnique({
     where: { domain },
-    select: { projectId: true },
+    select: { projectId: true, verifiedAt: true },
   });
   if (conflicting && conflicting.projectId !== projectId) {
-    throw new Error('This domain is already connected to another project.');
+    if (conflicting.verifiedAt) {
+      throw new Error('This domain is already connected to another project.');
+    }
+    // An unverified claim must not lock the domain away from its real owner.
+    await prisma.projectCustomDomain.delete({ where: { domain } });
   }
 
   const token = randomBytes(16).toString('hex');

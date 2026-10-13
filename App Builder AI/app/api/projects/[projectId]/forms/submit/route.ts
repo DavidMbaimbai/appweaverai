@@ -64,7 +64,7 @@ export async function POST(
     return Response.json({ success: true, id: submission.id });
   } catch (error) {
     if (error instanceof FormSubmissionError) {
-      return Response.json({ error: error.message }, { status: 400 });
+      return Response.json({ error: error.message }, { status: error.status });
     }
     return Response.json(
       { error: 'Could not submit this form right now.' },

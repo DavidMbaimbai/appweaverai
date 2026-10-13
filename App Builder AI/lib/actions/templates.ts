@@ -78,7 +78,11 @@ export async function createProjectFromSavedPageAction(savedPageId: string) {
   return createProjectFromFiles({
     name: saved.name,
     description: null,
-    files: saved.files as { path: string; content: string }[],
+    files: saved.files as {
+      path: string;
+      content: string;
+      encoding?: 'base64';
+    }[],
     templateLabel: `my saved "${saved.name}" page`,
     activityTemplate: { savedPageId },
   });
@@ -93,7 +97,7 @@ async function createProjectFromFiles({
 }: {
   name: string;
   description: string | null;
-  files: { path: string; content: string }[];
+  files: { path: string; content: string; encoding?: 'base64' }[];
   templateLabel: string;
   activityTemplate: Record<string, string>;
 }) {
@@ -196,7 +200,10 @@ async function createProjectFromFiles({
       artifactId: mainArtifact.id,
       artifactSlug: mainArtifact.slug,
       relativePath: file.path,
-      content: file.content,
+      content:
+        file.encoding === 'base64'
+          ? Buffer.from(file.content, 'base64')
+          : file.content,
     });
   }
 

@@ -217,9 +217,14 @@ export function CustomDomainPanel({
                   </p>
                   <div className="overflow-x-auto rounded-lg bg-app-surface-active p-2 font-mono">
                     <p>Type: CNAME</p>
-                    <p>Name: {record.domain.split('.')[0]}</p>
+                    <p>Name: {record.domain}</p>
                     <p>Value: appweaverai.com</p>
                   </div>
+                  <p className="text-app-text-muted">
+                    Use a subdomain such as www.yourcompany.com. For a root
+                    domain (yourcompany.com), use an ALIAS/ANAME record pointing
+                    to appweaverai.com if your provider supports it.
+                  </p>
                   <div className="overflow-x-auto rounded-lg bg-app-surface-active p-2 font-mono">
                     <p>Type: TXT</p>
                     <p>Name: _appweaverai-verify.{record.domain}</p>

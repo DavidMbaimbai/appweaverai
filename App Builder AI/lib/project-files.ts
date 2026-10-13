@@ -160,7 +160,7 @@ export async function writeProjectFile({
   artifactSlug: string;
   artifactId?: string | null;
   relativePath: string;
-  content: string;
+  content: string | Buffer;
 }) {
   const normalized = normalizeRelativePath(relativePath);
   if (!normalized) {
@@ -170,9 +170,13 @@ export async function writeProjectFile({
   const dbPath = buildDbPath(artifactSlug, normalized);
   const absolute = getAbsolutePath(projectId, artifactSlug, normalized);
   await mkdir(path.dirname(absolute), { recursive: true });
-  await writeFile(absolute, content, "utf8");
+  if (typeof content === "string") {
+    await writeFile(absolute, content, "utf8");
+  } else {
+    await writeFile(absolute, content);
+  }
 
-  const sizeBytes = Buffer.byteLength(content, "utf8");
+  const sizeBytes = Buffer.byteLength(content);
   const mimeType = getMimeType(normalized);
   const storageKey = `workspace/${projectId}/${artifactSlug}/${normalized}`;
 

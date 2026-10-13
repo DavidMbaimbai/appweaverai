@@ -38,6 +38,8 @@ export function SectionLibraryPanel({
   const [previewSection, setPreviewSection] =
     useState<WebsiteTemplateSummary | null>(null);
 
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
+
   useEffect(() => {
     let cancelled = false;
     listTemplateFavoritesAction().then(({ slugs }) => {
@@ -50,9 +52,11 @@ export function SectionLibraryPanel({
 
   if (sections.length === 0) return null;
 
-  const orderedSections = [...sections].sort(
-    (a, b) => Number(favorites.has(b.slug)) - Number(favorites.has(a.slug)),
-  );
+  const orderedSections = [...sections]
+    .filter((section) => !favoritesOnly || favorites.has(section.slug))
+    .sort(
+      (a, b) => Number(favorites.has(b.slug)) - Number(favorites.has(a.slug)),
+    );
 
   function handleToggleFavorite(slug: string) {
     const next = !favorites.has(slug);
@@ -62,17 +66,24 @@ export function SectionLibraryPanel({
       else copy.delete(slug);
       return copy;
     });
-    toggleTemplateFavoriteAction(slug, next).then((result) => {
-      if (result?.error) {
-        toastError(result.error);
-        setFavorites((prev) => {
-          const copy = new Set(prev);
-          if (next) copy.delete(slug);
-          else copy.add(slug);
-          return copy;
-        });
-      }
-    });
+    const rollback = () =>
+      setFavorites((prev) => {
+        const copy = new Set(prev);
+        if (next) copy.delete(slug);
+        else copy.add(slug);
+        return copy;
+      });
+    toggleTemplateFavoriteAction(slug, next)
+      .then((result) => {
+        if (result?.error) {
+          toastError(result.error);
+          rollback();
+        }
+      })
+      .catch(() => {
+        toastError('Could not update favorites.');
+        rollback();
+      });
   }
 
   function handleInsert(section: WebsiteTemplateSummary) {
@@ -105,9 +116,22 @@ export function SectionLibraryPanel({
 
   return (
     <section>
-      <h3 className="mb-2 text-[11px] font-medium uppercase tracking-wide text-app-text-muted">
-        Sections
-      </h3>
+      <div className="mb-2 flex items-center justify-between">
+        <h3 className="text-[11px] font-medium uppercase tracking-wide text-app-text-muted">
+          Sections
+        </h3>
+        <button
+          type="button"
+          aria-pressed={favoritesOnly}
+          onClick={() => setFavoritesOnly((value) => !value)}
+          className={
+            favoritesOnly
+              ? 'text-xs text-appweaver-orange'
+              : 'text-xs text-app-text-muted hover:text-appweaver-orange'
+          }>
+          ★ Favorites
+        </button>
+      </div>
       <ul className="space-y-1.5">
         {orderedSections.map((section) => (
           <li key={section.id} className="flex items-stretch gap-1">

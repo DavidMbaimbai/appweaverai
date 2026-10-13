@@ -113,7 +113,8 @@ export function checkHtmlPage(
     } else if (!EXTERNAL_HREF.test(href)) {
       const target = resolveRelative(filePath, href);
       const hash = href.split('#')[1];
-      if (!knownFiles.has(target) && !knownFiles.has(`${target}/index.html`)) {
+      const indexFile = target ? `${target}/index.html` : 'index.html';
+      if (!knownFiles.has(target) && !knownFiles.has(indexFile)) {
         problem = `"${label}" links to a page that does not exist: ${href}`;
       } else if (hash && target === filePath && !ids.has(hash)) {
         problem = `"${label}" points to missing section #${hash}.`;

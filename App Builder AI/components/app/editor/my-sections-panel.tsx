@@ -5,7 +5,11 @@ import { trackSave } from '@/lib/save-tracker';
 import { useEffect, useState, useTransition } from 'react';
 
 import { useToast } from '@/components/ui/toast';
-import { savePageAsTemplateAction } from '@/lib/actions/saved-pages';
+import {
+  addSavedPageToProjectAction,
+  listSavedPagesAction,
+  savePageAsTemplateAction,
+} from '@/lib/actions/saved-pages';
 import {
   deleteSavedSectionAction,
   getSavedSectionPreviewAction,
@@ -35,6 +39,7 @@ export function MySectionsPanel({
   const { error: toastError, success: toastSuccess } = useToast();
   const [isPending, startTransition] = useTransition();
   const [saved, setSaved] = useState<SavedSection[]>([]);
+  const [savedPages, setSavedPages] = useState<SavedSection[]>([]);
   const [pageSections, setPageSections] = useState<PageSection[]>([]);
   const [saving, setSaving] = useState(false);
   const [sectionIndex, setSectionIndex] = useState('');
@@ -44,6 +49,9 @@ export function MySectionsPanel({
   useEffect(() => {
     let cancelled = false;
     function load() {
+      listSavedPagesAction().then(({ pages }) => {
+        if (!cancelled) setSavedPages(pages);
+      });
       listSavedSectionsAction().then((result) => {
         if (!cancelled && 'sections' in result && result.sections) {
           setSaved(result.sections);
@@ -151,6 +159,29 @@ export function MySectionsPanel({
         return;
       }
       toastSuccess('Page saved. Find it under Templates › My saved pages.');
+      listSavedPagesAction().then(({ pages }) => setSavedPages(pages));
+    });
+  }
+
+  function handleAddPage(page: SavedSection) {
+    if (!activeArtifactId) {
+      toastError('Select an artifact first.');
+      return;
+    }
+    startTransition(async () => {
+      const result = await trackSave(
+        addSavedPageToProjectAction({
+          projectId,
+          artifactId: activeArtifactId,
+          savedPageId: page.id,
+        }),
+      );
+      if (result.error) {
+        toastError(result.error);
+        return;
+      }
+      toastSuccess(`Added "${page.name}" as ${result.path}.`);
+      onInserted();
     });
   }
 
@@ -175,6 +206,27 @@ export function MySectionsPanel({
         className="mb-2 text-xs text-appweaver-orange disabled:opacity-50">
         Save full page as template
       </button>
+
+      {savedPages.length > 0 ? (
+        <ul className="mb-2 space-y-1">
+          {savedPages.map((page) => (
+            <li
+              key={page.id}
+              className="flex items-center gap-1 rounded-lg border border-app-border-subtle px-2.5 py-1.5 text-xs">
+              <span className="min-w-0 flex-1 truncate text-app-text">
+                {page.name}
+              </span>
+              <button
+                type="button"
+                disabled={isPending || !activeArtifactId}
+                onClick={() => handleAddPage(page)}
+                className="text-appweaver-orange disabled:opacity-50">
+                Add as page
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
 
       {saving ? (
         <div className="mb-2 space-y-1.5 rounded-lg border border-app-border-subtle p-2">

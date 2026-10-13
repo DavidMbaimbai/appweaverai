@@ -4,7 +4,19 @@ const MAX_FIELDS = 30;
 const MAX_FIELD_VALUE_LENGTH = 5000;
 const MAX_FORM_NAME_LENGTH = 80;
 
-export class FormSubmissionError extends Error {}
+const VISITOR_LIMIT = 5;
+const VISITOR_WINDOW_MS = 10 * 60 * 1000;
+const PROJECT_LIMIT = 200;
+const PROJECT_WINDOW_MS = 60 * 60 * 1000;
+
+export class FormSubmissionError extends Error {
+  constructor(
+    message: string,
+    readonly status: 400 | 429 = 400,
+  ) {
+    super(message);
+  }
+}
 
 /**
  * Persists a public form submission after basic sanity limits (field count,
@@ -34,6 +46,31 @@ export async function createFormSubmission({
     sanitized[String(key).slice(0, 200)] = String(value ?? '').slice(
       0,
       MAX_FIELD_VALUE_LENGTH,
+    );
+  }
+
+  const now = Date.now();
+  const [visitorCount, projectCount] = await Promise.all([
+    visitorId
+      ? prisma.projectFormSubmission.count({
+          where: {
+            projectId,
+            visitorId,
+            createdAt: { gte: new Date(now - VISITOR_WINDOW_MS) },
+          },
+        })
+      : 0,
+    prisma.projectFormSubmission.count({
+      where: {
+        projectId,
+        createdAt: { gte: new Date(now - PROJECT_WINDOW_MS) },
+      },
+    }),
+  ]);
+  if (visitorCount >= VISITOR_LIMIT || projectCount >= PROJECT_LIMIT) {
+    throw new FormSubmissionError(
+      'Too many submissions. Please try again later.',
+      429,
     );
   }
 

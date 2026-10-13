@@ -58,4 +58,12 @@ describe('checkHtmlPage', () => {
     );
     expect(issues.some((i) => i.severity === 'warning' && i.message.includes('"Soon"'))).toBe(true);
   });
+
+  it('treats links to the site root as valid', () => {
+    const html =
+      '<html><head><title>Hi</title></head><body><h1>Welcome to my shop</h1><p>Plenty of real content here.</p><a href="/">Home</a><a href="./">Home</a></body></html>';
+    const messages = checkHtmlPage('index.html', html, files, seo).map((i) => i.message);
+    expect(messages.filter((m) => m.includes('does not exist'))).toEqual([]);
+  });
 });
+

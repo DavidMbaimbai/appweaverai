@@ -1,4 +1,10 @@
-import { copyFile, mkdir, rm } from 'node:fs/promises';
+import {
+  copyFile,
+  mkdir,
+  readFile,
+  rm,
+  writeFile,
+} from 'node:fs/promises';
 import path from 'node:path';
 
 import { prisma } from './prisma';
@@ -18,6 +24,73 @@ function checkpointSnapshotDir(projectId: string, checkpointId: string) {
 
 function liveFileAbsolutePath(projectId: string, filePath: string) {
   return path.join(PROJECT_WORKSPACE_ROOT, projectId, filePath);
+}
+
+const SETTINGS_FILE = '.settings.json';
+
+type CheckpointSettings = {
+  brandKit: {
+    logoUrl: string | null;
+    primaryColor: string | null;
+    secondaryColor: string | null;
+    accentColor: string | null;
+    fontFamily: string | null;
+  } | null;
+  seo: {
+    seoTitle: string | null;
+    seoDescription: string | null;
+    seoImageUrl: string | null;
+  } | null;
+};
+
+/** Brand kit and SEO settings live outside the file tree, so version history stores them alongside it. */
+async function writeCheckpointSettings(projectId: string, snapshotDir: string) {
+  const [brandKit, seo] = await Promise.all([
+    prisma.projectBrandKit.findUnique({
+      where: { projectId },
+      select: {
+        logoUrl: true,
+        primaryColor: true,
+        secondaryColor: true,
+        accentColor: true,
+        fontFamily: true,
+      },
+    }),
+    prisma.project.findUnique({
+      where: { id: projectId },
+      select: { seoTitle: true, seoDescription: true, seoImageUrl: true },
+    }),
+  ]);
+  const settings: CheckpointSettings = { brandKit, seo };
+  await mkdir(snapshotDir, { recursive: true });
+  await writeFile(path.join(snapshotDir, SETTINGS_FILE), JSON.stringify(settings));
+}
+
+async function restoreCheckpointSettings(projectId: string, snapshotDir: string) {
+  let settings: CheckpointSettings;
+  try {
+    settings = JSON.parse(
+      await readFile(path.join(snapshotDir, SETTINGS_FILE), 'utf8'),
+    ) as CheckpointSettings;
+  } catch {
+    return; // checkpoints taken before settings were recorded
+  }
+
+  if (settings.seo) {
+    await prisma.project.update({
+      where: { id: projectId },
+      data: settings.seo,
+    });
+  }
+  if (settings.brandKit) {
+    await prisma.projectBrandKit.upsert({
+      where: { projectId },
+      create: { projectId, ...settings.brandKit },
+      update: settings.brandKit,
+    });
+  } else {
+    await prisma.projectBrandKit.deleteMany({ where: { projectId } });
+  }
 }
 
 async function deleteCheckpoint(projectId: string, checkpointId: string) {
@@ -96,6 +169,10 @@ export async function createProjectCheckpoint({
       );
     }
   }
+
+  await writeCheckpointSettings(projectId, snapshotDir).catch((error) =>
+    console.error('[checkpoints] failed to snapshot settings:', error),
+  );
 
   if (snapshotted.length > 0) {
     await prisma.projectCheckpointFile.createMany({
@@ -190,6 +267,13 @@ export async function restoreProjectCheckpoint({
     },
   });
   const currentByPath = new Map(currentFiles.map((file) => [file.path, file]));
+  const artifacts = await prisma.artifact.findMany({
+    where: { projectId },
+    select: { id: true, slug: true },
+  });
+  const artifactIdBySlug = new Map(
+    artifacts.map((artifact) => [artifact.slug, artifact.id]),
+  );
   const checkpointPaths = new Set(checkpoint.files.map((file) => file.path));
 
   let restoredCount = 0;
@@ -220,7 +304,10 @@ export async function restoreProjectCheckpoint({
         storageKey,
         mimeType: file.mimeType,
         sizeBytes: file.sizeBytes,
-        artifactId: existing?.artifactId ?? null,
+        artifactId:
+          existing?.artifactId ??
+          artifactIdBySlug.get(file.path.split('/')[0]) ??
+          null,
       },
       update: {
         storageKey,
@@ -243,6 +330,10 @@ export async function restoreProjectCheckpoint({
       force: true,
     }).catch(() => null);
   }
+
+  await restoreCheckpointSettings(projectId, snapshotDir).catch((error) =>
+    console.error('[checkpoints] failed to restore settings:', error),
+  );
 
   if (filesToRemove.length > 0) {
     await prisma.projectFile.deleteMany({
