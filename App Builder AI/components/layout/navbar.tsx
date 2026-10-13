@@ -360,7 +360,7 @@ export function Navbar({
             <Link
               href="/agent"
               className="ml-1 flex items-center"
-              aria-label="Agent 4">
+              aria-label="App Weaver AI">
               <AgentBadge />
             </Link>
           </nav>

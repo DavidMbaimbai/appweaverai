@@ -15,7 +15,7 @@ export default function BlogPage() {
         {
           title: "Engineering deep dives",
           description:
-            "Learn how Agent 4 plans and executes tasks under the hood.",
+            "Learn how App Weaver AI plans and executes tasks under the hood.",
         },
         {
           title: "Builder spotlights",

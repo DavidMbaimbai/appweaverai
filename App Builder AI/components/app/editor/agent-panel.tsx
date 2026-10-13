@@ -785,7 +785,7 @@ export const AgentPanel = forwardRef<AgentPanelHandle, AgentPanelProps>(
             Agent task board
           </button>
           <Badge variant="orange" theme="app">
-            Agent 4
+            App Weaver AI
           </Badge>
         </div>
       </div>

@@ -5,7 +5,7 @@ export default function BusinessUseCasePage() {
     <ProductPage
       eyebrow="Use Case"
       title="Business apps, built in an afternoon"
-      description="Internal tools, customer portals, and back-office dashboards — describe the workflow and Agent 4 builds the app your business actually needs."
+      description="Internal tools, customer portals, and back-office dashboards — describe the workflow and App Weaver AI builds the app your business actually needs."
       highlights={[
         {
           title: "Internal tools",

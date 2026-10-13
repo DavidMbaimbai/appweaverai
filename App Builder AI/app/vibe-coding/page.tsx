@@ -5,7 +5,7 @@ export default function VibeCodingPage() {
     <ProductPage
       eyebrow="Handy Links"
       title="Vibe Coding 101"
-      description="A quick primer on describing what you want in plain language and letting Agent 4 turn it into working software — no prior coding experience required."
+      description="A quick primer on describing what you want in plain language and letting App Weaver AI turn it into working software — no prior coding experience required."
       highlights={[
         {
           title: "Start with intent",

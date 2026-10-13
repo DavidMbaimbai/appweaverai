@@ -25,7 +25,7 @@ export default function AgentPage() {
         {
           title: 'Built for Teams',
           description:
-            'Submit requests in any order — Agent 4 sequences and executes them intelligently for the whole team.',
+            'Submit requests in any order — App Weaver AI sequences and executes them intelligently for the whole team.',
         },
       ]}
     />

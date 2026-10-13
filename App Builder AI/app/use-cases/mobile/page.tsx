@@ -5,7 +5,7 @@ export default function MobileUseCasePage() {
     <ProductPage
       eyebrow="Use Case"
       title="Mobile apps without a mobile team"
-      description="From idea to installable app — describe the experience you want and let Agent 4 handle screens, navigation, and the backend behind them."
+      description="From idea to installable app — describe the experience you want and let App Weaver AI handle screens, navigation, and the backend behind them."
       highlights={[
         {
           title: "Consumer apps",

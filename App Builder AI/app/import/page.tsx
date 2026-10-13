@@ -5,7 +5,7 @@ export default function ImportPage() {
     <ProductPage
       eyebrow="Handy Links"
       title="Import from GitHub"
-      description="Already have a codebase? Import an existing GitHub repository and keep building on it with Agent 4, instead of starting from a blank prompt."
+      description="Already have a codebase? Import an existing GitHub repository and keep building on it with App Weaver AI, instead of starting from a blank prompt."
       highlights={[
         {
           title: "Bring your repo",

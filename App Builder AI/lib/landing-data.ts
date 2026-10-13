@@ -236,7 +236,7 @@ export const testimonials: Testimonial[] = [
   {
     id: "homehive",
     quote:
-      "Agent 4 unlocks true collaboration and real-time learning — now our teams can design and build with our closest partners live, turn instant feedback into measurable wins, and deliver outcomes that delight customers and partners.",
+      "App Weaver AI unlocks true collaboration and real-time learning — now our teams can design and build with our closest partners live, turn instant feedback into measurable wins, and deliver outcomes that delight customers and partners.",
     author: "Daniel Osei",
     role: "Principal Program Manager",
     company: "HomeHive",
@@ -245,7 +245,7 @@ export const testimonials: Testimonial[] = [
   {
     id: "paywise",
     quote:
-      "AppWeaver AI Agent 4 is incredible. Its ability to take a one-shot prompt and flesh out the requirements before a full build is unmatched. It requires very little guidance to take a rough concept to a functional prototype.",
+      "App Weaver AI is incredible. Its ability to take a one-shot prompt and flesh out the requirements before a full build is unmatched. It requires very little guidance to take a rough concept to a functional prototype.",
     author: "Sara Newton",
     role: "Principal Product Manager",
     company: "PayWise",
@@ -272,7 +272,7 @@ export const testimonials: Testimonial[] = [
   {
     id: "brightlab",
     quote:
-      "Agent 4 is a game-changer. Multi-user vibe coding via the kanban is a significant milestone for enterprises. It's great for turning individual concepts into team realities and managing tasks through diverse role definitions.",
+      "App Weaver AI is a game-changer. Multi-user vibe coding via the kanban is a significant milestone for enterprises. It's great for turning individual concepts into team realities and managing tasks through diverse role definitions.",
     author: "Kenji Watanabe",
     role: "Director",
     company: "BrightLab Digital",

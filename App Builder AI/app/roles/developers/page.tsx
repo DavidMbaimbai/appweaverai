@@ -4,7 +4,7 @@ export default function DevelopersRolePage() {
   return (
     <RolePage
       title="AppWeaver AI for Software Developers"
-      description="Use Agent 4 as a force multiplier for scaffolding, repetitive implementation, and prototype branches while you keep control of the code."
+      description="Use App Weaver AI as a force multiplier for scaffolding, repetitive implementation, and prototype branches while you keep control of the code."
       forWhom="Developers and technical teams who want to move faster without giving up review, architecture, or source-code ownership."
       canBuild={[
         'Feature prototypes with real routes, state, and data models.',
