@@ -26,6 +26,26 @@ describe('hasBrandKitValues', () => {
   });
 });
 
+describe('buildBrandKitShim fonts', () => {
+  it('loads known Google fonts and skips system fonts', () => {
+    expect(
+      buildBrandKitShim({ ...EMPTY, fontFamily: "'Poppins', sans-serif" }),
+    ).toContain('family=Poppins');
+    expect(
+      buildBrandKitShim({ ...EMPTY, fontFamily: 'Georgia, serif' }),
+    ).not.toContain('fonts.googleapis.com');
+  });
+
+  it('requests custom font names and rejects unsafe values', () => {
+    expect(
+      buildBrandKitShim({ ...EMPTY, fontFamily: "'DM Sans', sans-serif" }),
+    ).toContain('family=DM+Sans');
+    expect(
+      buildBrandKitShim({ ...EMPTY, fontFamily: 'x"><script>' }),
+    ).not.toContain('fonts.googleapis.com');
+  });
+});
+
 describe('injectBrandKitShim', () => {
   it('leaves the HTML untouched when no brand kit values are set', () => {
     const html = '<html><head></head><body></body></html>';

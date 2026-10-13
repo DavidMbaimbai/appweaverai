@@ -33,6 +33,21 @@ const COLOR_FIELDS: {
   { key: 'accentColor', label: 'Accent color', placeholder: '#22c55e' },
 ];
 
+const FONT_PRESETS = [
+  "'Inter', sans-serif",
+  "'Poppins', sans-serif",
+  "'Montserrat', sans-serif",
+  "'Roboto', sans-serif",
+  "'Open Sans', sans-serif",
+  "'Lato', sans-serif",
+  "'Playfair Display', serif",
+  "'Merriweather', serif",
+  "Georgia, serif",
+  "system-ui, sans-serif",
+];
+
+const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
+
 export function BrandKitPanel({
   open,
   onClose,
@@ -186,15 +201,30 @@ export function BrandKitPanel({
                     key={field.key}
                     className="block text-xs font-medium text-app-text-secondary">
                     {field.label}
-                    <Input
-                      value={form[field.key] ?? ''}
-                      onChange={(event) =>
-                        updateField(field.key, event.target.value)
-                      }
-                      placeholder={field.placeholder}
-                      theme="app"
-                      className="mt-1 h-9 w-full"
-                    />
+                    <div className="mt-1 flex items-center gap-1.5">
+                      <input
+                        type="color"
+                        aria-label={`${field.label} picker`}
+                        value={
+                          HEX_COLOR.test(form[field.key] ?? '')
+                            ? (form[field.key] as string)
+                            : field.placeholder
+                        }
+                        onChange={(event) =>
+                          updateField(field.key, event.target.value)
+                        }
+                        className="h-9 w-9 shrink-0 cursor-pointer rounded border border-app-border bg-transparent p-0.5"
+                      />
+                      <Input
+                        value={form[field.key] ?? ''}
+                        onChange={(event) =>
+                          updateField(field.key, event.target.value)
+                        }
+                        placeholder={field.placeholder}
+                        theme="app"
+                        className="h-9 w-full min-w-0"
+                      />
+                    </div>
                   </label>
                 ))}
               </div>
@@ -207,9 +237,15 @@ export function BrandKitPanel({
                     updateField('fontFamily', event.target.value)
                   }
                   placeholder="'Inter', sans-serif"
+                  list="aw-font-presets"
                   theme="app"
                   className="mt-1 h-9 w-full"
                 />
+                <datalist id="aw-font-presets">
+                  {FONT_PRESETS.map((font) => (
+                    <option key={font} value={font} />
+                  ))}
+                </datalist>
               </label>
 
               <Button

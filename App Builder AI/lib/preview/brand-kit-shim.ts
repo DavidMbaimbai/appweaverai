@@ -23,6 +23,49 @@ export function hasBrandKitValues(brandKit: BrandKitValues) {
   );
 }
 
+const NON_WEB_FONTS = new Set([
+  'serif',
+  'sans-serif',
+  'monospace',
+  'cursive',
+  'fantasy',
+  'system-ui',
+  'ui-sans-serif',
+  'ui-serif',
+  'ui-monospace',
+  '-apple-system',
+  'blinkmacsystemfont',
+  'segoe ui',
+  'arial',
+  'helvetica',
+  'helvetica neue',
+  'georgia',
+  'times new roman',
+  'times',
+  'courier new',
+  'verdana',
+  'tahoma',
+  'trebuchet ms',
+]);
+
+/**
+ * Returns a Google Fonts stylesheet link for the primary font. Any plain font
+ * name that isn't a generic/system family is requested from Google Fonts; an
+ * unknown name just fails to load and the fallback stack applies.
+ */
+export function buildFontLink(fontFamily: string | null) {
+  if (!fontFamily) return '';
+  const primary = fontFamily
+    .split(',')[0]
+    .trim()
+    .replace(/^['"]|['"]$/g, '')
+    .trim();
+  if (!/^[A-Za-z0-9][A-Za-z0-9 ]{0,59}$/.test(primary)) return '';
+  if (NON_WEB_FONTS.has(primary.toLowerCase())) return '';
+  const family = primary.replace(/ +/g, '+');
+  return `<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css?family=${family}:400,500,600,700&display=swap">`;
+}
+
 export function buildBrandKitShim(brandKit: BrandKitValues) {
   const vars: string[] = [];
   if (brandKit.primaryColor) {
@@ -77,7 +120,7 @@ export function buildBrandKitShim(brandKit: BrandKitValues) {
 </script>`
     : '';
 
-  return `<style id="aw-brand-kit-style">:root{${vars.join(' ')}}${overrides}${colorOverrides}</style>${logoScript}`;
+  return `${buildFontLink(brandKit.fontFamily)}<style id="aw-brand-kit-style">:root{${vars.join(' ')}}${overrides}${colorOverrides}</style>${logoScript}`;
 }
 
 /** Injects the brand-kit style/script block as the first child of `<head>`. */
