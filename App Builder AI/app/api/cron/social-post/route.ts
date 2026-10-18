@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 
+import { sendAlert } from '@/lib/alerts';
+import { hasBearerSecret } from '@/lib/rate-limit';
 import { publishNextDueSocialPost } from '@/lib/social/publish';
 
 export const maxDuration = 300;
@@ -13,7 +15,7 @@ export async function GET(request: Request) {
       { status: 500 },
     );
   }
-  if (request.headers.get('authorization') !== `Bearer ${cronSecret}`) {
+  if (!hasBearerSecret(request, cronSecret)) {
     return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
   }
   if (!process.env.DATABASE_URL) {
@@ -30,6 +32,7 @@ export async function GET(request: Request) {
     });
   } catch (error) {
     console.error('[cron/social-post] failed:', error);
+    await sendAlert('Cron social-post crashed', String(error));
     return NextResponse.json({ error: 'Social post failed.' }, { status: 500 });
   }
 }

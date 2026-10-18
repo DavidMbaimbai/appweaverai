@@ -8,6 +8,7 @@ import {
   findTerminalCommand,
 } from '@/lib/code-run/terminal-commands';
 import { runTerminalCommand } from '@/lib/code-run/run-terminal-command';
+import { limitOrResponse } from '@/lib/rate-limit';
 
 type TerminalStreamEvent =
   | { type: 'output'; stream: 'stdout' | 'stderr'; text: string }
@@ -38,6 +39,9 @@ export async function POST(
       status: 401,
     });
   }
+
+  const limited = await limitOrResponse(`terminal:${userId}`, 20, 60_000);
+  if (limited) return limited;
 
   const { projectId, artifactSlug } = await context.params;
 

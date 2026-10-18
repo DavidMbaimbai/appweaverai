@@ -15,6 +15,7 @@ import { injectVisualEditShim } from '@/lib/preview/visual-edit-shim';
 import { annotateHtmlForVisualEdit } from '@/lib/preview/visual-edit';
 import { injectBrandKitShim } from '@/lib/preview/brand-kit-shim';
 import { injectFormSubmitShim } from '@/lib/preview/form-submit-shim';
+import { injectBackendProxyShim } from '@/lib/preview/backend-proxy-shim';
 import { getProjectBrandKit } from '@/lib/brand-kit/project-brand-kit';
 import {
   getMimeType,
@@ -42,7 +43,7 @@ export async function serveArtifactIndex(
         stack,
       });
       return {
-        body: html,
+        body: injectBackendProxyShim(html),
         contentType: getMimeType('index.html'),
       };
     } catch (error) {
@@ -75,7 +76,8 @@ export async function serveArtifactIndex(
 
   const content = await readFile(absolute, 'utf8');
   const brandKit = await getProjectBrandKit(projectId).catch(() => null);
-  const html = injectFormSubmitShim(
+  const html = injectBackendProxyShim(
+    injectFormSubmitShim(
     injectRuntimeErrorShim(
       injectVisualEditShim(
         injectBrandKitShim(
@@ -93,6 +95,7 @@ export async function serveArtifactIndex(
           },
         ),
       ),
+    ),
     ),
   );
   return {

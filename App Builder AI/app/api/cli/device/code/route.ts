@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { startDeviceAuthorization } from '@/lib/cli-auth';
+import { clientIp, limitOrResponse } from '@/lib/rate-limit';
 
 const bodySchema = z.object({
   clientName: z.string().trim().min(1).max(100).optional(),
@@ -8,6 +9,9 @@ const bodySchema = z.object({
 
 /** Called by the CLI to start the device-authorization login flow. */
 export async function POST(request: Request) {
+  const limited = await limitOrResponse(`cli-code:${clientIp(request)}`, 10, 60_000);
+  if (limited) return limited;
+
   const json = await request.json().catch(() => ({}));
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success) {

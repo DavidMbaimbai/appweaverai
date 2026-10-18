@@ -7,6 +7,7 @@ import { cn } from '@/lib/utils';
 import { CloseIcon, EyeIcon, EyeOffIcon } from './auth-icons';
 import { useAuthModal } from './auth-modal-provider';
 import { OAuthButton } from './oauth-button';
+import { TURNSTILE_SITE_KEY, TurnstileWidget } from './turnstile-widget';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { AppWeaverLogo } from '../ui/appweaver-logo';
@@ -129,6 +130,8 @@ export function AuthModal() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaResetKey, setCaptchaResetKey] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   // Once set, the modal shows the "enter your 8-digit code" step instead of
@@ -303,6 +306,14 @@ export function AuthModal() {
 
     setIsLoading(true);
 
+    const captchaHeaders: Record<string, string> = captchaToken
+      ? { 'x-captcha-response': captchaToken }
+      : {};
+    const resetCaptcha = () => {
+      setCaptchaToken(null);
+      setCaptchaResetKey((key) => key + 1);
+    };
+
     if (mode === 'register') {
       void authClient.signUp.email({
         name,
@@ -310,12 +321,15 @@ export function AuthModal() {
         password,
         callbackURL: getCallbackUrl(),
         fetchOptions: {
+          headers: captchaHeaders,
           onSuccess: () => {
             setIsLoading(false);
+            resetCaptcha();
             setPendingVerificationEmail(email);
           },
           onError: (ctx) => {
             setIsLoading(false);
+            resetCaptcha();
             setError(ctx.error.message ?? 'Could not create your account.');
           },
         },
@@ -328,11 +342,13 @@ export function AuthModal() {
       password,
       callbackURL: getCallbackUrl(),
       fetchOptions: {
+        headers: captchaHeaders,
         onSuccess: () => {
           completeAuthSuccess(getCallbackUrl());
         },
         onError: (ctx) => {
           setIsLoading(false);
+          resetCaptcha();
           setError(ctx.error.message ?? 'Invalid email or password.');
         },
       },
@@ -1204,9 +1220,11 @@ export function AuthModal() {
               </p>
             )}
 
+            <TurnstileWidget onToken={setCaptchaToken} resetKey={captchaResetKey} />
+
             <button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || (Boolean(TURNSTILE_SITE_KEY) && !captchaToken)}
               className="h-11 w-full rounded-full bg-appweaver-orange text-sm font-medium text-white transition-colors hover:bg-[#e03600] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-appweaver-orange focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60">
               {copy.submit}
             </button>

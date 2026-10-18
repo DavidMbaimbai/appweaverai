@@ -1303,6 +1303,8 @@ model AdminSetting {
 // -----------------------------------------------------------------------------
 
 enum SocialPostStatus {
+  /// Awaiting human approval; never published until approved (-> PENDING).
+  DRAFT
   PENDING
   POSTED
   FAILED

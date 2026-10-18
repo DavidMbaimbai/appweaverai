@@ -25,13 +25,17 @@ function settle(failedNow: boolean) {
  * operations stay in "Saving…" until the last one finishes, and the pill
  * ends on "Error" if any of them failed.
  */
-export async function trackSave<T>(
-  operation: Promise<T>,
-  failed: (result: T) => boolean = (result) =>
+function resultHasError(result: unknown): boolean {
+  return (
     typeof result === 'object' &&
     result !== null &&
-    'error' in result &&
-    Boolean((result as { error?: unknown }).error),
+    Boolean((result as { error?: unknown }).error)
+  );
+}
+
+export async function trackSave<T>(
+  operation: Promise<T>,
+  failed: (result: T) => boolean = resultHasError,
 ): Promise<T> {
   inFlight += 1;
   emit('saving');

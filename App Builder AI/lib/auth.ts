@@ -2,7 +2,7 @@ import { prismaAdapter } from '@better-auth/prisma-adapter';
 import { betterAuth } from 'better-auth';
 import { createAuthMiddleware, APIError, getSessionFromCtx } from 'better-auth/api';
 import { nextCookies } from 'better-auth/next-js';
-import { emailOTP } from 'better-auth/plugins';
+import { captcha, emailOTP } from 'better-auth/plugins';
 import { sso } from '@better-auth/sso';
 import { prisma } from './prisma';
 import { hasPermission } from './admin/permissions';
@@ -82,6 +82,15 @@ const SSO_MANAGEMENT_PATH_PREFIXES = [
 export const auth = betterAuth({
   baseURL: process.env.BETTER_AUTH_URL,
   secret: process.env.BETTER_AUTH_SECRET,
+  advanced: {
+    useSecureCookies: process.env.NODE_ENV === 'production',
+    defaultCookieAttributes: {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+    },
+  },
+  rateLimit: { enabled: true, window: 60, max: 60 },
   hooks: {
     before: createAuthMiddleware(async (ctx) => {
       if (!SSO_MANAGEMENT_PATH_PREFIXES.some((p) => ctx.path.startsWith(p))) {
@@ -160,7 +169,9 @@ export const auth = betterAuth({
                     typeof user.username === 'string' ? user.username : null,
                 });
 
-                await sendWelcomeEmail({ email: user.email, name: user.name });
+                if (!user.email.endsWith('@demo.appweaverai.invalid')) {
+                  await sendWelcomeEmail({ email: user.email, name: user.name });
+                }
               },
             },
           },
@@ -234,6 +245,15 @@ export const auth = betterAuth({
       }
     : {}),
   plugins: [
+    ...(process.env.TURNSTILE_SECRET_KEY
+      ? [
+          captcha({
+            provider: 'cloudflare-turnstile',
+            secretKey: process.env.TURNSTILE_SECRET_KEY,
+            endpoints: ['/sign-up/email', '/sign-in/email'],
+          }),
+        ]
+      : []),
     emailOTP({
       otpLength: 8,
       expiresIn: 600, // 10 minutes
@@ -261,6 +281,10 @@ export const auth = betterAuth({
         }
 
         if (type !== 'email-verification') return;
+
+        // Automated marketing-video recorder accounts: the recorder reads the
+        // code from the database, so no real email is sent.
+        if (email.endsWith('@demo.appweaverai.invalid')) return;
 
         await trackPendingAuthReminder(email, 'SIGNUP');
 

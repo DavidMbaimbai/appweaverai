@@ -45,3 +45,13 @@ yarn-error.log*
 next-env.d.ts
 
 /lib/generated/prisma
+
+# db backups
+/backups/
+
+# playwright
+/test-results/
+/playwright-report/
+
+# generated marketing videos
+/videos/

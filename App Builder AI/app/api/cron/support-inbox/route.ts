@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 
+import { sendAlert } from '@/lib/alerts';
+import { hasBearerSecret } from '@/lib/rate-limit';
 import {
   isInboxConfigured,
   processSupportInbox,
@@ -19,7 +21,7 @@ export async function GET(request: Request) {
       { status: 500 },
     );
   }
-  if (request.headers.get('authorization') !== `Bearer ${cronSecret}`) {
+  if (!hasBearerSecret(request, cronSecret)) {
     return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
   }
 
@@ -34,6 +36,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ success: true, ...(await processSupportInbox()) });
   } catch (error) {
     console.error('[cron/support-inbox] sweep failed:', error);
+    await sendAlert('Cron support-inbox sweep failed', String(error));
     return NextResponse.json({ error: 'Inbox sweep failed.' }, { status: 500 });
   }
 }

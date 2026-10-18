@@ -18,6 +18,7 @@ import {
 } from '@/lib/agent/model-catalog';
 import { getUserBillingFields } from '@/lib/queries/billing';
 import { prisma } from '@/lib/prisma';
+import { limitOrResponse } from '@/lib/rate-limit';
 
 const bodySchema = z.object({
   content: z.string().trim().min(1).max(8000).optional(),
@@ -43,6 +44,9 @@ export async function POST(
       status: 401,
     });
   }
+
+  const limited = await limitOrResponse(`agent:${userId}`, 30, 60_000);
+  if (limited) return limited;
 
   const { projectId } = await context.params;
   const json = await request.json().catch(() => null);

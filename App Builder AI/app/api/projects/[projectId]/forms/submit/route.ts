@@ -7,6 +7,7 @@ import {
   FormSubmissionError,
 } from '@/lib/forms/project-form-submissions';
 import { notifyFormSubmission } from '@/lib/forms/notify-submission';
+import { clientIp, limitOrResponse } from '@/lib/rate-limit';
 
 const submitSchema = z.object({
   formName: z.string().trim().min(1).max(80).optional(),
@@ -24,6 +25,13 @@ export async function POST(
   context: { params: Promise<{ projectId: string }> },
 ) {
   const { projectId } = await context.params;
+
+  const limited = await limitOrResponse(
+    `form:${projectId}:${clientIp(request)}`,
+    10,
+    60_000,
+  );
+  if (limited) return limited;
 
   const project = await prisma.project.findFirst({
     where: { id: projectId, deletedAt: null, adminStatus: 'ACTIVE' },

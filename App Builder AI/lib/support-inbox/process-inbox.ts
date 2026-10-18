@@ -2,10 +2,17 @@ import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
 
 import { sendEmail } from '@/lib/email';
+import { rateLimit } from '@/lib/rate-limit';
 import { shouldAutoReply } from '@/lib/support-inbox/filters';
 import { generateSupportReply } from '@/lib/support-inbox/reply';
 
 const MAX_PER_RUN = 20;
+// Replies below this confidence are not sent; a human reviews them instead.
+const MIN_CONFIDENCE = Number(process.env.SUPPORT_MIN_CONFIDENCE ?? 0.6);
+// Hard cap per sender per day: stops ping-pong loops with other auto-responders.
+const MAX_REPLIES_PER_SENDER_PER_DAY = 3;
+// IMAP keyword marking mail waiting for human review (kept unread, skipped by the poller).
+const REVIEW_KEYWORD = 'AWReview';
 
 export const SUPPORT_EMAIL =
   process.env.SUPPORT_EMAIL?.trim() || 'david.mbaimbai@appweaverai.com';
@@ -26,6 +33,7 @@ function escapeHtml(value: string) {
 export type InboxResult = {
   replied: number;
   escalated: number;
+  held: number;
   skipped: number;
   failed: number;
 };
@@ -37,7 +45,7 @@ export type InboxResult = {
  * retries; messages needing a human are additionally \Flagged.
  */
 export async function processSupportInbox(): Promise<InboxResult> {
-  const result: InboxResult = { replied: 0, escalated: 0, skipped: 0, failed: 0 };
+  const result: InboxResult = { replied: 0, escalated: 0, held: 0, skipped: 0, failed: 0 };
 
   const client = new ImapFlow({
     host: process.env.IMAP_HOST!,
@@ -51,7 +59,8 @@ export async function processSupportInbox(): Promise<InboxResult> {
   const lock = await client.getMailboxLock('INBOX');
 
   try {
-    const uids = (await client.search({ seen: false }, { uid: true })) || [];
+    const uids =
+      (await client.search({ seen: false, unKeyword: REVIEW_KEYWORD }, { uid: true })) || [];
     const ownAddresses = [
       SUPPORT_EMAIL,
       process.env.SMTP_USER ?? '',
@@ -74,6 +83,8 @@ export async function processSupportInbox(): Promise<InboxResult> {
           fromAddress: sender?.address,
           ownAddresses,
           headers: parsed.headers,
+          subject: parsed.subject,
+          body: parsed.text,
         });
 
         if (!decision.reply || !sender?.address) {
@@ -82,12 +93,31 @@ export async function processSupportInbox(): Promise<InboxResult> {
           continue;
         }
 
+        const senderLimit = await rateLimit(
+          `support-reply:${sender.address.toLowerCase()}`,
+          MAX_REPLIES_PER_SENDER_PER_DAY,
+          24 * 60 * 60 * 1000,
+        );
+        if (!senderLimit.ok) {
+          result.skipped += 1;
+          await client.messageFlagsAdd(String(uid), ['\\Seen', '\\Flagged'], { uid: true });
+          continue;
+        }
+
         const subject = parsed.subject?.trim() || '(no subject)';
-        const { reply, escalate } = await generateSupportReply({
+        const { reply, escalate, confidence } = await generateSupportReply({
           fromName: sender.name || undefined,
           subject,
           body: parsed.text?.trim() || '(empty message)',
         });
+
+        if (!escalate && confidence < MIN_CONFIDENCE) {
+          result.held += 1;
+          await client.messageFlagsAdd(String(uid), ['\\Flagged', REVIEW_KEYWORD], {
+            uid: true,
+          });
+          continue;
+        }
 
         const references = [
           ...(Array.isArray(parsed.references)

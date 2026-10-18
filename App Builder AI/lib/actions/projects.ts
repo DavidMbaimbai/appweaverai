@@ -15,6 +15,7 @@ import {
   projectLimitMessage,
 } from '../billing/entitlements';
 import { prisma } from '../prisma';
+import { dropAllProjectDatabases } from '../databases/provision';
 import { getWebsiteType, withWebsiteTypeGuidance } from '../website-types';
 import {
   getUserBrandKit,
@@ -619,6 +620,8 @@ export async function permanentlyDeleteProjectAction(projectId: string) {
     return { error: 'Move the project to trash before deleting permanently.' };
   }
 
+  // Cascade would drop the rows, but the real database/role must be removed too.
+  await dropAllProjectDatabases(project.id);
   await prisma.project.delete({ where: { id: project.id } });
   await removeProjectFilesFromDisk(project.id);
 

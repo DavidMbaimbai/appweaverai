@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { runBillingAlertsSweep } from '@/lib/billing/alerts';
+import { hasBearerSecret } from '@/lib/rate-limit';
 
 /**
  * Scheduled endpoint that sends "renewal in N days" and "credits low/
@@ -11,13 +12,13 @@ export async function GET(request: Request) {
   const cronSecret = process.env.CRON_SECRET;
 
   if (cronSecret) {
-    const authHeader = request.headers.get('authorization');
-    if (authHeader !== `Bearer ${cronSecret}`) {
+    if (!hasBearerSecret(request, cronSecret)) {
       return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
     }
   } else {
-    console.warn(
-      '[cron/billing-alerts] CRON_SECRET is not set — endpoint is unauthenticated.',
+    return NextResponse.json(
+      { error: 'CRON_SECRET is not configured.' },
+      { status: 500 },
     );
   }
 

@@ -30,6 +30,7 @@ import {
   AgentWorkingBadge,
 } from './agent-activity-indicator';
 import { ArtifactPreview } from './artifact-preview';
+import { BackendControls } from './backend-controls';
 import { CategoryIcon } from '@/components/shared/category-icons';
 
 type PreviewPanelProps = {
@@ -220,6 +221,14 @@ export function PreviewPanel({
               />
             ) : null}
           </div>
+          {activeArtifact ? (
+            <BackendControls
+              projectId={project.id}
+              artifactSlug={activeArtifact.slug}
+              hasFiles={hasFiles}
+              onError={onError}
+            />
+          ) : null}
         </div>
 
         {activeArtifact ? (

@@ -2,11 +2,12 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import { prisma } from '@/lib/prisma';
+import { hasBearerSecret } from '@/lib/rate-limit';
 import { normalizePlatforms } from '@/lib/social/publish';
+import { validateMarketingVideo } from '@/lib/social/video';
 
 function authorized(request: Request) {
-  const secret = process.env.CRON_SECRET;
-  return Boolean(secret) && request.headers.get('authorization') === `Bearer ${secret}`;
+  return hasBearerSecret(request, process.env.CRON_SECRET);
 }
 
 const postSchema = z.object({
@@ -15,6 +16,10 @@ const postSchema = z.object({
   videoUrl: z.url({ protocol: /^https$/ }).optional(),
   platforms: z.array(z.string()).optional(),
   scheduledFor: z.coerce.date().optional(),
+  /** Create as DRAFT (needs approval). Forced on when SOCIAL_REQUIRE_APPROVAL=true. */
+  draft: z.boolean().optional(),
+  /** Video length in seconds when the file has no readable MP4 metadata (max 180). */
+  durationSeconds: z.number().positive().optional(),
 });
 
 /** Queue a marketing post (video + message). Authorization: Bearer CRON_SECRET. */
@@ -33,6 +38,17 @@ export async function POST(request: Request) {
     );
   }
 
+  for (const [index, p] of parsed.data.entries()) {
+    if (!p.videoUrl) continue;
+    const problem = await validateMarketingVideo(p.videoUrl, p.durationSeconds);
+    if (problem) {
+      return NextResponse.json(
+        { error: problem, index },
+        { status: 422 },
+      );
+    }
+  }
+
   const created = await prisma.socialPost.createManyAndReturn({
     data: parsed.data.map((p) => ({
       title: p.title,
@@ -40,8 +56,12 @@ export async function POST(request: Request) {
       videoUrl: p.videoUrl,
       platforms: normalizePlatforms(p.platforms),
       scheduledFor: p.scheduledFor,
+      status:
+        p.draft || process.env.SOCIAL_REQUIRE_APPROVAL === 'true'
+          ? ('DRAFT' as const)
+          : ('PENDING' as const),
     })),
-    select: { id: true, scheduledFor: true },
+    select: { id: true, scheduledFor: true, status: true },
   });
 
   return NextResponse.json({ success: true, posts: created }, { status: 201 });

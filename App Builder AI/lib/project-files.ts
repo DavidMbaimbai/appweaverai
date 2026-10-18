@@ -8,7 +8,18 @@ export const PROJECT_WORKSPACE_ROOT = path.join(
   "project-workspace",
 );
 
+const SAFE_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/;
+
+/** Rejects ids/slugs that could escape the project workspace (e.g. "..", "/"). */
+export function assertSafeWorkspaceSegment(value: string) {
+  if (!SAFE_SEGMENT.test(value)) {
+    throw new Error("Invalid project or artifact identifier.");
+  }
+}
+
 export function artifactWorkspaceDir(projectId: string, artifactSlug: string) {
+  assertSafeWorkspaceSegment(projectId);
+  assertSafeWorkspaceSegment(artifactSlug);
   return path.join(PROJECT_WORKSPACE_ROOT, projectId, artifactSlug);
 }
 
@@ -88,14 +99,10 @@ function getAbsolutePath(
     throw new Error("Invalid file path.");
   }
 
-  const artifactDir = path.join(
-    PROJECT_WORKSPACE_ROOT,
-    projectId,
-    artifactSlug,
-  );
+  const artifactDir = artifactWorkspaceDir(projectId, artifactSlug);
   const absolute = path.resolve(artifactDir, normalized);
 
-  if (!absolute.startsWith(path.resolve(artifactDir))) {
+  if (!absolute.startsWith(path.resolve(artifactDir) + path.sep)) {
     throw new Error("Path escapes project workspace.");
   }
 

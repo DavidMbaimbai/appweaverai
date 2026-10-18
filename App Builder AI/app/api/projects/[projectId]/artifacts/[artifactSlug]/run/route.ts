@@ -6,6 +6,7 @@ import { prisma } from '@/lib/prisma';
 import { hasProjectAccess } from '@/lib/projects/access';
 import { getCodeLanguage } from '@/lib/code-run/languages';
 import { runCode } from '@/lib/code-run/run-code';
+import { limitOrResponse } from '@/lib/rate-limit';
 
 export async function POST(
   _request: Request,
@@ -16,6 +17,9 @@ export async function POST(
   if (!userId) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  const limited = await limitOrResponse(`run:${userId}`, 20, 60_000);
+  if (limited) return limited;
 
   const { projectId, artifactSlug } = await context.params;
 

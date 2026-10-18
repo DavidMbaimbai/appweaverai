@@ -1,9 +1,11 @@
+import { sendAlert } from '@/lib/alerts';
 import { prisma } from '@/lib/prisma';
 import {
   ALL_PLATFORMS,
   captionForPlatform,
   isPlatformConfigured,
   publishToPlatform,
+  VIDEO_ONLY_PLATFORMS,
   type PlatformResult,
   type SocialPlatform,
 } from '@/lib/social/platforms';
@@ -35,7 +37,9 @@ export async function publishNextDueSocialPost() {
 
   const targets = normalizePlatforms(post.platforms);
   const platforms = (targets.length ? targets : ALL_PLATFORMS).filter(
-    isPlatformConfigured,
+    (platform) =>
+      isPlatformConfigured(platform) &&
+      (post.videoUrl || !VIDEO_ONLY_PLATFORMS.includes(platform)),
   );
 
   const previous = (post.results ?? {}) as Record<string, PlatformResult>;
@@ -72,6 +76,13 @@ export async function publishNextDueSocialPost() {
       postedAt: allOk ? new Date() : null,
     },
   });
+
+  if (status === 'FAILED') {
+    await sendAlert(
+      `Social post failed: ${post.title}`,
+      JSON.stringify(results).slice(0, 1200),
+    );
+  }
 
   return { posted: allOk, id: post.id, status, results };
 }

@@ -26,4 +26,11 @@ describe('shouldAutoReply', () => {
       shouldAutoReply({ fromAddress: from, ownAddresses: own, headers: headers(h) }).reply,
     ).toBe(false);
   });
+
+  it('honours stop/unsubscribe requests', () => {
+    const base = { fromAddress: 'jane@example.com', ownAddresses: own, headers: headers() };
+    expect(shouldAutoReply({ ...base, subject: 'Unsubscribe' }).reply).toBe(false);
+    expect(shouldAutoReply({ ...base, subject: 'Hi', body: 'STOP\n\nthanks' }).reply).toBe(false);
+    expect(shouldAutoReply({ ...base, subject: 'Help', body: 'Please stop charging me' }).reply).toBe(true);
+  });
 });

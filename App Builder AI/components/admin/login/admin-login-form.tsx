@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { authClient } from '@/lib/auth-client';
+import { TURNSTILE_SITE_KEY, TurnstileWidget } from '@/components/auth/turnstile-widget';
 import { AdminSignOutButton } from './admin-sign-out-button';
 
 const ADMIN_CALLBACK_URL = '/admin';
@@ -18,6 +19,8 @@ export function AdminLoginForm({ forbidden }: AdminLoginFormProps) {
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaResetKey, setCaptchaResetKey] = useState(0);
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -29,12 +32,15 @@ export function AdminLoginForm({ forbidden }: AdminLoginFormProps) {
       password,
       callbackURL: ADMIN_CALLBACK_URL,
       fetchOptions: {
+        headers: captchaToken ? { 'x-captcha-response': captchaToken } : {},
         onSuccess: () => {
           router.push(ADMIN_CALLBACK_URL);
           router.refresh();
         },
         onError: (ctx) => {
           setIsLoading(false);
+          setCaptchaToken(null);
+          setCaptchaResetKey((key) => key + 1);
           setError(ctx.error.message ?? 'Invalid email or password.');
         },
       },
@@ -97,9 +103,11 @@ export function AdminLoginForm({ forbidden }: AdminLoginFormProps) {
         </p>
       )}
 
+      <TurnstileWidget onToken={setCaptchaToken} resetKey={captchaResetKey} />
+
       <button
         type="submit"
-        disabled={isLoading}
+        disabled={isLoading || (Boolean(TURNSTILE_SITE_KEY) && !captchaToken)}
         className="h-11 w-full rounded-xl bg-appweaver-orange text-sm font-medium text-white transition-colors hover:bg-[#e03600] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-appweaver-orange focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60">
         {isLoading ? 'Signing in…' : 'Log in'}
       </button>

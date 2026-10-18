@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { prisma } from '@/lib/prisma';
+import { hasBearerSecret } from '@/lib/rate-limit';
 import {
   sendLoginIssueReminderEmail,
   sendSignupReminderEmail,
@@ -16,13 +17,13 @@ export async function GET(request: Request) {
   const cronSecret = process.env.CRON_SECRET;
 
   if (cronSecret) {
-    const authHeader = request.headers.get('authorization');
-    if (authHeader !== `Bearer ${cronSecret}`) {
+    if (!hasBearerSecret(request, cronSecret)) {
       return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });
     }
   } else {
-    console.warn(
-      '[cron/auth-reminders] CRON_SECRET is not set — endpoint is unauthenticated.',
+    return NextResponse.json(
+      { error: 'CRON_SECRET is not configured.' },
+      { status: 500 },
     );
   }
 
