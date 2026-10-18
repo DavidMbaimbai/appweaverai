@@ -57,6 +57,10 @@ type SendEmailInput = {
   subject: string;
   html: string;
   text?: string;
+  /** Threading / auto-responder headers (used for inbox replies). */
+  inReplyTo?: string;
+  references?: string[];
+  headers?: Record<string, string>;
 };
 
 /**
@@ -68,7 +72,15 @@ type SendEmailInput = {
  * a hosted URL) so it renders reliably regardless of environment/network
  * reachability and isn't affected by email clients blocking remote images.
  */
-export async function sendEmail({ to, subject, html, text }: SendEmailInput) {
+export async function sendEmail({
+  to,
+  subject,
+  html,
+  text,
+  inReplyTo,
+  references,
+  headers,
+}: SendEmailInput) {
   const transporter = getTransporter();
 
   if (!transporter) {
@@ -86,6 +98,9 @@ export async function sendEmail({ to, subject, html, text }: SendEmailInput) {
     subject,
     html,
     text,
+    inReplyTo,
+    references,
+    headers,
     attachments: logoAttachment ? [logoAttachment] : undefined,
   });
 }

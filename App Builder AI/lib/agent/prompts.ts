@@ -105,6 +105,16 @@ const STACK_GUIDANCE: Record<ProjectStack, string> = {
     "React stack: index.html + main.jsx + App.jsx + components/*. Always wire every component in App.jsx. Use `import React from 'react'` — dependencies resolve via CDN. In JSX, use camelCase DOM/SVG attributes (fontFamily, fontSize, fontWeight, strokeWidth) — never HTML kebab-case like font-family.",
 };
 
+const FULL_STACK_GUIDANCE = [
+  'Full-stack default: unless the app is purely presentational (a landing page, slide deck, or static calculator), build it as a real full-stack project with a production-style backend in `backend/` PLUS the browser frontend at the artifact root (index.html, script.js/style.css or the React files). Never skip the backend for apps with data, accounts, forms, business logic, or APIs.',
+  'Choose the backend language per request: Java Spring Boot for enterprise/CRUD/transactional/multi-entity apps (default when unsure), or Python FastAPI for data/ML/automation/AI-oriented apps (use Flask only if the user asks).',
+  'Spring Boot layout: `backend/pom.xml` (Spring Boot 3.x, Java 21, starters web, validation, data-jpa, h2 or postgresql, actuator), `backend/src/main/java/com/example/app/` with `Application.java`, `controller/`, `service/`, `repository/`, `model/` (entities + DTOs), exception handling via `@RestControllerAdvice`, CORS config, and `backend/src/main/resources/application.properties`. Add at least one JUnit test under `backend/src/test/java/`.',
+  'FastAPI layout: `backend/requirements.txt`, `backend/app/main.py`, `app/models.py` (Pydantic), `app/routes/`, `app/services/`, `app/db.py` (SQLite via SQLAlchemy), CORS middleware, and `backend/tests/` with pytest tests.',
+  'Backend rules: REST JSON endpoints under `/api/...`, input validation, proper HTTP status codes, no hard-coded secrets (read from environment variables), and a `backend/README.md` with exact run commands (`mvn spring-boot:run` or `uvicorn app.main:app --reload`) and the endpoint list.',
+  'The live preview is browser-only and cannot run the backend, so the frontend MUST work standalone: read the API base URL from one constant (e.g. `const API_BASE = "http://localhost:8080/api"`), call the API with fetch, and when the request fails fall back to realistic in-browser sample data persisted in localStorage so every screen is interactive in the preview. Keep frontend and backend request/response shapes identical.',
+  'Add a root `README.md` explaining the architecture, how to run backend and frontend together, and that the user can download/export the project to run it locally.',
+].join('\n');
+
 const EDIT_WORKFLOW = [
   'Edit workflow (when artifact already has files):',
   '1. Call list_files first.',
@@ -166,10 +176,12 @@ export function buildAgentSystemPrompt({
             'Wire up real interactivity (click handlers, state, keyboard support).',
             'Write the full updated file only after reading it.',
             'Before complete_build, verify layout, styles, and interactivity on a phone-sized screen.',
+            FULL_STACK_GUIDANCE,
           ].join(' ')
         : [
             'Build polished, fully functional web apps.',
             stackRules,
+            FULL_STACK_GUIDANCE,
             hasExistingFiles
               ? [
                   'IMPORTANT: This artifact already has files. The user is requesting changes — do NOT rebuild from scratch.',

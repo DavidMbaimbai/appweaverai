@@ -1297,3 +1297,35 @@ model AdminSetting {
 
   @@map("admin_settings")
 }
+
+// -----------------------------------------------------------------------------
+// Social media — queue of marketing posts published daily by a cron job
+// -----------------------------------------------------------------------------
+
+enum SocialPostStatus {
+  PENDING
+  POSTED
+  FAILED
+}
+
+model SocialPost {
+  id           String           @id @default(cuid())
+  title        String
+  /// Core marketing message; per-platform captions are derived from it.
+  message      String
+  /// Publicly reachable video URL (https, mp4). Optional for text-only posts.
+  videoUrl     String?          @map("video_url")
+  /// Subset of FACEBOOK, X, LINKEDIN. Empty means every configured platform.
+  platforms    String[]
+  status       SocialPostStatus @default(PENDING)
+  scheduledFor DateTime         @default(now()) @map("scheduled_for")
+  postedAt     DateTime?        @map("posted_at")
+  attempts     Int              @default(0)
+  /// Per-platform outcome: { FACEBOOK: { ok, id?, error? }, ... }
+  results      Json?
+  createdAt    DateTime         @default(now()) @map("created_at")
+  updatedAt    DateTime         @updatedAt @map("updated_at")
+
+  @@index([status, scheduledFor])
+  @@map("social_posts")
+}

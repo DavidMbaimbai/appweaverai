@@ -7,6 +7,14 @@
     {
       "path": "/api/cron/auth-reminders",
       "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/support-inbox",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/social-post",
+      "schedule": "0 9 * * *"
     }
   ]
 }
