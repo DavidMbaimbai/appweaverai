@@ -9,6 +9,8 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "db:verify-persistence": "node scripts/verify-db-persistence.mjs",
     "seed:templates": "tsx prisma/seed-website-templates.ts",
     "db:backup": "node scripts/db-backup.mjs backup",
     "db:restore": "node scripts/db-backup.mjs restore",
