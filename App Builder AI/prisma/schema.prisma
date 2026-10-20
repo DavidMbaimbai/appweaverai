@@ -4650,3 +4650,520 @@ model GrowthRecommendation {
   @@index([scopeType, scopeId, createdAt])
   @@map("growth_recommendations")
 }
+
+// ---------------------------------------------------------------------------
+// Template & component marketplace. User/project ids are plain strings (no FK) like the growth models, so the
+// shared User/Project models stay untouched; every query is scoped in lib/marketplace.
+// ---------------------------------------------------------------------------
+
+enum MarketplaceAssetType {
+  TEMPLATE
+  COMPONENT
+  INTEGRATION
+  WORKFLOW
+  STARTER_KIT
+}
+
+enum MarketplaceAssetStatus {
+  DRAFT
+  PENDING_REVIEW
+  PUBLISHED
+  REJECTED
+  REMOVED
+}
+
+enum MarketplacePayoutStatus {
+  NOT_CONFIGURED
+  ONBOARDING
+  ENABLED
+  SUSPENDED
+}
+
+enum MarketplaceOrderStatus {
+  PENDING
+  PAID
+  PARTIALLY_REFUNDED
+  REFUNDED
+  FAILED
+}
+
+enum MarketplaceLedgerKind {
+  EARNING
+  REFUND_REVERSAL
+  PAYOUT
+  ADJUSTMENT
+}
+
+enum MarketplaceReportStatus {
+  OPEN
+  ACTIONED
+  DISMISSED
+}
+
+/// A user's creator profile. Payouts stay NOT_CONFIGURED until Stripe Connect is set up by the owner.
+model MarketplaceCreator {
+  id                     String                  @id @default(cuid())
+  userId                 String                  @unique @map("user_id")
+  slug                   String                  @unique
+  displayName            String                  @map("display_name")
+  bio                    String?
+  payoutStatus           MarketplacePayoutStatus @default(NOT_CONFIGURED) @map("payout_status")
+  stripeConnectAccountId String?                 @map("stripe_connect_account_id")
+  termsAcceptedAt        DateTime                @map("terms_accepted_at")
+  createdAt              DateTime                @default(now()) @map("created_at")
+  updatedAt              DateTime                @updatedAt @map("updated_at")
+
+  assets MarketplaceAsset[]
+  ledger MarketplacePayoutLedger[]
+
+  @@map("marketplace_creators")
+}
+
+model MarketplaceAsset {
+  id                String                 @id @default(cuid())
+  creatorId         String?                @map("creator_id")
+  isFirstParty      Boolean                @default(false) @map("is_first_party")
+  type              MarketplaceAssetType
+  slug              String                 @unique
+  title             String
+  summary           String
+  description       String                 @db.Text
+  tags              String[]
+  status            MarketplaceAssetStatus @default(DRAFT)
+  priceCents        Int                    @default(0) @map("price_cents")
+  currency          String                 @default("usd")
+  license           String
+  publishedVersion  Int?                   @map("published_version")
+  statusReason      String?                @map("status_reason")
+  reviewedById      String?                @map("reviewed_by_id")
+  reviewedAt        DateTime?              @map("reviewed_at")
+  publishedAt       DateTime?              @map("published_at")
+  createdAt         DateTime               @default(now()) @map("created_at")
+  updatedAt         DateTime               @updatedAt @map("updated_at")
+
+  creator  MarketplaceCreator?       @relation(fields: [creatorId], references: [id], onDelete: SetNull)
+  versions MarketplaceAssetVersion[]
+  installs MarketplaceInstall[]
+  reviews  MarketplaceReview[]
+  orders   MarketplaceOrder[]
+  reports  MarketplaceReport[]
+
+  @@index([status, type, publishedAt])
+  @@index([creatorId, status])
+  @@map("marketplace_assets")
+}
+
+/// Immutable once written: the bundle and checksum are protected by a database trigger (see the migration).
+model MarketplaceAssetVersion {
+  id           String                 @id @default(cuid())
+  assetId      String                 @map("asset_id")
+  version      Int
+  changelog    String?
+  bundle       Json
+  checksum     String
+  sizeBytes    Int                    @map("size_bytes")
+  fileCount    Int                    @map("file_count")
+  status       MarketplaceAssetStatus @default(PENDING_REVIEW)
+  scanVerdict  String                 @map("scan_verdict")
+  scanFindings Json                   @map("scan_findings")
+  reviewNotes  String?                @map("review_notes")
+  createdAt    DateTime               @default(now()) @map("created_at")
+
+  asset    MarketplaceAsset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  installs MarketplaceInstall[]
+  orders   MarketplaceOrder[]
+
+  @@unique([assetId, version])
+  @@map("marketplace_asset_versions")
+}
+
+model MarketplaceInstall {
+  id             String   @id @default(cuid())
+  userId         String   @map("user_id")
+  projectId      String   @map("project_id")
+  assetId        String   @map("asset_id")
+  versionId      String   @map("version_id")
+  version        Int
+  artifactSlug   String   @map("artifact_slug")
+  targetDir      String   @map("target_dir")
+  filesWritten   String[]  @map("files_written")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  asset        MarketplaceAsset        @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  assetVersion MarketplaceAssetVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, assetId, versionId])
+  @@index([userId, createdAt])
+  @@index([assetId])
+  @@map("marketplace_installs")
+}
+
+/// One review per user per asset. Only people who installed or bought the asset may write one (enforced in lib/marketplace/reviews.ts).
+model MarketplaceReview {
+  id        String   @id @default(cuid())
+  assetId   String   @map("asset_id")
+  userId    String   @map("user_id")
+  rating    Int
+  body      String
+  hidden    Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  asset MarketplaceAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@unique([assetId, userId])
+  @@map("marketplace_reviews")
+}
+
+/// One-time purchase. The fee split is frozen on the row at payment time (basis points; 100 bps = 1%).
+model MarketplaceOrder {
+  id               String                 @id @default(cuid())
+  userId           String                 @map("user_id")
+  assetId          String                 @map("asset_id")
+  versionId        String                 @map("version_id")
+  status           MarketplaceOrderStatus @default(PENDING)
+  amountCents      Int                    @map("amount_cents")
+  currency         String
+  platformFeeBps   Int?                   @map("platform_fee_bps")
+  platformFeeCents Int                    @default(0) @map("platform_fee_cents")
+  creatorShareCents Int                   @default(0) @map("creator_share_cents")
+  refundedCents    Int                    @default(0) @map("refunded_cents")
+  stripeSessionId  String                 @unique @map("stripe_session_id")
+  paymentIntentId  String?                @unique @map("payment_intent_id")
+  stripeEventId    String?                @map("stripe_event_id")
+  paidAt           DateTime?              @map("paid_at")
+  createdAt        DateTime               @default(now()) @map("created_at")
+  updatedAt        DateTime               @updatedAt @map("updated_at")
+
+  asset        MarketplaceAsset          @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  assetVersion MarketplaceAssetVersion   @relation(fields: [versionId], references: [id], onDelete: Restrict)
+  ledger       MarketplacePayoutLedger[]
+
+  @@index([userId, assetId, status])
+  @@map("marketplace_orders")
+}
+
+/// Append-only creator earnings. Positive = owed to the creator, negative = reversal or payout. No payout row is written until Stripe Connect transfers are implemented.
+model MarketplacePayoutLedger {
+  id             String                @id @default(cuid())
+  creatorId      String                @map("creator_id")
+  orderId        String?               @map("order_id")
+  kind           MarketplaceLedgerKind
+  amountCents    Int                   @map("amount_cents")
+  currency       String
+  idempotencyKey String                @unique @map("idempotency_key")
+  note           String?
+  createdAt      DateTime              @default(now()) @map("created_at")
+
+  creator MarketplaceCreator @relation(fields: [creatorId], references: [id], onDelete: Restrict)
+  order   MarketplaceOrder?  @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@index([creatorId, createdAt])
+  @@map("marketplace_payout_ledger")
+}
+
+model MarketplaceReport {
+  id           String                  @id @default(cuid())
+  assetId      String                  @map("asset_id")
+  reporterId   String                  @map("reporter_id")
+  reason       String
+  details      String
+  status       MarketplaceReportStatus @default(OPEN)
+  resolvedById String?                 @map("resolved_by_id")
+  resolvedAt   DateTime?               @map("resolved_at")
+  createdAt    DateTime                @default(now()) @map("created_at")
+
+  asset MarketplaceAsset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@unique([assetId, reporterId])
+  @@index([status, createdAt])
+  @@map("marketplace_reports")
+}
+
+// -----------------------------------------------------------------------------
+// Mobile application delivery. Rows reference projects by plain id (no FK, so no
+// back-relation on Project); lib/projects/cleanup.ts removes them with the project.
+// -----------------------------------------------------------------------------
+
+enum MobilePlatform {
+  ANDROID
+  IOS
+  PWA
+}
+
+enum MobileBuildStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+  /// A native build that cannot run here: no runner, missing credentials or missing platform tooling. Never a success.
+  BLOCKED
+}
+
+enum MobileStore {
+  GOOGLE_PLAY
+  APP_STORE_CONNECT
+}
+
+/// One delivery attempt. Only PWA bundles and Capacitor project bundles are produced here; native binaries need an external runner.
+model MobileBuild {
+  id             String            @id @default(cuid())
+  projectId      String            @map("project_id")
+  artifactSlug   String            @map("artifact_slug")
+  platform       MobilePlatform
+  status         MobileBuildStatus
+  /// PWA_BUNDLE | CAPACITOR_PROJECT | NATIVE_BINARY
+  artifactKind   String            @map("artifact_kind")
+  versionName    String            @map("version_name")
+  buildNumber    Int               @map("build_number")
+  statusReason   String?           @map("status_reason") @db.Text
+  logs           String            @default("") @db.Text
+  readinessScore Int?              @map("readiness_score")
+  artifactName   String?           @map("artifact_name")
+  artifactSize   Int?              @map("artifact_size")
+  artifactSha256 String?           @map("artifact_sha256")
+  /// Zip bytes for generated bundles (size capped in lib/mobile). Never selected in list queries.
+  artifactData   Bytes?            @map("artifact_data")
+  /// Job id at the external runner, when one accepted the build.
+  externalJobId  String?           @map("external_job_id")
+  createdById    String            @map("created_by_id")
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+  finishedAt     DateTime?         @map("finished_at")
+
+  @@unique([projectId, platform, buildNumber])
+  @@index([projectId, createdAt])
+  @@map("mobile_builds")
+}
+
+/// Encrypted store account credentials. `encryptedPayload` (secret-box) is never returned to the client; `hint` is a non-secret label.
+model MobileStoreCredential {
+  id               String      @id @default(cuid())
+  projectId        String      @map("project_id")
+  store            MobileStore
+  encryptedPayload String      @map("encrypted_payload") @db.Text
+  hint             String
+  createdById      String      @map("created_by_id")
+  createdAt        DateTime    @default(now()) @map("created_at")
+  updatedAt        DateTime    @updatedAt @map("updated_at")
+
+  @@unique([projectId, store])
+  @@map("mobile_store_credentials")
+}
+
+model MobileStoreListing {
+  id               String      @id @default(cuid())
+  projectId        String      @map("project_id")
+  store            MobileStore
+  appName          String      @map("app_name")
+  /// Reverse-DNS application id / bundle id, e.g. com.example.app.
+  bundleId         String      @map("bundle_id")
+  shortDescription String      @default("") @map("short_description")
+  description      String      @default("") @db.Text
+  category         String      @default("")
+  keywords         String      @default("")
+  privacyUrl       String      @default("") @map("privacy_url")
+  supportUrl       String      @default("") @map("support_url")
+  /// Store rating questionnaire result, e.g. EVERYONE | TEEN | MATURE.
+  ageRating        String      @default("") @map("age_rating")
+  screenshotRefs   String[]    @map("screenshot_refs")
+  updatedById      String      @map("updated_by_id")
+  createdAt        DateTime    @default(now()) @map("created_at")
+  updatedAt        DateTime    @updatedAt @map("updated_at")
+
+  @@unique([projectId, store])
+  @@map("mobile_store_listings")
+}
+
+/// Manual completion state for submission checklist items that cannot be verified automatically.
+model MobileChecklistItem {
+  id          String      @id @default(cuid())
+  projectId   String      @map("project_id")
+  store       MobileStore
+  itemKey     String      @map("item_key")
+  done        Boolean     @default(false)
+  updatedById String      @map("updated_by_id")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  @@unique([projectId, store, itemKey])
+  @@map("mobile_checklist_items")
+}
+
+// ---------------------------------------------------------------------------
+// AI development team (lib/dev-team). Plain projectId columns (no Project relation): rows are removed by
+// lib/dev-team when a project is purged; nothing here is ever applied to project files without a human approval.
+// ---------------------------------------------------------------------------
+
+enum DevTeamRole {
+  ARCHITECT
+  FRONTEND
+  BACKEND
+  DATABASE
+  TESTING
+  SECURITY
+  DEVOPS
+}
+
+enum DevTeamRunStatus {
+  PLANNING
+  RUNNING
+  NEEDS_DECISION
+  AWAITING_APPROVAL
+  APPLIED
+  REJECTED
+  FAILED
+  CANCELLED
+}
+
+enum DevTeamTaskStatus {
+  PENDING
+  RUNNING
+  DONE
+  FAILED
+  SKIPPED
+  CANCELLED
+}
+
+enum DevTeamChangeOp {
+  CREATE
+  MODIFY
+  DELETE
+}
+
+enum DevTeamMergeStatus {
+  CLEAN
+  MERGED
+  CONFLICT
+  RESOLVED
+  STALE
+  APPLIED
+}
+
+model DevTeamRun {
+  id               String           @id @default(cuid())
+  projectId        String           @map("project_id")
+  artifactSlug     String           @map("artifact_slug")
+  goal             String           @db.Text
+  status           DevTeamRunStatus @default(PLANNING)
+  requestedById    String           @map("requested_by_id")
+  /// Placeholder-priced estimate shown before the run (see lib/dev-team/credits.ts).
+  estimatedCredits Int              @default(0) @map("estimated_credits")
+  reservedCredits  Int              @default(0) @map("reserved_credits")
+  spentCredits     Int              @default(0) @map("spent_credits")
+  /// Ledger idempotency key of the reservation; null when the user is not credit-metered.
+  creditKey        String?          @unique @map("credit_key")
+  planSummary      String?          @map("plan_summary") @db.Text
+  error            String?          @db.Text
+  /// Result of the pre-apply verification (scan + regression status). Null until verified.
+  verification     Json?
+  verifiedAt       DateTime?        @map("verified_at")
+  decidedById      String?          @map("decided_by_id")
+  decisionReason   String?          @map("decision_reason")
+  decidedAt        DateTime?        @map("decided_at")
+  appliedAt        DateTime?        @map("applied_at")
+  startedAt        DateTime?        @map("started_at")
+  finishedAt       DateTime?        @map("finished_at")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+
+  tasks     DevTeamTask[]
+  proposals DevTeamChangeProposal[]
+  messages  DevTeamMessage[]
+  files     DevTeamMergedFile[]
+
+  @@index([projectId, createdAt])
+  @@index([status, updatedAt])
+  @@map("dev_team_runs")
+}
+
+model DevTeamTask {
+  id         String            @id @default(cuid())
+  runId      String            @map("run_id")
+  /// Short id inside the run (t1, t2, ...); dependsOn refers to these keys.
+  key        String
+  role       DevTeamRole
+  title      String
+  description String           @default("") @db.Text
+  status     DevTeamTaskStatus @default(PENDING)
+  dependsOn  String[]          @map("depends_on")
+  /// Planner hints: files the task should read.
+  input      Json?
+  /// { summary, notes } produced by the role; raw model text is never stored.
+  output     Json?
+  attempts   Int               @default(0)
+  error      String?           @db.Text
+  startedAt  DateTime?         @map("started_at")
+  finishedAt DateTime?         @map("finished_at")
+  createdAt  DateTime          @default(now()) @map("created_at")
+
+  run       DevTeamRun              @relation(fields: [runId], references: [id], onDelete: Cascade)
+  proposals DevTeamChangeProposal[]
+
+  @@unique([runId, key])
+  @@index([runId, status])
+  @@map("dev_team_tasks")
+}
+
+/// One proposed change to one file by one task. `baseHash` is the sha256 of the file when the role read it.
+model DevTeamChangeProposal {
+  id              String          @id @default(cuid())
+  runId           String          @map("run_id")
+  taskId          String          @map("task_id")
+  role            DevTeamRole
+  path            String
+  op              DevTeamChangeOp
+  baseHash        String?         @map("base_hash")
+  baseContent     String?         @map("base_content") @db.Text
+  proposedContent String?         @map("proposed_content") @db.Text
+  rationale       String          @default("") @db.Text
+  createdAt       DateTime        @default(now()) @map("created_at")
+
+  run  DevTeamRun  @relation(fields: [runId], references: [id], onDelete: Cascade)
+  task DevTeamTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([runId, path])
+  @@index([taskId])
+  @@map("dev_team_change_proposals")
+}
+
+/// Shared context log between roles (handoffs, questions, conflict notes, system events).
+model DevTeamMessage {
+  id        String       @id @default(cuid())
+  runId     String       @map("run_id")
+  taskId    String?      @map("task_id")
+  /// Null for system or human messages.
+  role      DevTeamRole?
+  kind      String       @default("NOTE")
+  content   String       @db.Text
+  createdAt DateTime     @default(now()) @map("created_at")
+
+  run DevTeamRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId, createdAt])
+  @@map("dev_team_messages")
+}
+
+/// Per-file result of merging every proposal for that file. Applying uses `finalContent` only after approval.
+model DevTeamMergedFile {
+  id           String             @id @default(cuid())
+  runId        String             @map("run_id")
+  path         String
+  op           DevTeamChangeOp
+  status       DevTeamMergeStatus
+  baseHash     String?            @map("base_hash")
+  baseContent  String?            @map("base_content") @db.Text
+  finalContent String?            @map("final_content") @db.Text
+  proposalIds  String[]           @map("proposal_ids")
+  /// { reason, details[] } while status is CONFLICT or STALE.
+  conflict     Json?
+  /// Resolver-step suggestion; never used until a human accepts it.
+  suggestion   String?            @db.Text
+  resolution   String?
+  resolvedById String?            @map("resolved_by_id")
+  resolvedAt   DateTime?          @map("resolved_at")
+  appliedAt    DateTime?          @map("applied_at")
+
+  run DevTeamRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, path])
+  @@map("dev_team_merged_files")
+}

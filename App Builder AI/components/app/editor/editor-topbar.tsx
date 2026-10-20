@@ -386,6 +386,7 @@ export function EditorTopBar({
   { label: 'Launch readiness', href: `/app/projects/${project.workspaceSlug}/${project.slug}/launch`, icon: ProjectsIcon },
                   { label: 'Operations', href: `/app/projects/${project.workspaceSlug}/${project.slug}/operations`, icon: AnalyticsIcon },
                   { label: 'Integrations', href: `/app/projects/${project.workspaceSlug}/${project.slug}/integrations`, icon: ProjectsIcon },
+                  { label: 'Mobile delivery', href: `/app/projects/${project.workspaceSlug}/${project.slug}/mobile`, icon: ProjectsIcon },
                   { label: 'Security scan', href: `/app/projects/${project.workspaceSlug}/${project.slug}/security`, icon: ProjectsIcon },
                   { label: 'Quality & Security', href: `/app/projects/${project.workspaceSlug}/${project.slug}/quality`, icon: AnalyticsIcon },
                   { label: 'AI Agents', href: `/app/projects/${project.workspaceSlug}/${project.slug}/agents`, icon: ProjectsIcon },

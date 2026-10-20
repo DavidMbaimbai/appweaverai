@@ -9,6 +9,10 @@ export async function deleteProjectSideData(projectId: string, userId: string) {
     prisma.hubInvestorContact.deleteMany({ where: { projectId } }),
     prisma.hubInvestor.deleteMany({ where: { projectId } }),
     prisma.investorHubProfile.deleteMany({ where: { projectId } }),
+    prisma.mobileBuild.deleteMany({ where: { projectId } }),
+    prisma.mobileStoreCredential.deleteMany({ where: { projectId } }),
+    prisma.mobileStoreListing.deleteMany({ where: { projectId } }),
+    prisma.mobileChecklistItem.deleteMany({ where: { projectId } }),
   ]);
   const remaining = await prisma.projectCampaign.count({ where: { userId } });
   if (remaining === 0) {
