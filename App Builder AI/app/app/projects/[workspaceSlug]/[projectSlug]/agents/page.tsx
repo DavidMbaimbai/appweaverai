@@ -4,6 +4,7 @@ import { AgentsPanel } from '@/components/app/agents/agents-panel';
 import { listAgentSettings } from '@/lib/agents/settings';
 import { getCachedSession } from '@/lib/auth/cached';
 import { prisma } from '@/lib/prisma';
+import { projectOwnerAccessOr } from '@/lib/projects/access';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,7 +21,7 @@ export default async function ProjectAgentsPage({ params }: Props) {
       slug: projectSlug,
       deletedAt: null,
       workspace: { slug: workspaceSlug },
-      OR: [{ createdById: userId }, { workspace: { ownerId: userId } }],
+      OR: projectOwnerAccessOr(userId),
     },
     select: { id: true, name: true },
   });

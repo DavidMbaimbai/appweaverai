@@ -1,6 +1,7 @@
 import { getAnthropicClient } from '@/lib/anthropic';
 import type { Prisma } from '@/lib/generated/prisma/client';
 import { prisma } from '@/lib/prisma';
+import { findOutreachSuppression } from '@/lib/privacy/suppression';
 import { scheduleSlotKey } from '@/lib/marketing-credits/budget';
 import { withMarketingCredits } from '@/lib/marketing-credits/run';
 import { normalizeEmail } from '@/lib/outreach/compliance';
@@ -119,7 +120,7 @@ async function addTargets(ctx: Ctx, campaignId: string, investorIds: string[]) {
     const email = inv.emailKey ?? inv.email;
     const meta = (inv.fieldMeta ?? {}) as Record<string, { sourceUrl?: string | null }>;
     const sourceUrl = meta.email?.sourceUrl || inv.sourceUrl;
-    const suppressed = email ? Boolean(await prisma.outreachSuppression.findUnique({ where: { email: normalizeEmail(email) } })) : false;
+    const suppressed = email ? Boolean(await findOutreachSuppression(normalizeEmail(email))) : false;
     const reason = targetBlockReason({ email, sourceUrl, optedOut: inv.optedOut, suppressed });
     if (reason || !email || !sourceUrl) {
       skipped.push({ investorId: inv.id, name: inv.name, reason: reason ?? 'Not eligible.' });
@@ -451,7 +452,7 @@ export async function sendToTarget(args: {
 
   const step = target.stepsSent;
   const [suppressed, replyCount, existing] = await Promise.all([
-    prisma.outreachSuppression.findUnique({ where: { email } }),
+    findOutreachSuppression(email),
     prisma.hubInvestorReply.count({ where: { investorId: investor.id } }),
     prisma.investorCampaignSend.findUnique({ where: { targetId_step: { targetId: target.id, step } } }),
   ]);

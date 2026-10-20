@@ -1,6 +1,8 @@
 import { Suspense } from 'react';
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
+import { PaymentFailedBanner } from '@/components/app/billing/payment-failed-banner';
 import { BillingPageClient } from '@/components/app/billing/billing-page-client';
 import { EmptyState } from '@/components/ui/empty-state';
 import { syncBillingAfterCheckoutAction } from '@/lib/actions/billing';
@@ -56,16 +58,25 @@ export async function BillingPage({ searchParams }: BillingPageProps) {
   }
 
   return (
-    <Suspense fallback={null}>
-      <BillingPageClient
-        plan={billing.plan}
-        status={billing.status}
-        hasCustomer={billing.hasCustomer}
-        creditBalance={billing.creditBalance}
-        proPlan={billing.proPlan}
-        subscription={billing.subscription}
-        justUpgraded={params.upgraded === '1'}
-      />
-    </Suspense>
+    <>
+      <div className="mx-auto w-full max-w-app-content space-y-3 px-4 pt-4 tablet-up:px-8">
+        <PaymentFailedBanner userId={session.user.id} />
+        <p className="flex gap-4 text-sm">
+          <Link href="/app/billing/invoices" className="font-medium text-appweaver-orange">Invoices & receipts →</Link>
+          <Link href="/app/billing/transactions" className="font-medium text-appweaver-orange">Credit transactions →</Link>
+        </p>
+      </div>
+      <Suspense fallback={null}>
+        <BillingPageClient
+          plan={billing.plan}
+          status={billing.status}
+          hasCustomer={billing.hasCustomer}
+          creditBalance={billing.creditBalance}
+          proPlan={billing.proPlan}
+          subscription={billing.subscription}
+          justUpgraded={params.upgraded === '1'}
+        />
+      </Suspense>
+    </>
   );
 }

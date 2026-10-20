@@ -32,6 +32,7 @@ import {
 import type { AppAgentMessage, AppProjectDetail } from '@/lib/app-types';
 import { artifactTypeLabels } from '@/lib/app-types';
 import { Badge } from '@/components/ui/badge';
+import { CreditEstimateHint } from '@/components/app/credits/credit-estimate-hint';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 
@@ -1009,6 +1010,7 @@ export const AgentPanel = forwardRef<AgentPanelHandle, AgentPanelProps>(
             }
           }}
         />
+        {!isStreaming ? <CreditEstimateHint operation="agent_run" workspaceId={project.workspaceId} className="mt-1 text-xs text-app-text-muted" /> : null}
         <div className="mt-3 flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2">
             <AgentModelPicker

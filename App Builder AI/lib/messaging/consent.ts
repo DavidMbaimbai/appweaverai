@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 
 import { normalizeContact, type ConsentProofRecord, type ConsentRecord } from './gates';
 import type { MessageChannelName } from './types';
+import { hashContact } from '@/lib/privacy/identifiers';
 
 function key(scope: AgentScope, channel: MessageChannelName, contact: string) {
   return {
@@ -13,6 +14,12 @@ function key(scope: AgentScope, channel: MessageChannelName, contact: string) {
       contact: normalizeContact(channel, contact),
     },
   };
+}
+
+/** Same row key with the contact replaced by its keyed hash: how opt-outs are kept after the contact's data is erased. */
+function hashedKey(scope: AgentScope, channel: MessageChannelName, contact: string) {
+  const plain = key(scope, channel, contact).scopeType_scopeId_channel_contact;
+  return { scopeType_scopeId_channel_contact: { ...plain, contact: hashContact(channel, plain.contact) } };
 }
 
 export async function getConsent(scope: AgentScope, channel: MessageChannelName, contact: string): Promise<ConsentRecord> {
@@ -39,6 +46,7 @@ export async function recordConsent(
     await suppress(scope, channel, contact, change.reason ?? 'STOP', change.source);
   } else if (change.optIn === true) {
     await prisma.messagingSuppression.deleteMany({ where: key(scope, channel, contact).scopeType_scopeId_channel_contact });
+    await prisma.messagingSuppression.deleteMany({ where: hashedKey(scope, channel, contact).scopeType_scopeId_channel_contact });
   }
 }
 
@@ -54,7 +62,10 @@ export async function suppress(scope: AgentScope, channel: MessageChannelName, c
 }
 
 export async function getSuppression(scope: AgentScope, channel: MessageChannelName, contact: string) {
-  return prisma.messagingSuppression.findUnique({ where: key(scope, channel, contact) });
+  return (
+    (await prisma.messagingSuppression.findUnique({ where: key(scope, channel, contact) })) ??
+    (await prisma.messagingSuppression.findUnique({ where: hashedKey(scope, channel, contact) }))
+  );
 }
 
 /** Stores a marketing/lead opt-in with its evidence (source, proof text, capture time). Refuses without proof. */

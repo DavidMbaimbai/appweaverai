@@ -14,6 +14,7 @@ import {
 } from './pricing';
 import { getWallet, refundReservation, releaseReservation, reserveCredits, settleReservation } from './wallet';
 import { ensureTrialAllowance } from './settings';
+import { attributeAndCheckMember } from '@/lib/team/spend';
 
 export const MARKETING_CREDITS_PATH = '/app/marketing-credits';
 
@@ -22,6 +23,7 @@ export type MarketingFailureReason =
   | 'suspended'
   | 'budget'
   | 'org_limit'
+  | 'member_limit'
   | 'plan'
   | 'period_limit'
   | 'duplicate'
@@ -302,6 +304,19 @@ export async function withMarketingCredits<T>(
     return fail('insufficient', message, true);
   }
   if (reservation.duplicate) return fail('duplicate', 'This action was already submitted.');
+  if (ctx.projectId && ctx.orgId && !ctx.orgId.startsWith('user:')) {
+    const member = await attributeAndCheckMember({
+      workspaceId: ctx.orgId,
+      userId: options.userId,
+      projectId: ctx.projectId,
+      operation: options.operation,
+      ledgerKey: key,
+    });
+    if (!member.ok) {
+      await releaseReservation(key, 'Member spending limit reached').catch((e) => console.error('[marketing-credits] release failed:', e));
+      return fail('member_limit', `You reached your monthly marketing spending limit for this workspace (${member.limit} credits). Ask a workspace admin to raise it.`);
+    }
+  }
 
   let value: T;
   try {

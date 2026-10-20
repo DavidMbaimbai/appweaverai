@@ -5,6 +5,7 @@ import { AuthSessionProvider } from '@/components/auth/session-provider';
 import { AuthModalProvider } from '@/components/auth/auth-modal-provider';
 import { AuthUrlSync } from '@/components/auth/auth-url-sync';
 import { CookieBanner } from '@/components/cookie-banner';
+import { GrowthTracker } from '@/components/growth-bi/growth-tracker';
 import { getEnabledOAuthProviders } from '@/lib/auth/oauth-config';
 
 export const metadata: Metadata = {
@@ -42,7 +43,7 @@ export default function RootLayout({
               <AuthUrlSync />
               {children}
               <CookieBanner />
-            </RootProviders>
+              <GrowthTracker />            </RootProviders>
           </AuthModalProvider>
         </AuthSessionProvider>
       </body>

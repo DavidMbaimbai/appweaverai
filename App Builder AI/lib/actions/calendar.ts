@@ -7,6 +7,7 @@ import { cancelBooking, rescheduleBooking } from '../calendar/bookings';
 import { disconnect, saveSettings, startConnect, verifyNow, type CalendarSettings } from '../calendar/service';
 import { rateLimit } from '../rate-limit';
 import { prisma } from '../prisma';
+import { projectOwnerAccessOr } from '../projects/access';
 
 type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string };
 const UNAUTHORIZED = { ok: false, error: 'Only the project owner can manage the calendar connection.' } as const;
@@ -16,7 +17,7 @@ async function ownerProject(projectId: string) {
   const userId = (await getCachedSession())?.user?.id;
   if (!userId) return null;
   const project = await prisma.project.findFirst({
-    where: { id: projectId, deletedAt: null, OR: [{ createdById: userId }, { workspace: { ownerId: userId } }] },
+    where: { id: projectId, deletedAt: null, OR: projectOwnerAccessOr(userId) },
     select: { id: true, slug: true, workspace: { select: { slug: true } } },
   });
   return project ? { userId, project } : null;

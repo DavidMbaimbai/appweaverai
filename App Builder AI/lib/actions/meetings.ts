@@ -4,6 +4,7 @@ import { getCachedSession } from '../auth/cached';
 import { parseParticipants, MEETING_CATEGORIES, type MeetingCategory } from '../meetings/logic';
 import { cancelMeeting, createMeetingRequest, platformScope, proposeSlots } from '../meetings/service';
 import { prisma } from '../prisma';
+import { projectOwnerAccessOr } from '../projects/access';
 import { rateLimit } from '../rate-limit';
 
 type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string };
@@ -20,7 +21,7 @@ export async function requestMeetingAction(input: { title: string; agenda?: stri
 
   let projectId: string | null = null;
   if (input.projectId) {
-    const owned = await prisma.project.findFirst({ where: { id: input.projectId, deletedAt: null, OR: [{ createdById: user.id }, { workspace: { ownerId: user.id } }] }, select: { id: true } });
+    const owned = await prisma.project.findFirst({ where: { id: input.projectId, deletedAt: null, OR: projectOwnerAccessOr(user.id) }, select: { id: true } });
     projectId = owned?.id ?? null;
   }
   const participants = parseParticipants([{ name: user.name || user.email, email: user.email, timeZone: input.timeZone, role: 'REQUIRED', userId: user.id }]);

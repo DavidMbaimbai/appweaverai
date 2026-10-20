@@ -65,16 +65,16 @@ export async function resolveBillingContext(input: {
     const project = await prisma.project.findUnique({
       where: { id: input.projectId },
       select: {
-        createdById: true,
         workspaceId: true,
+        members: { where: { userId: input.userId }, select: { userId: true } },
         workspace: { select: { ownerId: true, members: { where: { userId: input.userId }, select: { userId: true } } } },
       },
     });
     if (!project) throw new BillingClassificationError('Project not found.');
     const owns =
-      project.createdById === input.userId ||
       project.workspace.ownerId === input.userId ||
-      project.workspace.members.length > 0;
+      project.workspace.members.length > 0 ||
+      project.members.length > 0;
     const isAdmin = !!user.adminRole;
     if (!owns && !isAdmin) throw new BillingClassificationError('You do not have access to this project.');
     workspaceId = project.workspaceId;

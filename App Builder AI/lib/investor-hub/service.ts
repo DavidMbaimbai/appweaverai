@@ -1,5 +1,6 @@
 import type { Prisma } from '@/lib/generated/prisma/client';
 import { prisma } from '@/lib/prisma';
+import { findOutreachSuppression } from '@/lib/privacy/suppression';
 
 import { type ImportedInvestor, toCsv } from './csv';
 import {
@@ -138,7 +139,7 @@ export async function addInvestor(
   if (dupe) return { created: false, id: dupe.id };
 
   const suppressed = key
-    ? await prisma.outreachSuppression.findUnique({ where: { email: key } })
+    ? await findOutreachSuppression(key)
     : null;
   const profile = await getProfile(ctx);
   const result = scoreInvestor(profile ?? {}, input);

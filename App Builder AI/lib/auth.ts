@@ -8,6 +8,7 @@ import { prisma } from './prisma';
 import { hasPermission } from './admin/permissions';
 import { provisionNewUser } from './auth/provision-user';
 import { recordAttribution } from './ads/attribution';
+import { recordGrowthSignup } from './growth-bi/capture';
 import { recordAuthActivity } from './auth/record-auth-activity';
 import {
   sendLoginNotificationEmail,
@@ -167,6 +168,12 @@ export const auth = betterAuth({
                   await recordAttribution(user.id, headers?.get?.('cookie'));
                 } catch (error) {
                   console.error('[ads] attribution failed:', error);
+                }
+                try {
+                  const headers = context?.headers ?? context?.request?.headers;
+                  await recordGrowthSignup(user.id, headers);
+                } catch (error) {
+                  console.error('[growth] attribution failed:', error);
                 }
 
                 await provisionNewUser({

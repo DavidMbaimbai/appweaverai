@@ -20,6 +20,8 @@ export type ChargeInput = {
   idempotencyKey: string;
   refType?: string;
   refId?: string;
+  /** Workspace the spend is attributed to, for workspace spending limits. */
+  workspaceId?: string | null;
 };
 
 export type ChargeResult =
@@ -37,7 +39,7 @@ async function readBalance(tx: Tx, userId: string) {
 
 /** Deducts `cost` only if the balance covers it; the check and update are one statement, so races cannot overdraw. */
 export async function chargeCredits(input: ChargeInput): Promise<ChargeResult> {
-  const { userId, cost, operation, reason, idempotencyKey, refType, refId } = input;
+  const { userId, cost, operation, reason, idempotencyKey, refType, refId, workspaceId } = input;
   if (!Number.isInteger(cost) || cost < 0) throw new Error('Credit cost must be a non-negative integer.');
 
   try {
@@ -68,6 +70,7 @@ export async function chargeCredits(input: ChargeInput): Promise<ChargeResult> {
           operation,
           refType: refType ?? null,
           refId: refId ?? null,
+          workspaceId: workspaceId ?? null,
           balanceAfter,
           idempotencyKey,
         },
@@ -112,6 +115,7 @@ export async function refundCharge(chargeKey: string, reason: string): Promise<R
           operation: 'REFUND',
           refType: charge.refType,
           refId: charge.refId,
+          workspaceId: charge.workspaceId,
           balanceAfter: updated.creditBalance,
           idempotencyKey: refundKey,
         },
@@ -156,7 +160,7 @@ export async function adjustCredits(input: AdjustInput): Promise<AdjustResult> {
     }
     const balanceAfter = (await readBalance(tx, userId)) ?? 0;
     await tx.creditLedger.create({
-      data: { userId, delta, reason, operation, balanceAfter, idempotencyKey },
+      data: { userId, delta, reason, operation, balanceAfter, idempotencyKey, source: operation === 'GRANT' ? 'PROMOTIONAL' : 'ADJUSTMENT' },
     });
     if (adjustedBy) {
       await tx.creditAdjustment.create({ data: { userId, amount: delta, reason, adminId: adjustedBy } });
@@ -182,6 +186,7 @@ export async function resetCreditBalance(userId: string, amount: number, reason:
         delta,
         reason,
         operation: 'GRANT',
+        source: 'SUBSCRIPTION',
         balanceAfter: amount,
         idempotencyKey: `grant:${userId}:${randomUUID()}`,
       },

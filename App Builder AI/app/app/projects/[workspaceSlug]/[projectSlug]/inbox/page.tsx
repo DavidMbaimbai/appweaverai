@@ -6,6 +6,7 @@ import { inboxOpAction, verifyChannelAction } from '@/lib/actions/inbox';
 import { getCachedSession } from '@/lib/auth/cached';
 import { loadInboxPageData } from '@/lib/messaging/view';
 import { prisma } from '@/lib/prisma';
+import { projectOwnerAccessOr } from '@/lib/projects/access';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,7 +26,7 @@ export default async function ProjectInboxPage({ params, searchParams }: Props) 
       slug: projectSlug,
       deletedAt: null,
       workspace: { slug: workspaceSlug },
-      OR: [{ createdById: userId }, { workspace: { ownerId: userId } }],
+      OR: projectOwnerAccessOr(userId),
     },
     select: { id: true, name: true },
   });

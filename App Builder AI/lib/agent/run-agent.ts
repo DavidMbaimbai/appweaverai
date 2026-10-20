@@ -14,6 +14,7 @@ import {
   getAnthropicModel,
 } from '@/lib/agent/constants';
 import type { AgentLimits } from '@/lib/billing/entitlements';
+import { formatAgentIntegrationContext, getConnectedIntegrationsForAgent } from '@/lib/integrations/service';
 import {
   buildAgentSystemPrompt,
   detectProjectStackFromPaths,
@@ -59,6 +60,11 @@ import {
   deleteProjectFile,
 } from '@/lib/project-files';
 import { prisma } from '@/lib/prisma';
+import type { RegressionGuard } from '@/lib/project-memory/guard';
+import {
+  checkRunAcknowledgement,
+  prepareProjectBrief,
+} from '@/lib/project-memory/prepare-run';
 import { getToolRiskLevel } from '@/lib/agent/tool-policy';
 import {
   markToolCallResult,
@@ -141,6 +147,7 @@ type ToolContext = {
   lastFileStreamEmit: Map<string, number>;
   onEvent?: (event: AgentStreamEvent) => void;
   usage: { inputTokens: number; outputTokens: number };
+  memoryGuard?: RegressionGuard;
 };
 
 type StreamingToolBlock = {
@@ -398,6 +405,9 @@ async function executeTool(
         return { result: `File not found: ${filePath}` };
       }
 
+      const heldEdit = ctx.memoryGuard?.checkModify(filePath);
+      if (heldEdit?.blocked) return { result: heldEdit.message };
+
       const editResult = applyFileEdit(
         currentContent,
         oldString,
@@ -455,6 +465,9 @@ async function executeTool(
         };
       }
 
+      const heldWrite = pathExists ? ctx.memoryGuard?.checkModify(filePath) : undefined;
+      if (heldWrite?.blocked) return { result: heldWrite.message };
+
       const previousContent = pathExists
         ? ctx.readCache.get(filePath)
         : undefined;
@@ -499,6 +512,9 @@ async function executeTool(
       if (!ctx.existingPaths.has(filePath)) {
         return { result: `File not found: ${filePath}` };
       }
+
+      const heldDelete = ctx.memoryGuard?.checkModify(filePath);
+      if (heldDelete?.blocked) return { result: heldDelete.message };
 
       await deleteProjectFile({
         projectId: ctx.projectId,
@@ -791,7 +807,12 @@ export async function runAgentLoop({
     artifact.slug,
   );
 
+  const integrationsContext = await getConnectedIntegrationsForAgent(projectId)
+    .then(formatAgentIntegrationContext)
+    .catch(() => null);
+
   const promptContext = {
+    integrationsContext,
     projectName: project.name,
     projectDescription: project.description,
     artifactName: artifact.name,
@@ -800,12 +821,25 @@ export async function runAgentLoop({
     projectStack: detectProjectStackFromPaths(relativePaths, indexHtml),
   };
 
-  let systemPrompt = buildAgentSystemPrompt({
-    ...promptContext,
-    planMode,
-    attachmentContext: attachmentContext.summary || undefined,
-    hasExistingFiles,
-  });
+  const lastUserRequest =
+    messages.filter((message) => message.role === 'USER').at(-1)?.content ?? '';
+  const projectMemory = hasExistingFiles
+    ? await prepareProjectBrief({
+        projectId,
+        artifactSlug: artifact.slug,
+        conversationId,
+        request: lastUserRequest,
+      })
+    : null;
+  const memoryBrief = projectMemory?.text ? `\n\n${projectMemory.text}` : '';
+
+  let systemPrompt =
+    buildAgentSystemPrompt({
+      ...promptContext,
+      planMode,
+      attachmentContext: attachmentContext.summary || undefined,
+      hasExistingFiles,
+    }) + memoryBrief;
 
   const chatMessages: Anthropic.MessageParam[] = [];
   let injectedVision = false;
@@ -851,6 +885,7 @@ export async function runAgentLoop({
     lastFileStreamEmit: new Map(),
     onEvent,
     usage: { inputTokens: 0, outputTokens: 0 },
+    memoryGuard: projectMemory?.guard,
   };
 
   onEvent?.({ type: 'status', phase: 'working', actionCount: 0 });
@@ -925,12 +960,13 @@ export async function runAgentLoop({
       );
 
       if (toolUse.name === 'complete_plan') {
-        systemPrompt = buildAgentSystemPrompt({
-          ...promptContext,
-          planMode: false,
-          attachmentContext: attachmentContext.summary || undefined,
-          hasExistingFiles,
-        });
+        systemPrompt =
+          buildAgentSystemPrompt({
+            ...promptContext,
+            planMode: false,
+            attachmentContext: attachmentContext.summary || undefined,
+            hasExistingFiles,
+          }) + memoryBrief;
       }
 
       if (toolUse.name === 'ask_plan_question' && shouldStop) {
@@ -1009,6 +1045,15 @@ export async function runAgentLoop({
         : "I've updated your project. Check the preview to see the result.";
   } else if (hitTurnLimit && !ctx.buildValid) {
     summary = `${summary}\n\n—\nStill in progress. Reply **continue** to finish the build.`;
+  }
+
+  if (projectMemory?.guard.enabled) {
+    summary += await checkRunAcknowledgement({
+      projectId,
+      guard: projectMemory.guard,
+      injectionId: projectMemory.injectionId,
+      summary,
+    });
   }
 
   onEvent?.({ type: 'text', content: summary });

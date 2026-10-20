@@ -26,6 +26,7 @@ const menuItems = [
   { label: 'Account', href: '/app/account', icon: AccountIcon },
   { label: 'Settings', href: '/app/settings', icon: SettingsIcon },
   { label: 'Billing', href: '/app/billing', icon: BillingIcon },
+  { label: 'Privacy & data', href: '/app/privacy', icon: SettingsIcon },
   { label: 'Trash', href: '/app/trash', icon: TrashIcon },
 ];
 

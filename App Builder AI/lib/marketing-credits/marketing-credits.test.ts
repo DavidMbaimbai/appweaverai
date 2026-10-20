@@ -9,6 +9,7 @@ const store = vi.hoisted(() => ({
 
 vi.mock('@/lib/email', () => ({ sendEmail: vi.fn(async () => undefined) }));
 vi.mock('@/lib/rate-limit', () => ({ rateLimit: vi.fn(async () => ({ ok: true })) }));
+vi.mock('@/lib/team/spend', () => ({ attributeAndCheckMember: vi.fn(async () => ({ ok: true })) }));
 
 vi.mock('@/lib/prisma', () => {
   const matches = (row: Row, where: Row | undefined): boolean => {
@@ -125,6 +126,7 @@ vi.mock('@/lib/prisma', () => {
         return {
           createdById: project.createdById,
           workspaceId: project.workspaceId,
+          members: [],
           workspace: { ownerId: ws.ownerId, members: ws.members.includes(uid) ? [{ userId: uid }] : [] },
         };
       },

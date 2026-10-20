@@ -1,6 +1,9 @@
 import { notFound } from 'next/navigation';
 
 import { GrowthDashboard } from '@/components/app/growth/growth-dashboard';
+import { ProjectInsights } from '@/components/growth-bi/project-insights';
+import { collectProject } from '@/lib/growth-bi/project';
+import { listRecommendations } from '@/lib/growth-bi/service';
 import { getCachedSession } from '@/lib/auth/cached';
 import type { ProposedAction } from '@/lib/growth/experiments';
 import { collectGrowth, GROWTH_CAVEAT } from '@/lib/growth/metrics';
@@ -28,12 +31,16 @@ export default async function ProjectGrowthPage({ params, searchParams }: Props)
   const requested = Number((await searchParams)?.days);
   const days = [7, 30, 90].includes(requested) ? requested : 30;
   const { from, to } = periodFor(days);
-  const [snapshot, experiments] = await Promise.all([
+  const [snapshot, experiments, insights, insightAlerts, insightRecs] = await Promise.all([
     collectGrowth(project.id, from, to),
     prisma.growthExperiment.findMany({ where: { projectId: project.id }, orderBy: { createdAt: 'desc' }, take: 50 }),
+    collectProject(project.id, from, to),
+    prisma.growthAlert.findMany({ where: { scopeType: 'PROJECT', scopeId: project.id }, orderBy: { day: 'desc' }, take: 5, select: { id: true, message: true } }),
+    listRecommendations('PROJECT', project.id),
   ]);
 
   return (
+    <>
     <GrowthDashboard
       projectId={project.id}
       projectName={project.name}
@@ -61,5 +68,7 @@ export default async function ProjectGrowthPage({ params, searchParams }: Props)
         };
       })}
     />
+    <ProjectInsights projectId={project.id} days={days} snapshot={insights} alerts={insightAlerts} recommendations={insightRecs} />
+    </>
   );
 }

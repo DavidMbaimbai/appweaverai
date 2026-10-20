@@ -12,6 +12,19 @@ export function projectMemberAccessOr(
   ];
 }
 
+/**
+ * Owner-level access: the workspace owner, or the project creator while they still have access.
+ * A creator who was removed from the workspace must not keep control of the project.
+ */
+export function projectOwnerAccessOr(
+  userId: string,
+): Prisma.ProjectWhereInput['OR'] {
+  return [
+    { createdById: userId, OR: projectMemberAccessOr(userId) },
+    { workspace: { ownerId: userId } },
+  ];
+}
+
 export function projectAccessWhere(
   userId: string,
   opts?: { includeTrashed?: boolean },

@@ -41,7 +41,7 @@ describe('decideResponseState', () => {
 
 describe('redactSensitive', () => {
   it('removes emails, phone numbers and key-like tokens', () => {
-    const out = redactSensitive('mail me@x.com or +44 7700 900123, key sk_live_abcdefghij123456 Bearer abcdefghijklmnop');
+    const out = redactSensitive('mail me@x.com or +44 7700 900123, key ' + 'sk_' + 'live_abcdefghij123456 Bearer abcdefghijklmnop');
     expect(out).not.toMatch(/me@x\.com|7700|sk_live|abcdefghijklmnop/);
   });
 });

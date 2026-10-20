@@ -5,6 +5,7 @@ import {
 } from '@/lib/agent/constants';
 
 import { PublishVisibility } from '../publish/visibility';
+import { PLAN_DEFINITIONS, resolvePlanId } from './plans';
 
 export type AppTier = 'guest' | 'free' | 'pro';
 
@@ -19,7 +20,7 @@ export type AgentLimits = {
   model: string;
 };
 
-export const FREE_PROJECT_LIMIT = 3;
+export const FREE_PROJECT_LIMIT = PLAN_DEFINITIONS.free.limits.projects ?? 3;
 export const FREE_PRIVATE_DEPLOYMENT_LIMIT = 1;
 
 const FREE_AGENT_LIMITS: AgentLimits = {
@@ -34,12 +35,9 @@ const PRO_AGENT_LIMITS: AgentLimits = {
   model: getAnthropicModel(),
 };
 
+/** True for any active or trialing paid plan (Builder, Pro or Business). */
 export function isProUser(user: UserBillingFields): boolean {
-  return (
-    user.subscriptionPlan === 'pro' &&
-    (user.subscriptionStatus === 'active' ||
-      user.subscriptionStatus === 'trialing')
-  );
+  return resolvePlanId(user) !== 'free';
 }
 
 export function getAppTier(
@@ -72,7 +70,7 @@ export function canPublishVisibility(
 }
 
 export function canUseCustomDomain(tier: AppTier): boolean {
-  return tier === 'pro';
+  return PLAN_DEFINITIONS[tier === 'pro' ? 'pro' : 'free'].features.customDomains;
 }
 
 export const CUSTOM_DOMAIN_UPGRADE_MESSAGE =
@@ -80,14 +78,14 @@ export const CUSTOM_DOMAIN_UPGRADE_MESSAGE =
 
 export function getProjectLimit(tier: AppTier): number | null {
   if (tier === 'free') {
-    return FREE_PROJECT_LIMIT;
+    return PLAN_DEFINITIONS.free.limits.projects;
   }
 
   return null;
 }
 
 export function getDailyDesignSuggestionLimit(tier: AppTier): number {
-  return tier === 'pro' ? 100 : 10;
+  return PLAN_DEFINITIONS[tier === 'pro' ? 'pro' : 'free'].limits.dailyDesignSuggestions;
 }
 
 export function publishUpgradeMessage(visibility: PublishVisibility): string {

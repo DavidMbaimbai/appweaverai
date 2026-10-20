@@ -11,6 +11,7 @@ import {
   publishUpgradeMessage,
 } from '@/lib/billing/entitlements';
 import { getHostingLimits } from '@/lib/hosting/limits';
+import { resolvePlanId, type PlanId } from '@/lib/billing/plans';
 import {
   getLiveProductionDeployment,
   getLiveStagingDeployment,
@@ -19,6 +20,7 @@ import {
 } from '@/lib/hosting/staging';
 import { generateStagingToken, planPromotion } from '@/lib/hosting/staging-core';
 import { evaluatePublishGate, formatGateError } from '@/lib/launch-readiness/service';
+import { consumeApproval } from '@/lib/code-scan/approvals';
 import { appOrigin } from '@/lib/observatory/smoke';
 import { prisma } from '@/lib/prisma';
 import { getAccessibleProject } from '@/lib/projects/access';
@@ -119,7 +121,7 @@ async function activateStagingRow(
   projectSlug: string,
   artifactSlugs: string[],
   accessToken: string | null,
-  tier: ReturnType<typeof getAppTier>,
+  tier: PlanId,
 ) {
   const latest = await prisma.deployment.findFirst({
     where: { projectId },
@@ -186,7 +188,7 @@ export async function publishToStagingAction(projectId: string) {
   });
   // Keep the owner's choice (protected or open) across staging publishes.
   const accessToken = previous ? previous.accessToken : generateStagingToken();
-  const tier = getAppTier(await getUserBillingFields(userId));
+  const tier = resolvePlanId(await getUserBillingFields(userId));
 
   const out = await activateStagingRow(
     projectId,
@@ -322,7 +324,7 @@ export async function promoteStagingToProductionAction(
     project.artifacts.map((a) => a.slug),
     'PRODUCTION',
   )
-    .then(() => enforceDeploymentRetention(projectId, getHostingLimits(tier).deploymentsRetained))
+    .then(() => enforceDeploymentRetention(projectId, getHostingLimits(resolvePlanId(user)).deploymentsRetained))
     .catch(() => null);
 
   revalidatePath('/app/projects');
@@ -330,6 +332,7 @@ export async function promoteStagingToProductionAction(
   revalidatePath(urlPath);
   if (visibility === 'public') captureProjectScreenshots(project.id, project.artifacts);
   void refreshFeatureLedger(projectId, { summarise: false }).catch(() => null);
+  await consumeApproval(projectId, userId).catch(() => null);
 
   await recordUserActivity({
     userId,
@@ -389,7 +392,7 @@ export async function rollbackStagingAction(projectId: string, deploymentId: str
     orderBy: { version: 'desc' },
     select: { accessToken: true },
   });
-  const tier = getAppTier(await getUserBillingFields(userId));
+  const tier = resolvePlanId(await getUserBillingFields(userId));
   const out = await activateStagingRow(
     projectId,
     userId,

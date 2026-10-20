@@ -1,4 +1,5 @@
 import type { AppTier } from '@/lib/billing/entitlements';
+import { PLAN_DEFINITIONS, GUEST_LIMITS, type PlanId, type PlanLimits } from '@/lib/billing/plans';
 
 export type HostingLimits = {
   /** Custom domains across all of the user's projects. */
@@ -9,14 +10,18 @@ export type HostingLimits = {
   envVarsPerEnvironment: number;
 };
 
-const LIMITS: Record<AppTier, HostingLimits> = {
-  guest: { customDomains: 0, deploymentsRetained: 1, envVarsPerEnvironment: 0 },
-  free: { customDomains: 0, deploymentsRetained: 3, envVarsPerEnvironment: 10 },
-  pro: { customDomains: 10, deploymentsRetained: 20, envVarsPerEnvironment: 100 },
-};
+function pick(limits: PlanLimits): HostingLimits {
+  return {
+    customDomains: limits.customDomains,
+    deploymentsRetained: limits.deploymentsRetained,
+    envVarsPerEnvironment: limits.envVarsPerEnvironment,
+  };
+}
 
-export function getHostingLimits(tier: AppTier): HostingLimits {
-  return LIMITS[tier];
+/** Pass a plan id for exact per-plan limits; a bare tier maps paid users to the Pro plan. */
+export function getHostingLimits(tierOrPlan: AppTier | PlanId): HostingLimits {
+  if (tierOrPlan === 'guest') return pick(GUEST_LIMITS);
+  return pick(PLAN_DEFINITIONS[tierOrPlan].limits);
 }
 
 export function customDomainLimitMessage(tier: AppTier, limit: number) {
@@ -28,7 +33,7 @@ export function customDomainLimitMessage(tier: AppTier, limit: number) {
 
 export function envVarLimitMessage(tier: AppTier, limit: number) {
   if (tier === 'free') {
-    return `Free plan allows ${limit} environment variables per environment. Upgrade to Pro for up to ${LIMITS.pro.envVarsPerEnvironment}.`;
+    return `Free plan allows ${limit} environment variables per environment. Upgrade to Pro for up to ${PLAN_DEFINITIONS.pro.limits.envVarsPerEnvironment}.`;
   }
   return `You reached the limit of ${limit} environment variables per environment.`;
 }

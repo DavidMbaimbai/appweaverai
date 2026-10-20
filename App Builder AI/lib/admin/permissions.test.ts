@@ -49,7 +49,11 @@ describe('hasPermission', () => {
         permission !== 'contentpipeline:read' &&
         permission !== 'inbox:read' &&
         permission !== 'meetings:read' &&
-        permission !== 'backups:read';
+        permission !== 'backups:read' &&
+        permission !== 'codescan:read' &&
+        permission !== 'privacy:read' &&
+        permission !== 'revenue:read' &&
+        permission !== 'integrations:read';
       expect(hasPermission('ANALYTICS_VIEWER', permission)).toBe(expected);
     }
   });
@@ -90,6 +94,17 @@ describe('hasPermission', () => {
     for (const role of ['SUPPORT_ADMIN', 'FINANCE_ADMIN', 'SECURITY_ADMIN', 'ANALYTICS_VIEWER'] as const) {
       expect(hasPermission(role, 'contentpipeline:read')).toBe(false);
       expect(hasPermission(role, 'contentpipeline:write')).toBe(false);
+    }
+  });
+
+  it('limits growth attribution to ADMIN-level roles for writes and read-only roles for reads', () => {
+    expect(hasPermission('ADMIN', 'growth:read')).toBe(true);
+    expect(hasPermission('ADMIN', 'growth:write')).toBe(true);
+    expect(hasPermission('SUPER_ADMIN', 'growth:write')).toBe(true);
+    expect(hasPermission('ANALYTICS_VIEWER', 'growth:read')).toBe(true);
+    expect(hasPermission('ANALYTICS_VIEWER', 'growth:write')).toBe(false);
+    for (const role of ['SUPPORT_ADMIN', 'FINANCE_ADMIN', 'SECURITY_ADMIN'] as const) {
+      expect(hasPermission(role, 'growth:write')).toBe(false);
     }
   });
 
@@ -138,6 +153,51 @@ describe('hasPermission', () => {
     for (const role of ['FINANCE_ADMIN', 'SUPPORT_ADMIN', 'ANALYTICS_VIEWER'] as const) {
       expect(hasPermission(role, 'backups:read')).toBe(false);
       expect(hasPermission(role, 'backups:write')).toBe(false);
+    }
+  });
+
+  it('limits code scan to read for ADMIN, read/write for SECURITY_ADMIN, none for others', () => {
+    expect(hasPermission('SUPER_ADMIN', 'codescan:write')).toBe(true);
+    expect(hasPermission('SECURITY_ADMIN', 'codescan:read')).toBe(true);
+    expect(hasPermission('SECURITY_ADMIN', 'codescan:write')).toBe(true);
+    expect(hasPermission('ADMIN', 'codescan:read')).toBe(true);
+    expect(hasPermission('ADMIN', 'codescan:write')).toBe(false);
+    for (const role of ['FINANCE_ADMIN', 'SUPPORT_ADMIN', 'ANALYTICS_VIEWER'] as const) {
+      expect(hasPermission(role, 'codescan:read')).toBe(false);
+      expect(hasPermission(role, 'codescan:write')).toBe(false);
+    }
+  });
+
+  it('limits privacy to read/write for ADMIN, read for SECURITY_ADMIN, none for others', () => {
+    expect(hasPermission('SUPER_ADMIN', 'privacy:write')).toBe(true);
+    expect(hasPermission('ADMIN', 'privacy:read')).toBe(true);
+    expect(hasPermission('ADMIN', 'privacy:write')).toBe(true);
+    expect(hasPermission('SECURITY_ADMIN', 'privacy:read')).toBe(true);
+    expect(hasPermission('SECURITY_ADMIN', 'privacy:write')).toBe(false);
+    for (const role of ['FINANCE_ADMIN', 'SUPPORT_ADMIN', 'ANALYTICS_VIEWER'] as const) {
+      expect(hasPermission(role, 'privacy:read')).toBe(false);
+      expect(hasPermission(role, 'privacy:write')).toBe(false);
+    }
+  });
+
+  it('limits integrations to read/write for ADMIN, read for SECURITY_ADMIN, none for others', () => {
+    expect(hasPermission('SUPER_ADMIN', 'integrations:write')).toBe(true);
+    expect(hasPermission('ADMIN', 'integrations:read')).toBe(true);
+    expect(hasPermission('ADMIN', 'integrations:write')).toBe(true);
+    expect(hasPermission('SECURITY_ADMIN', 'integrations:read')).toBe(true);
+    expect(hasPermission('SECURITY_ADMIN', 'integrations:write')).toBe(false);
+    for (const role of ['FINANCE_ADMIN', 'SUPPORT_ADMIN', 'ANALYTICS_VIEWER'] as const) {
+      expect(hasPermission(role, 'integrations:read')).toBe(false);
+      expect(hasPermission(role, 'integrations:write')).toBe(false);
+    }
+  });
+
+  it('limits revenue:read to super admin, admin and finance admin', () => {
+    for (const role of ['SUPER_ADMIN', 'ADMIN', 'FINANCE_ADMIN'] as const) {
+      expect(hasPermission(role, 'revenue:read')).toBe(true);
+    }
+    for (const role of ['SUPPORT_ADMIN', 'ANALYTICS_VIEWER', 'SECURITY_ADMIN'] as const) {
+      expect(hasPermission(role, 'revenue:read')).toBe(false);
     }
   });
 

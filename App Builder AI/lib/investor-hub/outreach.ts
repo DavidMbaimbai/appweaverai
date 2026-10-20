@@ -1,5 +1,6 @@
 import { getAnthropicClient } from '@/lib/anthropic';
 import { prisma } from '@/lib/prisma';
+import { findOutreachSuppression } from '@/lib/privacy/suppression';
 import { normalizeEmail } from '@/lib/outreach/compliance';
 
 import {
@@ -218,7 +219,7 @@ export async function markSent(ctx: Ctx, id: string) {
   const investor = await requireInvestor(ctx, item.investorId);
 
   const suppressed = investor.emailKey
-    ? Boolean(await prisma.outreachSuppression.findUnique({ where: { email: normalizeEmail(investor.emailKey) } }))
+    ? Boolean(await findOutreachSuppression(normalizeEmail(investor.emailKey)))
     : false;
   const dayStart = new Date();
   dayStart.setUTCHours(0, 0, 0, 0);

@@ -10,6 +10,7 @@ import {
 import { runAgentLoop } from '@/lib/agent/run-agent';
 import { startAgentRun, endAgentRun } from '@/lib/agent/run-presence';
 import { createProjectCheckpoint } from '@/lib/project-checkpoints';
+import { runMemoryPostRun } from '@/lib/project-memory/post-run';
 import type { AgentMessageMetadata, AgentStreamEvent } from '@/lib/agent/types';
 import { getAgentLimits, getAppTier } from '@/lib/billing/entitlements';
 import {
@@ -20,6 +21,7 @@ import { getUserBillingFields } from '@/lib/queries/billing';
 import { prisma } from '@/lib/prisma';
 import { limitOrResponse } from '@/lib/rate-limit';
 import { withCredits } from '@/lib/credits/with-credits';
+import { denyWithoutCapability } from '@/lib/team/http';
 
 const bodySchema = z.object({
   content: z.string().trim().min(1).max(8000).optional(),
@@ -66,6 +68,9 @@ export async function POST(
     });
   }
 
+  const denied = await denyWithoutCapability(userId, projectId, 'run_agent');
+  if (denied) return denied;
+
   const artifact = await getArtifactForProject(
     projectId,
     parsed.data.artifactId,
@@ -74,6 +79,19 @@ export async function POST(
     return new Response(JSON.stringify({ error: 'Artifact not found.' }), {
       status: 404,
     });
+  }
+
+  // A client-supplied conversation must belong to this project, never another tenant's.
+  if (parsed.data.conversationId) {
+    const owned = await prisma.agentConversation.findFirst({
+      where: { id: parsed.data.conversationId, projectId },
+      select: { id: true },
+    });
+    if (!owned) {
+      return new Response(JSON.stringify({ error: 'Conversation not found.' }), {
+        status: 404,
+      });
+    }
   }
 
   const conversationId =
@@ -209,6 +227,7 @@ export async function POST(
         // Best-effort automatic checkpoint so this turn's file changes can
         // be rolled back later from the editor's History panel. Never
         // blocks the response to the user.
+        let checkpointId: string | null = null;
         if (result.fileWrites.length > 0) {
           const label =
             result.summary.split('\n')[0]?.slice(0, 120) || 'Agent update';
@@ -217,9 +236,25 @@ export async function POST(
             label,
             createdById: userId,
             isAutomatic: true,
-          }).catch((error) => {
-            console.error('Failed to create automatic checkpoint:', error);
-          });
+          })
+            .then((checkpoint) => {
+              checkpointId = checkpoint?.id ?? null;
+            })
+            .catch((error) => {
+              console.error('Failed to create automatic checkpoint:', error);
+            })
+            .finally(() => {
+              void runMemoryPostRun({
+                projectId,
+                userId,
+                artifactSlug: artifact.slug,
+                conversationId,
+                messageId: assistantMessage.id,
+                checkpointId,
+                userRequest: parsed.data.content ?? '',
+                runSummary: result.summary,
+              });
+            });
         }
 
         send({

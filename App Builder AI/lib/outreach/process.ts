@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { findOutreachSuppression } from '@/lib/privacy/suppression';
 import { sendEmail } from '@/lib/email';
 import {
   isValidEmail,
@@ -103,9 +104,7 @@ export async function discoverInvestors(queries?: string[]): Promise<DiscoverRes
 
       for (const investor of investors) {
         if (investor.email) {
-          const blocked = await prisma.outreachSuppression.findUnique({
-            where: { email: investor.email },
-          });
+          const blocked = await findOutreachSuppression(investor.email);
           if (blocked) continue;
         }
         try {
@@ -174,7 +173,7 @@ export async function importLeads(leads: ImportedLead[]) {
     const email = lead.email ? normalizeEmail(lead.email) : null;
     if (
       (email && !isValidEmail(email)) ||
-      (email && (await prisma.outreachSuppression.findUnique({ where: { email } })))
+      (email && (await findOutreachSuppression(email)))
     ) {
       result.skipped += 1;
       continue;
@@ -276,7 +275,7 @@ export async function reviewLead(
     return { ok: false, error: 'no-email' };
   }
 
-  if (await prisma.outreachSuppression.findUnique({ where: { email: normalizeEmail(lead.email) } })) {
+  if (await findOutreachSuppression(normalizeEmail(lead.email))) {
     await prisma.investorLead.update({ where: { id }, data: { status: 'DO_NOT_CONTACT' } });
     return { ok: false, error: 'suppressed' };
   }

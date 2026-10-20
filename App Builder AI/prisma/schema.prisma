@@ -372,20 +372,28 @@ enum ProjectAdminStatus {
 }
 
 model Project {
-  id             String                 @id @default(cuid())
-  reviews        ProjectReview[]
-  reviewSettings ProjectReviewSettings?
-  knowledgeDocs  ProjectKnowledge[]
-  supportTickets ProjectSupportTicket[]
-  workspaceId    String                 @map("workspace_id")
-  name           String
-  slug           String
-  description    String?                @db.Text
-  iconUrl        String?                @map("icon_url")
-  createdById    String                 @map("created_by_id")
-  createdAt      DateTime               @default(now()) @map("created_at")
-  updatedAt      DateTime               @updatedAt @map("updated_at")
-  deletedAt      DateTime?              @map("deleted_at")
+  id                     String                   @id @default(cuid())
+  reviews                ProjectReview[]
+  scanRuns               ScanRun[]
+  integrationConnections IntegrationConnection[]
+  integrationApiLogs     IntegrationApiLog[]
+  inboundWebhooks        InboundWebhookEndpoint[]
+  webhookSubscriptions   WebhookSubscription[]
+  scanSchedule           ScanSchedule?
+  changeApprovals        ChangeApproval[]
+  bugDiagnoses           BugDiagnosis[]
+  reviewSettings         ProjectReviewSettings?
+  knowledgeDocs          ProjectKnowledge[]
+  supportTickets         ProjectSupportTicket[]
+  workspaceId            String                   @map("workspace_id")
+  name                   String
+  slug                   String
+  description            String?                  @db.Text
+  iconUrl                String?                  @map("icon_url")
+  createdById            String                   @map("created_by_id")
+  createdAt              DateTime                 @default(now()) @map("created_at")
+  updatedAt              DateTime                 @updatedAt @map("updated_at")
+  deletedAt              DateTime?                @map("deleted_at")
 
   /// Admin Console lifecycle controls (ADM-073, ADM-074).
   adminStatus     ProjectAdminStatus @default(ACTIVE) @map("admin_status")
@@ -435,6 +443,9 @@ model Project {
   leads             Lead[]
   leadSlots         LeadAvailabilitySlot[]
   growthExperiments GrowthExperiment[]
+  memories          ProjectMemory[]
+  codeMapEntries    ProjectCodeMapEntry[]
+  memoryInjections  ProjectMemoryInjection[]
   remixedFrom       Project?                  @relation("ProjectRemixes", fields: [remixedFromProjectId], references: [id], onDelete: SetNull)
   remixes           Project[]                 @relation("ProjectRemixes")
 
@@ -2300,8 +2311,13 @@ model CreditLedger {
   balanceAfter   Int      @map("balance_after")
   idempotencyKey String   @unique @map("idempotency_key")
   createdAt      DateTime @default(now()) @map("created_at")
+  /// PURCHASED | PROMOTIONAL | SUBSCRIPTION | ADJUSTMENT for credits added; null for spend/legacy rows.
+  source         String?
+  /// Workspace the spend is attributed to (workspace spending limits).
+  workspaceId    String?  @map("workspace_id")
 
   @@index([userId, createdAt])
+  @@index([workspaceId, createdAt])
   @@map("credit_ledger")
 }
 
@@ -3103,16 +3119,16 @@ model InboxMessage {
 
 /// Credentials for one channel of one scope. `config` is AES-GCM encrypted JSON (lib/crypto/secret-box).
 model ChannelConnection {
-  id          String         @id @default(cuid())
-  scopeType   AgentScopeType @map("scope_type")
-  scopeId     String         @map("scope_id")
-  channel     MessageChannel
+  id        String         @id @default(cuid())
+  scopeType AgentScopeType @map("scope_type")
+  scopeId   String         @map("scope_id")
+  channel   MessageChannel
   /// Non-secret provider account id used to route webhooks (phone number id, page id, Twilio number).
-  accountId   String?        @map("account_id")
-  config      String         @db.Text
-  status      String         @default("ACTIVE")
-  createdAt   DateTime       @default(now()) @map("created_at")
-  updatedAt   DateTime       @updatedAt @map("updated_at")
+  accountId String?        @map("account_id")
+  config    String         @db.Text
+  status    String         @default("ACTIVE")
+  createdAt DateTime       @default(now()) @map("created_at")
+  updatedAt DateTime       @updatedAt @map("updated_at")
 
   @@unique([scopeType, scopeId, channel])
   @@index([channel, accountId])
@@ -3371,52 +3387,52 @@ model MeetingType {
 }
 
 model Meeting {
-  id               String    @id @default(cuid())
-  scopeType        String    @default("PLATFORM") @map("scope_type")
-  scopeId          String    @default("PLATFORM") @map("scope_id")
-  typeId           String?   @map("type_id")
-  title            String
+  id                 String    @id @default(cuid())
+  scopeType          String    @default("PLATFORM") @map("scope_type")
+  scopeId            String    @default("PLATFORM") @map("scope_id")
+  typeId             String?   @map("type_id")
+  title              String
   /// REQUESTED | PROPOSED | AWAITING_CONFIRMATION | CONFIRMED | RESCHEDULED | CANCELLED | COMPLETED | MISSED | FAILED
-  status           String    @default("REQUESTED")
-  category         String    @default("CUSTOMER")
-  startsAt         DateTime? @map("starts_at")
-  endsAt           DateTime? @map("ends_at")
-  durationMin      Int       @default(30) @map("duration_min")
-  timeZone         String    @default("UTC") @map("time_zone")
-  hostUserId       String?   @map("host_user_id")
-  assigneeId       String?   @map("assignee_id")
+  status             String    @default("REQUESTED")
+  category           String    @default("CUSTOMER")
+  startsAt           DateTime? @map("starts_at")
+  endsAt             DateTime? @map("ends_at")
+  durationMin        Int       @default(30) @map("duration_min")
+  timeZone           String    @default("UTC") @map("time_zone")
+  hostUserId         String?   @map("host_user_id")
+  assigneeId         String?   @map("assignee_id")
   /// [{ name, email, phone, timeZone, role, userId }]
-  participants     Json      @default("[]")
-  agenda           String    @default("") @db.Text
+  participants       Json      @default("[]")
+  agenda             String    @default("") @db.Text
   /// LEAD | INVESTOR | SUPPORT_TICKET | PROJECT | USER_REQUEST | MANUAL
-  sourceType       String    @default("MANUAL") @map("source_type")
-  sourceId         String?   @map("source_id")
-  requestedById    String?   @map("requested_by_id")
-  requestedByAgent Boolean   @default(false) @map("requested_by_agent")
-  locationKind     String    @default("MANUAL_LINK") @map("location_kind")
-  locationText     String?   @map("location_text")
-  conferenceProvider String? @map("conference_provider")
-  conferenceUrl    String?   @map("conference_url") @db.Text
-  conferenceId     String?   @map("conference_id")
-  calendarProvider String?   @map("calendar_provider")
-  externalEventId  String?   @map("external_event_id")
-  idempotencyKey   String    @unique @map("idempotency_key")
+  sourceType         String    @default("MANUAL") @map("source_type")
+  sourceId           String?   @map("source_id")
+  requestedById      String?   @map("requested_by_id")
+  requestedByAgent   Boolean   @default(false) @map("requested_by_agent")
+  locationKind       String    @default("MANUAL_LINK") @map("location_kind")
+  locationText       String?   @map("location_text")
+  conferenceProvider String?   @map("conference_provider")
+  conferenceUrl      String?   @map("conference_url") @db.Text
+  conferenceId       String?   @map("conference_id")
+  calendarProvider   String?   @map("calendar_provider")
+  externalEventId    String?   @map("external_event_id")
+  idempotencyKey     String    @unique @map("idempotency_key")
   /// Private to staff with meetings:notes; never rendered to participants.
-  internalNotes    String?   @map("internal_notes") @db.Text
-  transcriptConsent Boolean  @default(false) @map("transcript_consent")
-  transcript       String?   @db.Text
-  outcome          String?   @db.Text
-  nextSteps        Json?     @map("next_steps")
-  summary          String?   @db.Text
+  internalNotes      String?   @map("internal_notes") @db.Text
+  transcriptConsent  Boolean   @default(false) @map("transcript_consent")
+  transcript         String?   @db.Text
+  outcome            String?   @db.Text
+  nextSteps          Json?     @map("next_steps")
+  summary            String?   @db.Text
   /// Bumped on every change so older signed links stop working.
-  tokenVersion     Int       @default(1) @map("token_version")
-  failureReason    String?   @map("failure_reason") @db.Text
-  confirmedAt      DateTime? @map("confirmed_at")
-  cancelledAt      DateTime? @map("cancelled_at")
-  cancelReason     String?   @map("cancel_reason")
-  notesPurgedAt    DateTime? @map("notes_purged_at")
-  createdAt        DateTime  @default(now()) @map("created_at")
-  updatedAt        DateTime  @updatedAt @map("updated_at")
+  tokenVersion       Int       @default(1) @map("token_version")
+  failureReason      String?   @map("failure_reason") @db.Text
+  confirmedAt        DateTime? @map("confirmed_at")
+  cancelledAt        DateTime? @map("cancelled_at")
+  cancelReason       String?   @map("cancel_reason")
+  notesPurgedAt      DateTime? @map("notes_purged_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
 
   @@index([scopeType, scopeId, status, startsAt])
   @@index([sourceType, sourceId])
@@ -3559,4 +3575,1078 @@ model BackupRun {
 
   @@index([kind, status, finishedAt])
   @@map("backup_runs")
+}
+
+/// One security/quality scan of a project's files (lib/code-scan). The latest completed run is authoritative for the publish gate.
+model ScanRun {
+  id                String   @id @default(cuid())
+  projectId         String   @map("project_id")
+  triggeredById     String?  @map("triggered_by_id")
+  /// MANUAL | PUBLISH | READINESS | ADMIN | SCHEDULED | REGRESSION
+  trigger           String   @default("MANUAL")
+  /// SCAN (security/quality scan) | REGRESSION (sandboxed tests/build check)
+  kind              String   @default("SCAN")
+  /// REGRESSION only: PASSED | FAILED | NOT_RUN. NOT_RUN never means passed.
+  regressionStatus  String?  @map("regression_status")
+  regressionCommand String?  @map("regression_command")
+  /// Redacted, truncated command output (or the reason it could not run).
+  regressionOutput  String?  @map("regression_output") @db.Text
+  /// WORKING | STAGING | PRODUCTION
+  source            String   @default("WORKING")
+  filesScanned      Int      @default(0) @map("files_scanned")
+  criticalCount     Int      @default(0) @map("critical_count")
+  highCount         Int      @default(0) @map("high_count")
+  mediumCount       Int      @default(0) @map("medium_count")
+  lowCount          Int      @default(0) @map("low_count")
+  /// OK | UNAVAILABLE | SKIPPED (no package.json). UNAVAILABLE never means "clean".
+  depStatus         String   @default("SKIPPED") @map("dep_status")
+  depDetail         String?  @map("dep_detail") @db.Text
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  project  Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  findings ScanFinding[]
+
+  @@index([projectId, createdAt])
+  @@index([projectId, kind, createdAt])
+  @@index([createdAt])
+  @@map("scan_runs")
+}
+
+model ScanFinding {
+  id            String    @id @default(cuid())
+  runId         String    @map("run_id")
+  projectId     String    @map("project_id")
+  /// Stable across runs (rule + file + normalised evidence) so acknowledgements carry over.
+  fingerprint   String
+  rule          String
+  /// SECRET | CODE | DEPENDENCY | ACCESSIBILITY | PERFORMANCE
+  category      String
+  /// CRITICAL | HIGH | MEDIUM | LOW | INFO
+  severity      String
+  file          String
+  line          Int?
+  title         String
+  message       String    @db.Text
+  /// Redacted excerpt; never contains a full secret.
+  snippet       String?   @db.Text
+  /// OPEN | ACKNOWLEDGED | FIXED
+  status        String    @default("OPEN")
+  ackReason     String?   @map("ack_reason") @db.Text
+  ackById       String?   @map("ack_by_id")
+  ackAt         DateTime? @map("ack_at")
+  /// AI-proposed fix text. Never applied automatically.
+  fixProposal   String?   @map("fix_proposal") @db.Text
+  fixProposedAt DateTime? @map("fix_proposed_at")
+  /// When this fingerprint was first reported; carried across runs so "open findings by age" is meaningful.
+  firstSeenAt   DateTime? @map("first_seen_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  run ScanRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId, severity])
+  @@index([projectId, fingerprint])
+  @@index([projectId, status])
+  @@map("scan_findings")
+}
+
+// ---------------------------------------------------------------------------
+// Privacy / data-subject rights (GDPR + POPIA). See docs/privacy/data-map.md.
+// ---------------------------------------------------------------------------
+
+/// Asynchronous account data export. The zip lives in object storage (storageKey) or, when no bucket is configured, in `data`.
+model PrivacyExportJob {
+  id            String    @id @default(cuid())
+  userId        String    @map("user_id")
+  /// QUEUED | RUNNING | READY | FAILED | EXPIRED
+  status        String    @default("QUEUED")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  startedAt     DateTime? @map("started_at")
+  completedAt   DateTime? @map("completed_at")
+  expiresAt     DateTime? @map("expires_at")
+  storageKey    String?   @map("storage_key")
+  data          Bytes?
+  sizeBytes     Int?      @map("size_bytes")
+  error         String?   @db.Text
+  downloadCount Int       @default(0) @map("download_count")
+
+  @@index([userId, createdAt])
+  @@index([status, expiresAt])
+  @@map("privacy_export_jobs")
+}
+
+/// One row per user: account deletion with a grace period. The user row itself is anonymised (not removed) to keep billing records intact.
+model PrivacyDeletionRequest {
+  id           String    @id @default(cuid())
+  userId       String    @unique @map("user_id")
+  /// SCHEDULED | CANCELLED | PROCESSING | COMPLETED | FAILED
+  status       String    @default("SCHEDULED")
+  requestedAt  DateTime  @default(now()) @map("requested_at")
+  scheduledFor DateTime  @map("scheduled_for")
+  cancelledAt  DateTime? @map("cancelled_at")
+  completedAt  DateTime? @map("completed_at")
+  attempts     Int       @default(0)
+  error        String?   @db.Text
+  /// "user" | "admin" | "dsar"
+  source       String    @default("user")
+
+  @@index([status, scheduledFor])
+  @@map("privacy_deletion_requests")
+}
+
+/// Data-subject request from a third party (lead, investor, messaging contact, meeting participant).
+model PrivacyRequest {
+  id              String    @id @default(cuid())
+  /// ACCESS | ERASURE | RECTIFICATION | OBJECTION | OTHER
+  type            String
+  /// PENDING_VERIFICATION | OPEN | IN_PROGRESS | COMPLETED | REJECTED
+  status          String    @default("PENDING_VERIFICATION")
+  requesterName   String?   @map("requester_name")
+  email           String?
+  emailHash       String?   @map("email_hash")
+  phone           String?
+  phoneHash       String?   @map("phone_hash")
+  details         String?   @db.Text
+  verifyTokenHash String?   @unique @map("verify_token_hash")
+  verifyExpiresAt DateTime? @map("verify_expires_at")
+  verifiedAt      DateTime? @map("verified_at")
+  receivedAt      DateTime  @default(now()) @map("received_at")
+  /// 30 days from verified receipt.
+  dueAt           DateTime? @map("due_at")
+  completedAt     DateTime? @map("completed_at")
+  /// FULFILLED | PARTIALLY_FULFILLED | NO_DATA_FOUND | REFUSED
+  outcome         String?
+  outcomeNote     String?   @map("outcome_note") @db.Text
+  handledById     String?   @map("handled_by_id")
+  ipHash          String?   @map("ip_hash")
+
+  events PrivacyRequestEvent[]
+
+  @@index([status, dueAt])
+  @@index([emailHash])
+  @@map("privacy_requests")
+}
+
+model PrivacyRequestEvent {
+  id        String   @id @default(cuid())
+  requestId String   @map("request_id")
+  actorId   String?  @map("actor_id")
+  action    String
+  note      String?  @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+
+  request PrivacyRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId, createdAt])
+  @@map("privacy_request_events")
+}
+
+/// Configurable retention. A policy only purges when enabled; `dryRun` (default on) counts without deleting.
+model PrivacyRetentionPolicy {
+  key           String    @id
+  retentionDays Int       @map("retention_days")
+  enabled       Boolean   @default(false)
+  dryRun        Boolean   @default(true) @map("dry_run")
+  lastRunAt     DateTime? @map("last_run_at")
+  lastRunCount  Int?      @map("last_run_count")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  updatedById   String?   @map("updated_by_id")
+
+  @@map("privacy_retention_policies")
+}
+
+/// Per-project scheduled re-scan (lib/code-scan/schedule). Deterministic scanning only, so it never spends credits.
+model ScanSchedule {
+  id          String    @id @default(cuid())
+  projectId   String    @unique @map("project_id")
+  enabled     Boolean   @default(true)
+  /// DAILY | WEEKLY
+  frequency   String    @default("WEEKLY")
+  lastRunAt   DateTime? @map("last_run_at")
+  nextRunAt   DateTime  @map("next_run_at")
+  /// Why the last tick skipped or failed (for example the plan no longer includes scheduled scans).
+  lastError   String?   @map("last_error")
+  createdById String?   @map("created_by_id")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([enabled, nextRunAt])
+  @@map("scan_schedules")
+}
+
+/// Explicit owner approval for a risky production change (lib/code-scan/approvals). Mirrors the agent approval flow:
+/// PENDING until a human decides, decided atomically once, always with a reason.
+model ChangeApproval {
+  id             String    @id @default(cuid())
+  projectId      String    @map("project_id")
+  /// PRODUCTION_PUBLISH
+  kind           String    @default("PRODUCTION_PUBLISH")
+  /// Stable hash of the risk set at request time; approval only covers that exact set.
+  digest         String
+  /// JSON array of { kind, summary } risks shown to the approver.
+  risks          Json
+  /// PENDING | APPROVED | REJECTED | CONSUMED | EXPIRED
+  status         String    @default("PENDING")
+  requestedById  String    @map("requested_by_id")
+  decidedById    String?   @map("decided_by_id")
+  decisionReason String?   @map("decision_reason") @db.Text
+  decidedAt      DateTime? @map("decided_at")
+  consumedAt     DateTime? @map("consumed_at")
+  expiresAt      DateTime  @map("expires_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, status, createdAt])
+  @@map("change_approvals")
+}
+
+/// Monthly development-credit spending cap for a user or a workspace. Marketing wallets are separate and unaffected.
+model CreditSpendLimit {
+  id           String   @id @default(cuid())
+  /// USER | WORKSPACE
+  scope        String
+  scopeId      String   @map("scope_id")
+  monthlyLimit Int      @map("monthly_limit")
+  setById      String?  @map("set_by_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@unique([scope, scopeId])
+  @@map("credit_spend_limits")
+}
+
+/// One row per (scope, month, threshold): the unique key makes 80%/100% alerts idempotent.
+model CreditUsageAlert {
+  id        String    @id @default(cuid())
+  /// USER | WORKSPACE | ALLOWANCE
+  scope     String
+  scopeId   String    @map("scope_id")
+  /// Who is notified (the limit owner / workspace owner).
+  userId    String    @map("user_id")
+  /// UTC calendar month, YYYY-MM.
+  period    String
+  threshold Int
+  spent     Int
+  cap       Int
+  emailedAt DateTime? @map("emailed_at")
+  readAt    DateTime? @map("read_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@unique([scope, scopeId, period, threshold])
+  @@index([userId, readAt, createdAt])
+  @@map("credit_usage_alerts")
+}
+
+/// Compensating record for an admin refund/reversal of one ledger entry (the ledger itself is append-only).
+model LedgerReversal {
+  id             String   @id @default(cuid())
+  /// DEV | MARKETING
+  ledger         String
+  entryId        String   @map("entry_id")
+  userId         String   @map("user_id")
+  credits        Int
+  reason         String   @db.Text
+  adminId        String   @map("admin_id")
+  idempotencyKey String   @unique @map("idempotency_key")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@unique([ledger, entryId])
+  @@index([userId, createdAt])
+  @@map("ledger_reversals")
+}
+
+/// Invoice mirror synced from Stripe webhooks / API. Never created locally.
+model StripeInvoice {
+  id                   String    @id
+  userId               String?   @map("user_id")
+  customerId           String    @map("customer_id")
+  subscriptionId       String?   @map("subscription_id")
+  number               String?
+  status               String
+  currency             String
+  amountDueCents       Int       @map("amount_due_cents")
+  amountPaidCents      Int       @map("amount_paid_cents")
+  amountRemainingCents Int       @map("amount_remaining_cents")
+  hostedInvoiceUrl     String?   @map("hosted_invoice_url") @db.Text
+  invoicePdfUrl        String?   @map("invoice_pdf_url") @db.Text
+  billingReason        String?   @map("billing_reason")
+  description          String?   @db.Text
+  planId               String?   @map("plan_id")
+  periodStart          DateTime? @map("period_start")
+  periodEnd            DateTime? @map("period_end")
+  attemptCount         Int       @default(0) @map("attempt_count")
+  nextPaymentAttemptAt DateTime? @map("next_payment_attempt_at")
+  paidAt               DateTime? @map("paid_at")
+  stripeCreatedAt      DateTime  @map("stripe_created_at")
+  lastEventAt          DateTime  @map("last_event_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  @@index([userId, stripeCreatedAt])
+  @@index([status, stripeCreatedAt])
+  @@index([customerId])
+  @@map("stripe_invoices")
+}
+
+/// Current state of each Stripe subscription (webhook-synced); MRR is the list price normalised to one month.
+model StripeSubscription {
+  id                String    @id
+  userId            String?   @map("user_id")
+  customerId        String    @map("customer_id")
+  status            String
+  planId            String?   @map("plan_id")
+  interval          String
+  intervalCount     Int       @default(1) @map("interval_count")
+  unitAmountCents   Int       @map("unit_amount_cents")
+  quantity          Int       @default(1)
+  currency          String
+  /// 0 whenever the subscription is not active, trialing or past_due.
+  mrrCents          Int       @map("mrr_cents")
+  cancelAtPeriodEnd Boolean   @default(false) @map("cancel_at_period_end")
+  currentPeriodEnd  DateTime? @map("current_period_end")
+  startedAt         DateTime  @map("started_at")
+  endedAt           DateTime? @map("ended_at")
+  lastEventAt       DateTime  @map("last_event_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@index([userId])
+  @@index([currentPeriodEnd])
+  @@map("stripe_subscriptions")
+}
+
+/// Append-only MRR history per subscription: powers the trend line, churn and net revenue retention.
+model StripeSubscriptionMrrChange {
+  id             String   @id @default(cuid())
+  subscriptionId String   @map("subscription_id")
+  userId         String?  @map("user_id")
+  planId         String?  @map("plan_id")
+  currency       String
+  mrrCents       Int      @map("mrr_cents")
+  effectiveAt    DateTime @map("effective_at")
+  stripeEventId  String   @map("stripe_event_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@unique([subscriptionId, stripeEventId])
+  @@index([subscriptionId, effectiveAt])
+  @@index([effectiveAt])
+  @@map("stripe_subscription_mrr_changes")
+}
+
+/// Latest refunded total per Stripe charge (from charge.refunded); used for net revenue.
+model StripeChargeRefund {
+  chargeId            String   @id @map("charge_id")
+  paymentIntentId     String?  @map("payment_intent_id")
+  invoiceId           String?  @map("invoice_id")
+  customerId          String?  @map("customer_id")
+  userId              String?  @map("user_id")
+  amountRefundedCents Int      @map("amount_refunded_cents")
+  currency            String
+  lastEventAt         DateTime @map("last_event_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  @@index([userId])
+  @@map("stripe_charge_refunds")
+}
+
+/// Per-customer billing state driven by webhooks (dunning banner, invoice cache freshness).
+model BillingCustomerState {
+  userId                 String    @id @map("user_id")
+  paymentFailedAt        DateTime? @map("payment_failed_at")
+  paymentFailedInvoiceId String?   @map("payment_failed_invoice_id")
+  paymentFailedEventAt   DateTime? @map("payment_failed_event_at")
+  paymentFailedAttempts  Int       @default(0) @map("payment_failed_attempts")
+  invoicesSyncedAt       DateTime? @map("invoices_synced_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+
+  @@map("billing_customer_states")
+}
+
+/// AI diagnosis of a failed build/deploy/regression. Input is redacted before storage; the fix is text only, never applied.
+model BugDiagnosis {
+  id          String   @id @default(cuid())
+  projectId   String   @map("project_id")
+  /// REGRESSION | BUILD | DEPLOY
+  source      String
+  /// Redacted, truncated log excerpt that was sent to the model.
+  input       String   @db.Text
+  diagnosis   String   @db.Text
+  createdById String   @map("created_by_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+  @@map("bug_diagnoses")
+}
+
+// ---------------------------------------------------------------------------
+// Integrations marketplace (lib/integrations)
+// ---------------------------------------------------------------------------
+
+/// One connected third-party service per project and catalogue entry. Credentials live only in `secretEnc`
+/// (AES-GCM secret box) and in the project's server-side env vars; they are never sent back to the client.
+model IntegrationConnection {
+  id                String    @id @default(cuid())
+  projectId         String    @map("project_id")
+  /// Catalogue id (lib/integrations/catalogue).
+  integrationId     String    @map("integration_id")
+  /// Non-secret configuration (hosts, allowed methods/paths, timeouts).
+  config            Json      @default("{}")
+  /// Encrypted JSON of the credential fields.
+  secretEnc         String    @map("secret_enc") @db.Text
+  /// Masked hint per secret field, e.g. {"apiKey":"…a1b2"}.
+  maskedHints       Json      @default("{}") @map("masked_hints")
+  /// CONNECTED | ERROR
+  status            String    @default("CONNECTED")
+  /// UNKNOWN | HEALTHY | DEGRADED | DOWN
+  healthStatus      String    @default("UNKNOWN") @map("health_status")
+  lastTestAt        DateTime? @map("last_test_at")
+  lastTestOk        Boolean?  @map("last_test_ok")
+  lastTestLatencyMs Int?      @map("last_test_latency_ms")
+  lastTestError     String?   @map("last_test_error")
+  lastUsedAt        DateTime? @map("last_used_at")
+  usageCount        Int       @default(0) @map("usage_count")
+  /// Estimated spend in thousandths of a cent (we only meter what we proxy).
+  estCostMicros     Int       @default(0) @map("est_cost_micros")
+  createdById       String?   @map("created_by_id")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  project Project                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  checks  IntegrationHealthCheck[]
+  logs    IntegrationApiLog[]
+
+  @@unique([projectId, integrationId])
+  @@index([integrationId, healthStatus])
+  @@map("integration_connections")
+}
+
+model IntegrationHealthCheck {
+  id            String   @id @default(cuid())
+  connectionId  String   @map("connection_id")
+  projectId     String   @map("project_id")
+  integrationId String   @map("integration_id")
+  ok            Boolean
+  latencyMs     Int      @map("latency_ms")
+  error         String?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  connection IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@index([connectionId, createdAt])
+  @@index([createdAt])
+  @@map("integration_health_checks")
+}
+
+/// Admin kill-switch for a catalogue entry (new connections and proxy calls are refused while disabled).
+model IntegrationCatalogueOverride {
+  integrationId String   @id @map("integration_id")
+  disabled      Boolean  @default(false)
+  reason        String?
+  updatedById   String?  @map("updated_by_id")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@map("integration_catalogue_overrides")
+}
+
+/// Request log for the server-side API proxy. Never contains headers, bodies or query strings.
+model IntegrationApiLog {
+  id            String   @id @default(cuid())
+  projectId     String   @map("project_id")
+  connectionId  String   @map("connection_id")
+  method        String
+  host          String
+  path          String
+  status        Int?
+  durationMs    Int      @map("duration_ms")
+  responseBytes Int      @default(0) @map("response_bytes")
+  error         String?
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  project    Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  connection IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+  @@index([connectionId, createdAt])
+  @@map("integration_api_logs")
+}
+
+/// Inbound webhook receiver for a generated app: HMAC-SHA256 over `${timestamp}.${body}`, replay window, idempotent by event id.
+model InboundWebhookEndpoint {
+  id        String   @id @default(cuid())
+  projectId String   @map("project_id")
+  name      String
+  /// Public path token (not a secret on its own).
+  publicId  String   @unique @map("public_id")
+  secretEnc String   @map("secret_enc") @db.Text
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  project Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  events  InboundWebhookEvent[]
+
+  @@index([projectId])
+  @@map("inbound_webhook_endpoints")
+}
+
+model InboundWebhookEvent {
+  id         String   @id @default(cuid())
+  endpointId String   @map("endpoint_id")
+  /// Sender-supplied idempotency key (X-Webhook-Id).
+  eventId    String   @map("event_id")
+  payload    String   @db.Text
+  receivedAt DateTime @default(now()) @map("received_at")
+
+  endpoint InboundWebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+
+  @@unique([endpointId, eventId])
+  @@index([endpointId, receivedAt])
+  @@map("inbound_webhook_events")
+}
+
+/// Outbound subscription: we POST signed events from the generated app to `url`.
+model WebhookSubscription {
+  id                  String   @id @default(cuid())
+  projectId           String   @map("project_id")
+  url                 String
+  secretEnc           String   @map("secret_enc") @db.Text
+  /// Event names, or ["*"].
+  events              String[]
+  active              Boolean  @default(true)
+  consecutiveFailures Int      @default(0) @map("consecutive_failures")
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  project    Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  deliveries WebhookDelivery[]
+
+  @@index([projectId])
+  @@map("webhook_subscriptions")
+}
+
+model WebhookDelivery {
+  id             String    @id @default(cuid())
+  subscriptionId String    @map("subscription_id")
+  projectId      String    @map("project_id")
+  event          String
+  payload        String    @db.Text
+  /// PENDING | SUCCESS | FAILED
+  status         String    @default("PENDING")
+  attempts       Int       @default(0)
+  nextAttemptAt  DateTime? @map("next_attempt_at")
+  lastStatusCode Int?      @map("last_status_code")
+  lastError      String?   @map("last_error")
+  deliveredAt    DateTime? @map("delivered_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  subscription WebhookSubscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  @@index([status, nextAttemptAt])
+  @@index([projectId, createdAt])
+  @@map("webhook_deliveries")
+}
+
+// -----------------------------------------------------------------------------
+// Persistent AI project memory (lib/project-memory)
+// -----------------------------------------------------------------------------
+
+enum ProjectMemoryType {
+  ARCHITECTURE
+  DECISION
+  BUSINESS_RULE
+  CONVENTION
+  KNOWN_BUG
+  FIXED_BUG
+  FEATURE_STATUS
+  INTEGRATION
+  DESIGN
+}
+
+enum ProjectMemorySource {
+  AGENT
+  USER
+  SYSTEM
+}
+
+enum ProjectMemoryStatus {
+  ACTIVE
+  SUPERSEDED
+  REJECTED
+}
+
+/// A durable fact about a project that the build agent reads before changing it. Text only; secrets are rejected on write.
+model ProjectMemory {
+  id              String              @id @default(cuid())
+  projectId       String              @map("project_id")
+  type            ProjectMemoryType
+  title           String
+  normalizedTitle String              @map("normalized_title")
+  body            String              @db.Text
+  source          ProjectMemorySource @default(AGENT)
+  /// { files?: string[], checkpointId?: string, messageId?: string }
+  evidence        Json?
+  confidence      Float               @default(0.7)
+  status          ProjectMemoryStatus @default(ACTIVE)
+  pinned          Boolean             @default(false)
+  /// FEATURE_STATUS only: COMPLETED or PROTECTED. Protected features trigger the regression guard.
+  featureState    String?             @map("feature_state")
+  /// Project-relative files that belong to the feature (used by the regression guard).
+  files           String[]
+  supersededById  String?             @map("superseded_by_id")
+  createdById     String?             @map("created_by_id")
+  createdAt       DateTime            @default(now()) @map("created_at")
+  updatedAt       DateTime            @updatedAt @map("updated_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, status, type])
+  @@index([projectId, normalizedTitle])
+  @@index([projectId, pinned])
+  @@map("project_memories")
+}
+
+/// Per-file summary refreshed incrementally when the content hash changes.
+model ProjectCodeMapEntry {
+  id            String   @id @default(cuid())
+  projectId     String   @map("project_id")
+  path          String
+  contentHash   String   @map("content_hash")
+  purpose       String   @db.Text
+  exports       String[]
+  routes        String[]
+  dependencies  String[]
+  /// STATIC (deterministic extraction) or LLM (model-written purpose).
+  summarySource String   @default("STATIC") @map("summary_source")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, path])
+  @@index([projectId, updatedAt])
+  @@map("project_code_map_entries")
+}
+
+/// What was injected into an agent run, kept for transparency. Only the most recent rows per project are retained.
+model ProjectMemoryInjection {
+  id             String   @id @default(cuid())
+  projectId      String   @map("project_id")
+  conversationId String?  @map("conversation_id")
+  request        String   @db.Text
+  brief          String   @db.Text
+  memoryIds      String[] @map("memory_ids")
+  tokenEstimate  Int      @map("token_estimate")
+  protectedFiles String[] @map("protected_files")
+  /// Protected features whose files were edited without being acknowledged in the run summary.
+  unacknowledged String[]
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+  @@map("project_memory_injections")
+}
+
+// -----------------------------------------------------------------------------
+// Team collaboration (lib/team): fine-grained roles, invitations, task board,
+// approvals, notifications, per-member marketing spend. Ids that point at
+// User / Workspace / Project are plain strings: tenant scoping is enforced in lib/team.
+// -----------------------------------------------------------------------------
+
+enum TeamRole {
+  OWNER
+  ADMIN
+  DEVELOPER
+  DESIGNER
+  MARKETER
+  BUSINESS_PARTNER
+  VIEWER
+}
+
+enum TeamInvitationStatus {
+  PENDING
+  ACCEPTED
+  REVOKED
+}
+
+enum BoardTaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum BoardLinkKind {
+  CHAT_PROMPT
+  CHECKPOINT
+  CAMPAIGN
+  DEPLOYMENT
+}
+
+enum TeamApprovalKind {
+  PUBLISH
+  MARKETING_CAMPAIGN
+  SPEND
+  OTHER
+}
+
+enum TeamApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+/// Refines the legacy WorkspaceRole / ProjectRole membership with a team role. `scopeKey` is `ws` for the whole
+/// workspace or `p:<projectId>` for one project, so (user, workspace, scope) is unique.
+model TeamRoleAssignment {
+  id           String   @id @default(cuid())
+  workspaceId  String   @map("workspace_id")
+  projectId    String?  @map("project_id")
+  scopeKey     String   @map("scope_key")
+  userId       String   @map("user_id")
+  role         TeamRole
+  assignedById String?  @map("assigned_by_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@unique([workspaceId, scopeKey, userId])
+  @@index([userId])
+  @@index([projectId])
+  @@map("team_role_assignments")
+}
+
+/// Signed, expiring email invitation. `tokenVersion` is bumped on resend so older links stop working.
+model TeamInvitation {
+  id           String               @id @default(cuid())
+  workspaceId  String               @map("workspace_id")
+  projectId    String?              @map("project_id")
+  email        String
+  role         TeamRole
+  status       TeamInvitationStatus @default(PENDING)
+  tokenVersion Int                  @default(1) @map("token_version")
+  invitedById  String               @map("invited_by_id")
+  expiresAt    DateTime             @map("expires_at")
+  acceptedById String?              @map("accepted_by_id")
+  acceptedAt   DateTime?            @map("accepted_at")
+  revokedAt    DateTime?            @map("revoked_at")
+  lastSentAt   DateTime?            @map("last_sent_at")
+  createdAt    DateTime             @default(now()) @map("created_at")
+
+  @@index([workspaceId, status])
+  @@index([projectId, status])
+  @@index([email])
+  @@map("team_invitations")
+}
+
+model BoardColumn {
+  id        String   @id @default(cuid())
+  projectId String   @map("project_id")
+  name      String
+  position  Int
+  /// Tasks in a done column count as finished.
+  isDone    Boolean  @default(false) @map("is_done")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  tasks BoardTask[]
+
+  @@index([projectId, position])
+  @@map("board_columns")
+}
+
+model BoardTask {
+  id          String            @id @default(cuid())
+  projectId   String            @map("project_id")
+  columnId    String            @map("column_id")
+  title       String
+  description String?           @db.Text
+  assigneeId  String?           @map("assignee_id")
+  labels      String[]
+  priority    BoardTaskPriority @default(MEDIUM)
+  dueDate     DateTime?         @map("due_date")
+  sprint      String?
+  /// Fractional order inside the column; rebalanced when gaps get too small.
+  position    Float
+  /// Bumped on every change; clients send the version they saw to detect conflicting edits.
+  version     Int               @default(1)
+  createdById String            @map("created_by_id")
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+
+  column    BoardColumn           @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  comments  BoardTaskComment[]
+  links     BoardTaskLink[]
+  approvals TeamApprovalRequest[]
+
+  @@index([projectId, columnId, position])
+  @@index([projectId, assigneeId])
+  @@map("board_tasks")
+}
+
+model BoardTaskComment {
+  id        String    @id @default(cuid())
+  projectId String    @map("project_id")
+  taskId    String    @map("task_id")
+  authorId  String    @map("author_id")
+  body      String    @db.Text
+  /// User ids resolved from @mentions (only project members).
+  mentions  String[]
+  createdAt DateTime  @default(now()) @map("created_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  task BoardTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, createdAt])
+  @@index([projectId])
+  @@map("board_task_comments")
+}
+
+model BoardTaskLink {
+  id        String        @id @default(cuid())
+  projectId String        @map("project_id")
+  taskId    String        @map("task_id")
+  kind      BoardLinkKind
+  refId     String        @map("ref_id")
+  label     String
+  createdAt DateTime      @default(now()) @map("created_at")
+
+  task BoardTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, kind, refId])
+  @@index([projectId])
+  @@map("board_task_links")
+}
+
+/// Human sign-off for publishing, a marketing campaign or spend. Decided exactly once, always with a reason on rejection.
+model TeamApprovalRequest {
+  id             String             @id @default(cuid())
+  projectId      String             @map("project_id")
+  taskId         String?            @map("task_id")
+  kind           TeamApprovalKind
+  title          String
+  details        String?            @db.Text
+  amountCredits  Int?               @map("amount_credits")
+  status         TeamApprovalStatus @default(PENDING)
+  requestedById  String             @map("requested_by_id")
+  decidedById    String?            @map("decided_by_id")
+  decisionReason String?            @map("decision_reason") @db.Text
+  decidedAt      DateTime?          @map("decided_at")
+  createdAt      DateTime           @default(now()) @map("created_at")
+
+  task BoardTask? @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  @@index([projectId, status, createdAt])
+  @@map("team_approval_requests")
+}
+
+model UserNotification {
+  id        String    @id @default(cuid())
+  userId    String    @map("user_id")
+  projectId String?   @map("project_id")
+  /// MENTION | ASSIGNMENT | APPROVAL_REQUESTED | APPROVAL_DECIDED | INVITATION
+  kind      String
+  title     String
+  body      String?   @db.Text
+  href      String?
+  readAt    DateTime? @map("read_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([userId, readAt, createdAt])
+  @@map("user_notifications")
+}
+
+model NotificationPreference {
+  id     String  @id @default(cuid())
+  userId String  @map("user_id")
+  kind   String
+  inApp  Boolean @default(true) @map("in_app")
+  email  Boolean @default(true)
+
+  @@unique([userId, kind])
+  @@map("notification_preferences")
+}
+
+/// Monthly marketing-credit cap for one workspace member, spent from the shared (owner) wallet.
+model MemberSpendLimit {
+  id           String   @id @default(cuid())
+  workspaceId  String   @map("workspace_id")
+  userId       String   @map("user_id")
+  monthlyLimit Int      @map("monthly_limit")
+  setById      String?  @map("set_by_id")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@unique([workspaceId, userId])
+  @@map("member_spend_limits")
+}
+
+/// Who spent shared marketing credits. `ledgerKey` is the MarketingReservation / MarketingLedger idempotency key.
+model WorkspaceUsageEvent {
+  id          String   @id @default(cuid())
+  workspaceId String   @map("workspace_id")
+  userId      String   @map("user_id")
+  projectId   String?  @map("project_id")
+  operation   String
+  credits     Int
+  ledgerKey   String   @unique @map("ledger_key")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([workspaceId, createdAt])
+  @@index([workspaceId, userId, createdAt])
+  @@map("workspace_usage_events")
+}
+
+// -----------------------------------------------------------------------------
+// Business intelligence & growth attribution (lib/growth-bi). No raw IPs or
+// user-agents are stored; visitor ids are random values from a signed,
+// consent-gated first-party cookie.
+// -----------------------------------------------------------------------------
+
+/// One consented landing on AppWeaver's own marketing site (first-party, no third-party trackers).
+model GrowthVisit {
+  id           String   @id @default(cuid())
+  visitorId    String   @map("visitor_id")
+  channel      String
+  source       String?
+  medium       String?
+  campaign     String?
+  content      String?
+  term         String?
+  referrerHost String?  @map("referrer_host")
+  landingPath  String   @map("landing_path")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@index([channel, createdAt])
+  @@index([visitorId])
+  @@map("growth_visits")
+}
+
+/// First- and last-touch attribution captured once at sign-up from the signed cookie.
+model GrowthAttribution {
+  id                 String   @id @default(cuid())
+  userId             String   @unique @map("user_id")
+  visitorId          String?  @map("visitor_id")
+  firstChannel       String   @map("first_channel")
+  firstSource        String?  @map("first_source")
+  firstMedium        String?  @map("first_medium")
+  firstCampaign      String?  @map("first_campaign")
+  firstContent       String?  @map("first_content")
+  firstReferrerHost  String?  @map("first_referrer_host")
+  firstLandingPath   String?  @map("first_landing_path")
+  firstAt            DateTime @map("first_at")
+  lastChannel        String   @map("last_channel")
+  lastSource         String?  @map("last_source")
+  lastMedium         String?  @map("last_medium")
+  lastCampaign       String?  @map("last_campaign")
+  lastContent        String?  @map("last_content")
+  lastReferrerHost   String?  @map("last_referrer_host")
+  lastLandingPath    String?  @map("last_landing_path")
+  lastAt             DateTime @map("last_at")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  @@index([firstChannel])
+  @@index([lastChannel])
+  @@index([createdAt])
+  @@map("growth_attributions")
+}
+
+/// Typed product-feature usage event (closed registry in lib/growth-bi/events.ts). One row per user, feature, project and day.
+model GrowthFeatureEvent {
+  id         String   @id @default(cuid())
+  userId     String   @map("user_id")
+  name       String
+  projectKey String   @default("") @map("project_key")
+  day        String
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@unique([userId, name, projectKey, day])
+  @@index([name, createdAt])
+  @@index([userId, createdAt])
+  @@map("growth_feature_events")
+}
+
+/// UTM links generated by admins (house ads, social posts, investor outreach, other), so campaigns resolve to a kind.
+model GrowthLink {
+  id          String   @id @default(cuid())
+  createdById String   @map("created_by_id")
+  label       String
+  kind        String
+  refId       String?  @map("ref_id")
+  baseUrl     String   @map("base_url")
+  source      String
+  medium      String
+  campaign    String
+  content     String?
+  term        String?
+  url         String   @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@index([campaign])
+  @@map("growth_links")
+}
+
+/// Small admin-editable settings (e.g. the activation definition).
+model GrowthConfig {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("growth_config")
+}
+
+/// Nightly aggregates. Idempotent: the natural key is unique and every run upserts.
+model GrowthRollup {
+  id        String   @id @default(cuid())
+  scopeType String   @map("scope_type")
+  scopeId   String   @map("scope_id")
+  day       DateTime @db.Date
+  dimension String
+  dimKey    String   @default("") @map("dim_key")
+  metric    String
+  value     Float
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([scopeType, scopeId, day, dimension, dimKey, metric])
+  @@index([scopeType, scopeId, day])
+  @@map("growth_rollups")
+}
+
+/// Anomaly (sudden drop/spike) found by the nightly job. One per scope, metric and day.
+model GrowthAlert {
+  id         String    @id @default(cuid())
+  scopeType  String    @map("scope_type")
+  scopeId    String    @map("scope_id")
+  metric     String
+  day        DateTime  @db.Date
+  kind       String
+  observed   Float
+  expected   Float
+  message    String
+  notifiedAt DateTime? @map("notified_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@unique([scopeType, scopeId, metric, day])
+  @@index([scopeType, scopeId, createdAt])
+  @@map("growth_alerts")
+}
+
+/// AI recommendation grounded in computed metrics. `evidence` is computed by us from `metricIds`, never by the model.
+model GrowthRecommendation {
+  id               String   @id @default(cuid())
+  scopeType        String   @map("scope_type")
+  scopeId          String   @map("scope_id")
+  title            String
+  rationale        String   @db.Text
+  metricIds        String[] @map("metric_ids")
+  evidence         Json
+  proposedAction   Json     @map("proposed_action")
+  status           String   @default("PROPOSED")
+  agentActivityId  String?  @map("agent_activity_id")
+  createdById      String?  @map("created_by_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@index([scopeType, scopeId, createdAt])
+  @@map("growth_recommendations")
 }

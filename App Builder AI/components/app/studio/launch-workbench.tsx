@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react';
 
 import { createProjectAction } from '@/lib/actions/projects';
+import { CreditEstimateHint } from '@/components/app/credits/credit-estimate-hint';
 import {
   generateLaunchKitAction,
   type LaunchKitResult,
@@ -74,6 +75,7 @@ export function LaunchWorkbench({ credits }: { credits?: StudioCredits }) {
       {credits?.metered ? (
         <p className="text-xs text-app-text-muted">Balance: {credits.balance} credits.</p>
       ) : null}
+      <CreditEstimateHint operation="launch_kit" />
 
       {kit && !kit.ok ? <p className="text-sm text-red-500">{kit.error}</p> : null}
       {error ? <p className="text-sm text-red-500">{error}</p> : null}

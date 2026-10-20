@@ -1,6 +1,11 @@
 import { readdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 
+import { evaluateApprovalGate, formatApprovalGateError } from '@/lib/code-scan/approvals';
+import { checkCodeScan } from '@/lib/code-scan/readiness';
+import { getLatestRegression } from '@/lib/code-scan/regression';
+import { evaluateScanGate, runCodeScan } from '@/lib/code-scan/service';
+import { formatScanGateError } from '@/lib/code-scan/scan';
 import { extractPageSignals, guardedFetch, resolveSmokeTarget } from '@/lib/observatory/smoke';
 import { prisma } from '@/lib/prisma';
 import {
@@ -11,6 +16,7 @@ import {
 import { listProjectFiles, readProjectFile } from '@/lib/project-files';
 
 import {
+  CHECK_TITLES,
   evaluateReadiness,
   runStaticChecks,
   summarize,
@@ -208,6 +214,8 @@ export async function runLaunchReadiness(
     smoke,
     liveVersion: probe.version,
   });
+  results.push(await codeScanCheck(projectId, environment));
+  results.push(await regressionCheck(projectId));
   const summary = summarize(results);
 
   const row = await prisma.launchReport.create({
@@ -250,11 +258,86 @@ export async function evaluatePublishGate(
     imageUrl: project?.seoImageUrl,
   });
   const failures = results.filter((r) => r.status === 'FAIL');
+  const warnings = results.filter((r) => r.status === 'WARN');
+  try {
+    const scan = await evaluateScanGate(projectId, source);
+    if (scan.blocked) {
+      failures.push({
+        id: 'code_scan',
+        title: CHECK_TITLES.code_scan,
+        status: 'FAIL',
+        evidence: formatScanGateError(scan.blocking),
+        advice: 'Fix the findings or acknowledge them with a reason in the Security scan panel.',
+      });
+    } else if (scan.depStatus === 'UNAVAILABLE') {
+      warnings.push({
+        id: 'code_scan',
+        title: CHECK_TITLES.code_scan,
+        status: 'WARN',
+        evidence: scan.depDetail ?? 'Dependencies could not be checked.',
+      });
+    }
+  } catch {
+    failures.push({
+      id: 'code_scan',
+      title: CHECK_TITLES.code_scan,
+      status: 'FAIL',
+      evidence: 'The security scan could not be completed, so the project was not checked. Please try again.',
+    });
+  }
+  try {
+    const approval = await evaluateApprovalGate(projectId);
+    if (approval.required && approval.state !== 'APPROVED') {
+      failures.push({
+        id: 'change_approval',
+        title: CHECK_TITLES.change_approval,
+        status: 'FAIL',
+        evidence: formatApprovalGateError(approval),
+        advice: 'Request approval in the Quality & Security page; the project owner decides.',
+      });
+    }
+  } catch {
+    failures.push({
+      id: 'change_approval',
+      title: CHECK_TITLES.change_approval,
+      status: 'FAIL',
+      evidence: 'Approval status could not be checked, so the publish was stopped. Please try again.',
+    });
+  }
   return {
     blocked: failures.length > 0,
     failures,
-    warnings: results.filter((r) => r.status === 'WARN'),
+    warnings,
   };
+}
+
+async function regressionCheck(projectId: string): Promise<CheckResult> {
+  const base = { id: 'regression' as const, title: CHECK_TITLES.regression };
+  try {
+    const latest = await getLatestRegression(projectId);
+    if (!latest || latest.status === 'NOT_RUN') {
+      return { ...base, status: 'NOT_VERIFIED', evidence: 'No regression check has run. Tests/build were not verified.' };
+    }
+    if (latest.status === 'FAILED') {
+      return { ...base, status: 'WARN', evidence: 'The latest regression check failed. Publishing needs owner approval.' };
+    }
+    return { ...base, status: 'PASS', evidence: 'The latest regression check passed.' };
+  } catch {
+    return { ...base, status: 'NOT_VERIFIED', evidence: 'The regression result could not be read.' };
+  }
+}
+
+async function codeScanCheck(projectId: string, environment: SnapshotEnvironment): Promise<CheckResult> {
+  try {
+    return checkCodeScan(await runCodeScan({ projectId, trigger: 'READINESS', source: environment }));
+  } catch {
+    return {
+      id: 'code_scan',
+      title: CHECK_TITLES.code_scan,
+      status: 'NOT_VERIFIED',
+      evidence: 'The security scan could not be completed.',
+    };
+  }
 }
 
 export function formatGateError(gate: PublishGate) {

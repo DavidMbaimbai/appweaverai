@@ -18,7 +18,10 @@ export type CheckId =
   | 'contact'
   | 'analytics'
   | 'payments'
-  | 'smoke';
+  | 'smoke'
+  | 'code_scan'
+  | 'regression'
+  | 'change_approval';
 
 export type CheckResult = {
   id: CheckId;
@@ -79,6 +82,9 @@ export const CHECK_TITLES: Record<CheckId, string> = {
   analytics: 'Analytics',
   payments: 'Payments',
   smoke: 'Latest smoke check',
+  code_scan: 'Security and quality scan',
+  regression: 'Regression check (tests/build)',
+  change_approval: 'Owner approval for risky changes',
 };
 
 const isHtml = (path: string) => /\.html?$/i.test(path);

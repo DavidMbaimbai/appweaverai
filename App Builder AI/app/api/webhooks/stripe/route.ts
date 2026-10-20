@@ -4,6 +4,13 @@ import type Stripe from 'stripe';
 import { prisma } from '@/lib/prisma';
 import { syncUserSubscription } from '@/lib/billing/stripe-subscription';
 import { grantPlanCredits } from '@/lib/billing/credits';
+import {
+  clearPaymentFailed,
+  markPaymentFailed,
+  recordChargeRefund,
+  syncSubscriptionRecord,
+  upsertInvoiceRecord,
+} from '@/lib/billing/stripe-sync';
 import { grantPurchase } from '@/lib/marketing-credits/purchase';
 import {
   PAID_PLAN_LABELS,
@@ -127,6 +134,7 @@ export async function POST(request: Request) {
             const subscription =
               await stripe.subscriptions.retrieve(subscriptionId);
             await syncUserSubscription(userId, subscription, customerId);
+            await syncSubscriptionRecord(subscription, event.id, event.created);
             const priceId = subscription.items.data[0]?.price?.id;
             planId =
               (priceId && getPlanIdsByPriceId()[priceId]) ||
@@ -157,6 +165,7 @@ export async function POST(request: Request) {
 
       case 'invoice.paid': {
         const invoice = event.data.object as Stripe.Invoice;
+        await upsertInvoiceRecord(invoice, event.created);
         const customerId =
           typeof invoice.customer === 'string'
             ? invoice.customer
@@ -167,6 +176,7 @@ export async function POST(request: Request) {
           : null;
 
         if (userId) {
+          await clearPaymentFailed(userId, event.created);
           // Refill the plan's monthly credit allotment on every paid
           // invoice (initial activation + each renewal). Resolving the plan
           // from the live subscription (rather than trusting stale
@@ -215,9 +225,33 @@ export async function POST(request: Request) {
         break;
       }
 
+      case 'invoice.created':
+      case 'invoice.finalized':
+      case 'invoice.updated':
+      case 'invoice.voided':
+      case 'invoice.marked_uncollectible':
+      case 'invoice.payment_failed': {
+        const invoice = event.data.object as Stripe.Invoice;
+        await upsertInvoiceRecord(invoice, event.created);
+        if (event.type === 'invoice.payment_failed') {
+          const customerId = typeof invoice.customer === 'string' ? invoice.customer : invoice.customer?.id;
+          const userId = customerId ? await resolveUserIdFromCustomer(customerId) : null;
+          if (userId) await markPaymentFailed(userId, invoice, event.created);
+        }
+        break;
+      }
+
+      case 'charge.refunded': {
+        await recordChargeRefund(event.data.object as Stripe.Charge, event.created);
+        break;
+      }
+
+      case 'customer.subscription.created':
       case 'customer.subscription.updated':
       case 'customer.subscription.deleted': {
         const subscription = event.data.object as Stripe.Subscription;
+        await syncSubscriptionRecord(subscription, event.id, event.created);
+        if (event.type === 'customer.subscription.created') break;
         const customerId =
           typeof subscription.customer === 'string'
             ? subscription.customer

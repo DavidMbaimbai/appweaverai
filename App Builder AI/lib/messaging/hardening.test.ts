@@ -85,7 +85,7 @@ describe('suppression list', () => {
     await recordConsent(scope, 'SMS', '+49 151', { optOut: true, source: 'inbound_stop', reason: 'UNSUBSCRIBE' });
     expect(db.messagingSuppression.upsert).toHaveBeenCalledWith(expect.objectContaining({ create: expect.objectContaining({ contact: '+49151', reason: 'UNSUBSCRIBE' }) }));
     await recordConsent(scope, 'SMS', '+49 151', { optIn: true, source: 'inbound_start' });
-    expect(db.messagingSuppression.deleteMany).toHaveBeenCalledTimes(1);
+    expect(db.messagingSuppression.deleteMany).toHaveBeenCalledTimes(2);
   });
 
   it('refuses to record an opt-in without proof', async () => {

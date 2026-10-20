@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useState, useTransition } from 'react';
 import { importDesignAction } from '@/lib/actions/design-import';
+import { CreditEstimateHint } from '@/components/app/credits/credit-estimate-hint';
 
 type Tab = 'figma' | 'url' | 'screenshot' | 'github';
 
@@ -146,6 +147,7 @@ export function DesignImportTabs() {
               {error}
             </p>
           )}
+          <CreditEstimateHint operation="design_import" className="font-display text-xs text-text-dim" />
           <button
             type="submit"
             disabled={pending}

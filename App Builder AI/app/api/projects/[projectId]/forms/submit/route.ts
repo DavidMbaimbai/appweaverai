@@ -13,6 +13,7 @@ import { clientIp, limitOrResponse } from '@/lib/rate-limit';
 const submitSchema = z.object({
   formName: z.string().trim().min(1).max(80).optional(),
   data: z.record(z.string(), z.unknown()),
+  utm: z.unknown().optional(),
 });
 
 /**
@@ -75,6 +76,7 @@ export async function POST(
       submission.id,
       parsed.data.formName ?? 'contact',
       parsed.data.data,
+      parsed.data.utm,
     );
     return Response.json({ success: true, id: submission.id });
   } catch (error) {

@@ -75,6 +75,22 @@
     {
       "path": "/api/cron/backups",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/growth",
+      "schedule": "30 2 * * *"
+    },
+    {
+      "path": "/api/cron/privacy",
+      "schedule": "17 * * * *"
+    },
+    {
+      "path": "/api/cron/code-scan",
+      "schedule": "41 * * * *"
+    },
+    {
+      "path": "/api/cron/integrations",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

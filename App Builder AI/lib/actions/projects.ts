@@ -35,6 +35,7 @@ import {
 } from '../project-attachments';
 import { getAccessibleProject } from '../projects/access';
 import { recordUserActivity } from '../activity/record-user-activity';
+import { trackFeature } from '../growth-bi/track';
 import { importRepoIntoProject } from '../project-github-import';
 
 const projectIdSchema = z.object({
@@ -270,6 +271,7 @@ export async function createProjectAction(formData: FormData) {
     after: { name: baseName, slug: project.slug },
   });
 
+  await trackFeature(userId, 'project.created', { projectId: project.id });
   redirect(`/app/projects/${project.workspace.slug}/${project.slug}`);
 }
 
@@ -396,6 +398,7 @@ export async function importGithubRepoAction(formData: FormData) {
     after: { name: repoName, slug: project.slug, repo: baseName },
   });
 
+  await trackFeature(userId, 'github.connected', { projectId: project.id });
   redirect(`/app/projects/${project.workspace.slug}/${project.slug}`);
 }
 

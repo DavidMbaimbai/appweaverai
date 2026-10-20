@@ -26,12 +26,16 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { label: 'Payments', href: '/admin/payments', permission: 'payments:read' },
   { label: 'AI Usage', href: '/admin/ai-usage', permission: 'ai_usage:read' },
   { label: 'Analytics', href: '/admin/analytics', permission: 'analytics:read' },
+  { label: 'Growth', href: '/admin/growth', permission: 'growth:read' },
   {
     label: 'System Health',
     href: '/admin/system-health',
     permission: 'system_health:read',
   },
   { label: 'Backups', href: '/admin/backups', permission: 'backups:read' },
+  { label: 'Code scan', href: '/admin/code-scan', permission: 'codescan:read' },
+  { label: 'Privacy', href: '/admin/privacy', permission: 'privacy:read' },
+  { label: 'Integrations', href: '/admin/integrations', permission: 'integrations:read' },
   { label: 'Security', href: '/admin/security', permission: 'security:read' },
   { label: 'Enterprise SSO', href: '/admin/sso', permission: 'sso:read' },
   { label: 'Audit Logs', href: '/admin/audit-logs', permission: 'audit:read' },
@@ -45,6 +49,7 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { label: 'Content Pipeline', href: '/admin/content-pipeline', permission: 'contentpipeline:read' },
   { label: 'Marketing Pricing', href: '/admin/marketing-pricing', permission: 'marketing-pricing:write' },
   { label: 'Marketing Reports', href: '/admin/marketing-reports', permission: 'marketing-reports:read' },
+  { label: 'Revenue', href: '/admin/revenue', permission: 'revenue:read' },
   { label: 'Settings', href: '/admin/settings', permission: 'settings:read' },
 ];
 

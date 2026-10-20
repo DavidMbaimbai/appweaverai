@@ -2,6 +2,7 @@ import { appBaseUrl } from '@/lib/ads/customer-oauth';
 import { getAnthropicClient } from '@/lib/anthropic';
 import type { Prisma } from '@/lib/generated/prisma/client';
 import { prisma } from '@/lib/prisma';
+import { findOutreachSuppression } from '@/lib/privacy/suppression';
 import { refundMarketingKey, settleMarketingUsage, withMarketingCredits } from '@/lib/marketing-credits/run';
 import { normalizeEmail } from '@/lib/outreach/compliance';
 
@@ -143,7 +144,7 @@ export async function startAiCall(
   const phone = normalizePhone(contact?.phone);
   const dayStart = new Date(now);
   dayStart.setUTCHours(0, 0, 0, 0);
-  const suppressed = investor.emailKey ? Boolean(await prisma.outreachSuppression.findUnique({ where: { email: normalizeEmail(investor.emailKey) } })) : false;
+  const suppressed = investor.emailKey ? Boolean(await findOutreachSuppression(normalizeEmail(investor.emailKey))) : false;
   const [callsToday, recent] = await Promise.all([
     prisma.investorVoiceCall.count({ where: { ...scope(ctx), createdAt: { gte: dayStart }, status: { not: 'CANCELLED' } } }),
     prisma.investorVoiceCall.count({ where: { investorId, createdAt: { gte: new Date(now.getTime() - 86_400_000) }, status: { not: 'CANCELLED' } } }),
@@ -238,7 +239,7 @@ async function liveBlock(call: VoiceCall, now: Date) {
   const investor = await prisma.hubInvestor.findFirst({ where: { id: call.investorId, ...scope(ctx) } });
   const contact = await prisma.hubInvestorContact.findUnique({ where: { investorId: call.investorId } });
   const consents = await prisma.investorConsent.findMany({ where: { investorId: call.investorId, ...scope(ctx) }, take: 50 });
-  const suppressed = investor?.emailKey ? Boolean(await prisma.outreachSuppression.findUnique({ where: { email: normalizeEmail(investor.emailKey) } })) : false;
+  const suppressed = investor?.emailKey ? Boolean(await findOutreachSuppression(normalizeEmail(investor.emailKey))) : false;
   if (!investor || investor.optedOut || suppressed || contact?.smsOptedOut) return 'optout';
   if (!activeConsent(consents, 'AI_CALL', call.toNumber)) return 'consent';
   if (!insideCallingHours(now, contact?.timezone)) return 'hours';

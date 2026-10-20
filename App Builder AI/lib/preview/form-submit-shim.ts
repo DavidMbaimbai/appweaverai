@@ -52,10 +52,19 @@ export const FORM_SUBMIT_SHIM_SCRIPT = `<script>
       if (submitBtn) submitBtn.setAttribute('disabled', 'true');
       setStatus(form, 'Sending…', false);
 
+      var utm = {};
+      try {
+        var qs = new URLSearchParams((window.parent !== window ? window.parent.location.search : '') || window.location.search);
+        ['source', 'medium', 'campaign', 'content'].forEach(function (k) {
+          var v = qs.get('utm_' + k);
+          if (v) utm[k] = v.slice(0, 80);
+        });
+      } catch (e) {}
+
       fetch('/api/projects/' + projectId + '/forms/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ formName: formName, data: data }),
+        body: JSON.stringify({ formName: formName, data: data, utm: utm }),
       })
         .then(function (res) {
           return res.json().then(function (body) {

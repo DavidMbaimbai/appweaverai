@@ -1,4 +1,5 @@
 import { resetCreditBalance } from '@/lib/credits/ledger';
+import { PLAN_DEFINITIONS } from '@/lib/billing/plans';
 import type { PaidPlanId } from '@/lib/stripe';
 
 /**
@@ -11,9 +12,9 @@ import type { PaidPlanId } from '@/lib/stripe';
  * by `User.creditBalance`.
  */
 export const PLAN_MONTHLY_CREDITS: Record<PaidPlanId, number> = {
-  builder: 1200,
-  pro: 4000,
-  business: 10000,
+  builder: PLAN_DEFINITIONS.builder.limits.creditsPerMonth,
+  pro: PLAN_DEFINITIONS.pro.limits.creditsPerMonth,
+  business: PLAN_DEFINITIONS.business.limits.creditsPerMonth,
 };
 
 /**

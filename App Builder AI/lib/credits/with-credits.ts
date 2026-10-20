@@ -3,9 +3,19 @@ import { randomUUID } from 'node:crypto';
 import { prisma } from '@/lib/prisma';
 
 import { chargeCredits, refundCharge } from './ledger';
+import { checkSpendLimits, evaluateUsageAlerts } from './limits';
 import { CREDIT_OPERATION_LABELS, quote, type CreditOperation } from './pricing';
 
 export const CREDITS_UPGRADE_PATH = '/app/billing';
+
+async function resolveWorkspaceId(options: { workspaceId?: string | null; refType?: string; refId?: string }) {
+  if (options.workspaceId !== undefined) return options.workspaceId;
+  if (options.refType === 'Project' && options.refId) {
+    const project = await prisma.project.findUnique({ where: { id: options.refId }, select: { workspaceId: true } });
+    return project?.workspaceId ?? null;
+  }
+  return null;
+}
 
 export type CreditsOutcome<T> =
   | { ok: true; value: T; charged: number }
@@ -38,6 +48,8 @@ export type WithCreditsOptions<T> = {
   params?: { seconds?: number };
   refType?: string;
   refId?: string;
+  /** Workspace the spend is attributed to; resolved from a `Project` ref when omitted. */
+  workspaceId?: string | null;
   /** Stable key so a retried request is charged once; also lets async failures refund later. */
   idempotencyKey?: string;
   /** Return true when a resolved result represents a failed operation that must be refunded. */
@@ -59,6 +71,13 @@ export async function withCredits<T>(
 
   const { credits, estimate } = quote(operation, options.params);
   const key = options.idempotencyKey ?? `${operation}:${userId}:${randomUUID()}`;
+  const workspaceId = await resolveWorkspaceId(options);
+
+  const limit = await checkSpendLimits(userId, workspaceId, credits);
+  if (!limit.ok) {
+    return { ok: false, insufficient: false, error: limit.message };
+  }
+
   const charge = await chargeCredits({
     userId,
     cost: credits,
@@ -67,6 +86,7 @@ export async function withCredits<T>(
     idempotencyKey: key,
     refType: options.refType,
     refId: options.refId,
+    workspaceId,
   });
   if (!charge.ok) {
     return {
@@ -82,6 +102,7 @@ export async function withCredits<T>(
   const refund = async (why: string) => {
     await refundCharge(key, why).catch((error) => console.error('[credits] refund failed:', error));
   };
+  if (!charge.duplicate) await evaluateUsageAlerts(userId, workspaceId);
 
   let value: T;
   try {

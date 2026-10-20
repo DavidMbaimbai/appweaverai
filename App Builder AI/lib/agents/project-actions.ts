@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 
 import { getCachedSession } from '@/lib/auth/cached';
 import { prisma } from '@/lib/prisma';
+import { projectOwnerAccessOr } from '@/lib/projects/access';
 
 import { approveActivity, pauseActivity, rejectActivity, retryActivity } from './decisions';
 import { saveAgentSetting, setAgentPaused, type AgentSettingInput } from './settings';
@@ -20,7 +21,7 @@ async function requireProjectOwner(projectId: string) {
     where: {
       id: projectId,
       deletedAt: null,
-      OR: [{ createdById: userId }, { workspace: { ownerId: userId } }],
+      OR: projectOwnerAccessOr(userId),
     },
     select: { id: true, slug: true, workspace: { select: { slug: true } } },
   });

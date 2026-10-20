@@ -18,7 +18,10 @@ export type CreditOperation =
   | 'video_per_second'
   | 'design_import'
   | 'marketing_campaign'
-  | 'review_ai';
+  | 'review_ai'
+  | 'code_scan_fix'
+  | 'memory_update'
+  | 'code_scan_diagnosis';
 
 export const CREDIT_OPERATION_LABELS: Record<CreditOperation, string> = {
   agent_run: 'AI builder run',
@@ -30,6 +33,9 @@ export const CREDIT_OPERATION_LABELS: Record<CreditOperation, string> = {
   design_import: 'Design import',
   marketing_campaign: 'Marketing campaign',
   review_ai: 'Review reply AI',
+  code_scan_fix: 'Security fix suggestion',
+  memory_update: 'Project memory update',
+  code_scan_diagnosis: 'Bug diagnosis',
 };
 
 /**
@@ -46,6 +52,9 @@ const DEFAULT_PRICES: Record<Exclude<CreditOperation, 'video_per_second'>, numbe
   design_import: 5,
   marketing_campaign: 12,
   review_ai: 2,
+  code_scan_fix: 3,
+  memory_update: 2,
+  code_scan_diagnosis: 4,
 };
 
 /** Nominal value of one credit in cents, used only to derive the video price. */

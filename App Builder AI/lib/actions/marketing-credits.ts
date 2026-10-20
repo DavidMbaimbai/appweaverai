@@ -7,6 +7,7 @@ import { resolveBillingContext, BillingClassificationError } from '@/lib/marketi
 import { DEFAULT_PACKAGES } from '@/lib/marketing-credits/purchase';
 import { purchasesAllowed } from '@/lib/marketing-credits/settings';
 import { prisma } from '@/lib/prisma';
+import { hasProjectAccess } from '@/lib/projects/access';
 import { getAppBaseUrl, getStripeClient } from '@/lib/stripe';
 
 const userSelect = { id: true, email: true, name: true, stripeCustomerId: true } as const;
@@ -88,6 +89,7 @@ function limit(value: FormDataEntryValue | null) {
 export async function saveProjectBudgetAction(projectId: string, formData: FormData) {
   const result = await requireUser({ id: true });
   if (result.error || !result.user) return { error: result.error };
+  if (!(await hasProjectAccess(projectId, result.user.id))) return { error: 'Project not found.' };
   try {
     await resolveBillingContext({ userId: result.user.id, projectId });
   } catch (error) {

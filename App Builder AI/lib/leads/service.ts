@@ -66,9 +66,10 @@ export async function upsertLead(projectId: string, input: LeadInput, options: U
 }
 
 /** Best-effort: the form endpoint must never fail because of CRM capture. */
-export async function captureFromSubmission(projectId: string, submissionId: string, formName: string, data: unknown) {
+export async function captureFromSubmission(projectId: string, submissionId: string, formName: string, data: unknown, utm?: unknown) {
   try {
-    const input = leadFromSubmissionData(formName, data);
+    const parsed = leadFromSubmissionData(formName, data);
+    const input = parsed ? { ...parsed, utm: parsed.utm ?? cleanUtm(utm) } : parsed;
     if (input) {
       const saved = await upsertLead(projectId, input, { formSubmissionId: submissionId });
       await import('@/lib/meetings/ai').then((m) => m.onLeadConsultation(projectId, saved.id, `${formName}\n${input.notes ?? ''}`));

@@ -11,7 +11,9 @@ import {
   publishUpgradeMessage,
 } from "@/lib/billing/entitlements";
 import { getAccessibleProject } from "@/lib/projects/access";
+import { requireProjectCapability } from "@/lib/team/access";
 import { evaluatePublishGate, formatGateError } from "@/lib/launch-readiness/service";
+import { consumeApproval } from "@/lib/code-scan/approvals";
 import { getUserBillingFields } from "@/lib/queries/billing";
 import {
   fromDeploymentVisibility,
@@ -21,6 +23,7 @@ import {
 } from "@/lib/publish/visibility";
 import { prisma } from "@/lib/prisma";
 import { getHostingLimits } from "@/lib/hosting/limits";
+import { resolvePlanId } from "@/lib/billing/plans";
 import {
   enforceDeploymentRetention,
   saveVersionSnapshot,
@@ -84,6 +87,9 @@ export async function unpublishProjectAction(projectId: string) {
     workspace: { select: { slug: true } },
   });
   if (!project) return { error: "Project not found." };
+
+  const deniedUnpublish = await requireProjectCapability(userId, projectId, "publish");
+  if (!deniedUnpublish.ok) return { error: deniedUnpublish.error };
 
   const urlPath = publishedPath(project.workspace.slug, project.slug);
 
@@ -157,6 +163,9 @@ export async function publishProjectAction(
   if (!project) {
     return { error: "Project not found." };
   }
+
+  const canPublish = await requireProjectCapability(userId, projectId, "publish");
+  if (!canPublish.ok) return { error: canPublish.error };
 
   if (project._count.files === 0) {
     return { error: "Build your project before publishing." };
@@ -253,7 +262,7 @@ export async function publishProjectAction(
     });
   });
 
-  const retention = getHostingLimits(tier).deploymentsRetained;
+  const retention = getHostingLimits(resolvePlanId(user)).deploymentsRetained;
   await saveVersionSnapshot(
     projectId,
     nextVersion,
@@ -276,6 +285,7 @@ export async function publishProjectAction(
 
   // Rebuild the observatory feature ledger from the newly published files. Best-effort, never blocks publishing.
   void refreshFeatureLedger(projectId, { summarise: false }).catch(() => null);
+  await consumeApproval(projectId, userId).catch(() => null);
 
   await recordUserActivity({
     userId,

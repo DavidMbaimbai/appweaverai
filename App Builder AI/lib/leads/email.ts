@@ -1,6 +1,7 @@
 import { sendEmail } from '@/lib/email';
 import { unsubscribeUrl } from '@/lib/outreach/compliance';
 import { prisma } from '@/lib/prisma';
+import { findOutreachSuppression } from '@/lib/privacy/suppression';
 import { projectAccessWhere } from '@/lib/projects/access';
 
 import { logActivity } from './service';
@@ -28,7 +29,7 @@ export async function sendLeadDraft(userId: string, draftId: string, edits?: { s
   if (!draft) return { ok: false as const, error: 'Draft not found.' };
   const lead = draft.lead;
   const key = normalizeEmail(lead.email);
-  const suppressed = key ? Boolean(await prisma.outreachSuppression.findUnique({ where: { email: key } })) : false;
+  const suppressed = key ? Boolean(await findOutreachSuppression(key)) : false;
   const sentToday = await prisma.leadEmailDraft.count({
     where: { status: 'SENT', lead: { projectId: lead.projectId }, sentAt: { gte: new Date(Date.now() - 24 * 60 * 60_000) } },
   });

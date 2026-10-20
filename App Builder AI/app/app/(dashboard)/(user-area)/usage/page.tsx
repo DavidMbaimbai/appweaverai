@@ -1,22 +1,68 @@
 import Link from 'next/link';
 
 import { PageHeader } from '@/components/app/shell/page-header';
+import { PaymentFailedBanner } from '@/components/app/billing/payment-failed-banner';
+import { SpendLimitForm } from '@/components/app/credits/spend-limit-form';
+import { markUsageAlertsReadAction } from '@/lib/actions/credit-controls';
 import { getCachedSession } from '@/lib/auth/cached';
+import { listUnreadAlerts, monthlySpend } from '@/lib/credits/limits';
 import { CREDIT_OPERATION_LABELS, quote, type CreditOperation } from '@/lib/credits/pricing';
 import { getCreditsOverview } from '@/lib/credits/queries';
+import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
 const PRICED: CreditOperation[] = ['agent_run', 'studio_text', 'launch_kit', 'design_import', 'review_ai'];
 
+async function dismissAlerts() {
+  'use server';
+  await markUsageAlertsReadAction();
+}
+
 export default async function UsagePage() {
   const userId = (await getCachedSession())?.user?.id;
   const overview = userId && process.env.DATABASE_URL ? await getCreditsOverview(userId) : null;
+  const controls =
+    userId && overview
+      ? await Promise.all([
+          listUnreadAlerts(userId),
+          prisma.creditSpendLimit.findMany({ where: { scope: 'USER', scopeId: userId } }),
+          prisma.workspace.findMany({ where: { ownerId: userId }, select: { id: true, name: true } }),
+          monthlySpend({ userId }),
+        ]).then(async ([alerts, userLimits, workspaces, spent]) => {
+          const wsLimits = await prisma.creditSpendLimit.findMany({
+            where: { scope: 'WORKSPACE', scopeId: { in: workspaces.map((w) => w.id) } },
+          });
+          return {
+            alerts,
+            spent,
+            userLimit: userLimits[0]?.monthlyLimit ?? null,
+            workspaces: workspaces.map((w) => ({ id: w.id, name: w.name, limit: wsLimits.find((l) => l.scopeId === w.id)?.monthlyLimit ?? null })),
+          };
+        })
+      : null;
 
   return (
     <main className="flex flex-1 flex-col overflow-y-auto">
       <PageHeader title="Usage & credits" />
       <div className="mx-auto w-full max-w-app-content flex-1 space-y-8 px-4 py-6 tablet-up:px-8">
+        {userId ? <PaymentFailedBanner userId={userId} /> : null}
+        {controls && controls.alerts.length > 0 ? (
+          <section className="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-app-text">
+            <ul className="space-y-1">
+              {controls.alerts.map((a) => (
+                <li key={a.id}>
+                  {a.threshold >= 100 ? 'Reached' : `${a.threshold}% of`} your{' '}
+                  {a.scope === 'ALLOWANCE' ? 'monthly plan allowance' : a.scope === 'USER' ? 'monthly spending limit' : 'workspace spending limit'}{' '}
+                  ({a.spent} of {a.cap} credits, {a.period}).
+                </li>
+              ))}
+            </ul>
+            <form action={dismissAlerts} className="mt-2">
+              <button className="text-xs underline">Dismiss</button>
+            </form>
+          </section>
+        ) : null}
         {!overview ? (
           <p className="text-sm text-app-text-muted">Sign in to see your credits.</p>
         ) : (
@@ -43,6 +89,20 @@ export default async function UsagePage() {
                   {overview.metered ? 'Top up or change plan →' : 'Upgrade for more credits →'}
                 </Link>
               </div>
+            </section>
+
+            <section>
+              <h2 className="mb-1 text-sm font-medium text-app-text">Monthly spending limits</h2>
+              <p className="mb-3 text-xs text-app-text-muted">
+                Development credits only (marketing credits have their own wallet). New runs are paused once a limit
+                would be exceeded; you get an alert at 80% and 100%.
+                {controls ? ` Used this month: ${controls.spent} credits.` : ''}
+              </p>
+              {controls ? <SpendLimitForm userLimit={controls.userLimit} workspaces={controls.workspaces} /> : null}
+              <p className="mt-3 flex gap-4 text-sm">
+                <Link href="/app/billing/transactions" className="font-medium text-appweaver-orange">All transactions →</Link>
+                <Link href="/app/billing/invoices" className="font-medium text-appweaver-orange">Invoices →</Link>
+              </p>
             </section>
 
             <section>

@@ -143,7 +143,10 @@ export function buildAgentSystemPrompt({
   attachmentContext,
   hasExistingFiles,
   codingLanguage,
+  integrationsContext,
 }: {
+  /** Names and env var names of connected integrations only — never credential values. */
+  integrationsContext?: string | null;
   projectName: string;
   projectDescription: string | null;
   artifactName: string;
@@ -228,6 +231,7 @@ export function buildAgentSystemPrompt({
           'Incorporate attachment content, assets, and requirements into your plan and build. Reference images with relative paths like `_attachments/filename.png`.',
         ].join('\n\n')
       : null,
+    integrationsContext ?? null,
     `Project: ${projectName}`,
     `Description: ${projectDescription ?? 'No description'}`,
     `Active artifact: ${artifactName} (${artifactType})`,

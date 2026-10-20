@@ -3,26 +3,20 @@ import { z } from 'zod';
 
 import { auth } from '@/lib/auth';
 import { getAccessibleProject } from '@/lib/projects/access';
+import { denyWithoutCapability } from '@/lib/team/http';
 import {
   getProjectCustomDomain,
   countUserCustomDomains,
   removeProjectCustomDomain,
   setProjectCustomDomain,
 } from '@/lib/domains/custom-domain';
-import {
-  customDomainLimitMessage,
-  getHostingLimits,
-} from '@/lib/hosting/limits';
 import { getDnsGuidance } from '@/lib/domains/dns-guidance';
 import {
   isVercelDomainApiConfigured,
   MANUAL_ATTACH_MESSAGE,
 } from '@/lib/domains/vercel';
-import {
-  CUSTOM_DOMAIN_UPGRADE_MESSAGE,
-  canUseCustomDomain,
-  getAppTier,
-} from '@/lib/billing/entitlements';
+import { CUSTOM_DOMAIN_UPGRADE_MESSAGE } from '@/lib/billing/entitlements';
+import { checkFeature, checkLimit, resolveEntitlements } from '@/lib/billing/gate';
 import { getUserBillingFields } from '@/lib/queries/billing';
 import { recordUserActivity } from '@/lib/activity/record-user-activity';
 
@@ -70,7 +64,7 @@ export async function GET(
       ? getDnsGuidance(record.domain, record.verificationToken)
       : null,
     attachInfo: attachInfo(),
-    canUseCustomDomain: canUseCustomDomain(getAppTier(user)),
+    canUseCustomDomain: resolveEntitlements(user).features.customDomains,
   });
 }
 
@@ -81,24 +75,26 @@ export async function POST(
   const { projectId } = await context.params;
   const access = await requireProjectAccess(projectId);
   if ('error' in access) return access.error;
+  const denied = await denyWithoutCapability(access.userId, projectId, 'manage_domains');
+  if (denied) return denied;
 
   const user = await getUserBillingFields(access.userId);
-  const tier = getAppTier(user);
-  const domainLimit = getHostingLimits(tier).customDomains;
-  if (!canUseCustomDomain(tier)) {
+  const ent = resolveEntitlements(user);
+  const locked = checkFeature(ent, 'customDomains');
+  if (!locked.allowed) {
     return Response.json(
-      { error: CUSTOM_DOMAIN_UPGRADE_MESSAGE, upgradeRequired: true },
+      { error: locked.message || CUSTOM_DOMAIN_UPGRADE_MESSAGE, upgradeRequired: true, upgradeTo: locked.upgradeTo },
       { status: 403 },
     );
   }
 
   const alreadyConnected = await getProjectCustomDomain(projectId);
-  if (
-    !alreadyConnected &&
-    (await countUserCustomDomains(access.userId, projectId)) >= domainLimit
-  ) {
+  const overLimit = alreadyConnected
+    ? ({ allowed: true } as const)
+    : checkLimit(ent, 'customDomains', await countUserCustomDomains(access.userId, projectId));
+  if (!overLimit.allowed) {
     return Response.json(
-      { error: customDomainLimitMessage(tier, domainLimit), upgradeRequired: false },
+      { error: overLimit.message, upgradeRequired: true, upgradeTo: overLimit.upgradeTo },
       { status: 403 },
     );
   }

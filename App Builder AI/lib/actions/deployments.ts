@@ -10,6 +10,7 @@ import {
   publishUpgradeMessage,
 } from "@/lib/billing/entitlements";
 import { getHostingLimits } from "@/lib/hosting/limits";
+import { resolvePlanId } from "@/lib/billing/plans";
 import { rollbackStagingAction } from "@/lib/actions/staging";
 import { getAccessibleProject } from "@/lib/projects/access";
 import { prisma } from "@/lib/prisma";
@@ -89,7 +90,7 @@ export async function getDeploymentHistoryAction(projectId: string) {
 
   return {
     deployments: items,
-    retained: getHostingLimits(getAppTier(user)).deploymentsRetained,
+    retained: getHostingLimits(resolvePlanId(user)).deploymentsRetained,
   };
 }
 
@@ -182,7 +183,7 @@ export async function rollbackDeploymentAction(
     .then(() =>
       enforceDeploymentRetention(
         projectId,
-        getHostingLimits(tier).deploymentsRetained,
+        getHostingLimits(resolvePlanId(user)).deploymentsRetained,
       ),
     )
     .catch(() => null);

@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { requireAdmin } from '@/lib/auth/require-admin';
 import { getCachedSession } from '@/lib/auth/cached';
 import { prisma } from '@/lib/prisma';
+import { projectOwnerAccessOr } from '@/lib/projects/access';
 import type { AgentScope } from '@/lib/agents/types';
 
 import { runScopeNow, savePipeline, setPipelinePaused } from './service';
@@ -17,7 +18,7 @@ async function requireProjectOwner(projectId: string) {
   const userId = session?.user?.id;
   if (!userId || !process.env.DATABASE_URL) return null;
   const project = await prisma.project.findFirst({
-    where: { id: projectId, deletedAt: null, OR: [{ createdById: userId }, { workspace: { ownerId: userId } }] },
+    where: { id: projectId, deletedAt: null, OR: projectOwnerAccessOr(userId) },
     select: { id: true, slug: true, workspace: { select: { slug: true } } },
   });
   return project ? { userId, project } : null;
