@@ -36,6 +36,7 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { label: 'Code scan', href: '/admin/code-scan', permission: 'codescan:read' },
   { label: 'Privacy', href: '/admin/privacy', permission: 'privacy:read' },
   { label: 'Integrations', href: '/admin/integrations', permission: 'integrations:read' },
+  { label: 'Marketplace', href: '/admin/marketplace', permission: 'marketplace:read' },
   { label: 'Security', href: '/admin/security', permission: 'security:read' },
   { label: 'Enterprise SSO', href: '/admin/sso', permission: 'sso:read' },
   { label: 'Audit Logs', href: '/admin/audit-logs', permission: 'audit:read' },

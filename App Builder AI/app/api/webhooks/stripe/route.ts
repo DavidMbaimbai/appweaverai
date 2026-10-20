@@ -12,6 +12,7 @@ import {
   upsertInvoiceRecord,
 } from '@/lib/billing/stripe-sync';
 import { grantPurchase } from '@/lib/marketing-credits/purchase';
+import { recordPaidOrder, reverseRefund } from '@/lib/marketplace/purchase';
 import {
   PAID_PLAN_LABELS,
   sendPaymentReceiptEmail,
@@ -115,6 +116,10 @@ export async function POST(request: Request) {
               stripeEventId: event.id,
             });
           }
+          break;
+        }
+        if (session.metadata?.kind === 'marketplace_asset') {
+          if (session.payment_status === 'paid') await recordPaidOrder(session, event.id);
           break;
         }
         const userId = session.metadata?.userId;
@@ -243,6 +248,7 @@ export async function POST(request: Request) {
 
       case 'charge.refunded': {
         await recordChargeRefund(event.data.object as Stripe.Charge, event.created);
+        await reverseRefund(event.data.object as Stripe.Charge);
         break;
       }
 

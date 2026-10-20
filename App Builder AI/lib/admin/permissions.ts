@@ -61,6 +61,8 @@ export const ADMIN_PERMISSIONS = [
   'revenue:read',
   'integrations:read',
   'integrations:write',
+  'marketplace:read',
+  'marketplace:write',
 ] as const;
 
 export type AdminPermission = (typeof ADMIN_PERMISSIONS)[number];
@@ -82,6 +84,7 @@ const READ_ONLY_PERMISSIONS = new Set<AdminPermission>(
       permission !== 'codescan:read' &&
       permission !== 'privacy:read' &&
       permission !== 'integrations:read' &&
+      permission !== 'marketplace:read' &&
       permission !== 'revenue:read',
   ),
 );
@@ -136,6 +139,8 @@ const ROLE_PERMISSIONS: Record<AdminRole, Set<AdminPermission>> = {
     'privacy:write',
     'integrations:read',
     'integrations:write',
+    'marketplace:read',
+    'marketplace:write',
     'revenue:read',
   ]),
   FINANCE_ADMIN: new Set<AdminPermission>([
@@ -187,6 +192,7 @@ const ROLE_PERMISSIONS: Record<AdminRole, Set<AdminPermission>> = {
     'codescan:write',
     'privacy:read',
     'integrations:read',
+    'marketplace:read',
   ]),
 };
 

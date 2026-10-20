@@ -192,6 +192,19 @@ describe('hasPermission', () => {
     }
   });
 
+  it('limits marketplace moderation to super admin and admin; security admin is read-only', () => {
+    for (const role of ['SUPER_ADMIN', 'ADMIN'] as const) {
+      expect(hasPermission(role, 'marketplace:read')).toBe(true);
+      expect(hasPermission(role, 'marketplace:write')).toBe(true);
+    }
+    expect(hasPermission('SECURITY_ADMIN', 'marketplace:read')).toBe(true);
+    expect(hasPermission('SECURITY_ADMIN', 'marketplace:write')).toBe(false);
+    for (const role of ['FINANCE_ADMIN', 'SUPPORT_ADMIN', 'ANALYTICS_VIEWER'] as const) {
+      expect(hasPermission(role, 'marketplace:read')).toBe(false);
+      expect(hasPermission(role, 'marketplace:write')).toBe(false);
+    }
+  });
+
   it('limits revenue:read to super admin, admin and finance admin', () => {
     for (const role of ['SUPER_ADMIN', 'ADMIN', 'FINANCE_ADMIN'] as const) {
       expect(hasPermission(role, 'revenue:read')).toBe(true);
