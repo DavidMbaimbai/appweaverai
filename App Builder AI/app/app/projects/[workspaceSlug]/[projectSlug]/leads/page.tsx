@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 
 import { LeadsDashboard } from '@/components/app/leads/leads-dashboard';
 import { getCachedSession } from '@/lib/auth/cached';
+import { calendarStatus } from '@/lib/calendar/service';
 import { importFormSubmissions } from '@/lib/leads/service';
 import { prisma } from '@/lib/prisma';
 import { projectAccessWhere } from '@/lib/projects/access';
@@ -23,7 +24,7 @@ export default async function ProjectLeadsPage({ params }: Props) {
   // Idempotent: form submissions already in the CRM are skipped.
   await importFormSubmissions(project.id).catch(() => null);
 
-  const [leads, slots] = await Promise.all([
+  const [leads, slots, calendar] = await Promise.all([
     prisma.lead.findMany({
       where: { projectId: project.id },
       orderBy: { createdAt: 'desc' },
@@ -38,9 +39,13 @@ export default async function ProjectLeadsPage({ params }: Props) {
       where: { projectId: project.id, startsAt: { gt: new Date() } },
       orderBy: { startsAt: 'asc' },
       take: 100,
-      include: { booking: { select: { lead: { select: { name: true } } } } },
+      include: { booking: { select: { id: true, lead: { select: { name: true } } } } },
     }),
+    calendarStatus(project.id),
   ]);
+
+  const syncs = await prisma.calendarBookingSync.findMany({ where: { bookingId: { in: slots.flatMap((s) => (s.booking ? [s.booking.id] : [])) } }, select: { bookingId: true, status: true } });
+  const syncStatus = new Map(syncs.map((s) => [s.bookingId, s.status]));
 
   return (
     <LeadsDashboard
@@ -66,7 +71,8 @@ export default async function ProjectLeadsPage({ params }: Props) {
         followUps: l.followUps.map((f) => ({ id: f.id, dueAt: f.dueAt.toISOString(), note: f.note })),
         draft: l.drafts[0] ? { id: l.drafts[0].id, subject: l.drafts[0].subject, body: l.drafts[0].body } : null,
       }))}
-      slots={slots.map((s) => ({ id: s.id, startsAt: s.startsAt.toISOString(), durationMin: s.durationMin, bookedBy: s.booking?.lead.name ?? null }))}
+      calendar={calendar}
+      slots={slots.map((s) => ({ id: s.id, startsAt: s.startsAt.toISOString(), durationMin: s.durationMin, bookedBy: s.booking?.lead.name ?? null, bookingId: s.booking?.id ?? null, bookingStatus: s.booking ? (syncStatus.get(s.booking.id) ?? 'PENDING_MANUAL_CONFIRMATION') : null }))}
     />
   );
 }

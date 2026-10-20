@@ -20,6 +20,10 @@ import {
   updateLeadAction,
 } from '@/lib/actions/project-leads';
 import { LEAD_STATUSES } from '@/lib/leads/logic';
+import { cancelBookingAction } from '@/lib/actions/calendar';
+import type { CalendarStatus } from '@/lib/calendar/service';
+
+import { CalendarPanel } from './calendar-panel';
 
 type LeadView = {
   id: string;
@@ -40,7 +44,7 @@ type LeadView = {
   followUps: { id: string; dueAt: string; note: string }[];
   draft: { id: string; subject: string; body: string } | null;
 };
-type SlotView = { id: string; startsAt: string; durationMin: number; bookedBy: string | null };
+type SlotView = { id: string; startsAt: string; durationMin: number; bookedBy: string | null; bookingId: string | null; bookingStatus: string | null };
 type Res = { ok: boolean; error?: string; message?: string };
 
 const card = 'rounded-2xl border border-app-border bg-app-surface p-6';
@@ -184,12 +188,14 @@ export function LeadsDashboard({
   growthHref,
   leads,
   slots,
+  calendar,
 }: {
   projectId: string;
   projectName: string;
   growthHref: string;
   leads: LeadView[];
   slots: SlotView[];
+  calendar: CalendarStatus;
 }) {
   const { pending, message, run } = useRunner();
   const [view, setView] = useState<'board' | 'list'>('board');
@@ -303,7 +309,13 @@ export function LeadsDashboard({
 
       <section className={card}>
         <h2 className="mb-2 font-display text-lg text-app-text">Demo availability</h2>
-        <p className="mb-2 text-xs text-app-text-muted">Times shown to visitors in their own time zone. Calendar sync is not connected; bookings appear here and by email.</p>
+        <p className="mb-2 text-xs text-app-text-muted">
+          Times shown to visitors in their own time zone.{' '}
+          {calendar.integration === 'AVAILABLE'
+            ? 'Your calendar is connected: visitors see times from your working hours minus your busy time, and bookings create calendar events.'
+            : 'Calendar sync is unavailable: bookings are recorded as pending manual confirmation.'}
+        </p>
+        <CalendarPanel projectId={projectId} status={calendar} />
         <div className="mb-3 flex flex-wrap gap-2">
           <input type="datetime-local" className={field + ' !w-auto'} value={slotInput} onChange={(e) => setSlotInput(e.target.value)} />
           <select className={field + ' !w-auto'} value={duration} onChange={(e) => setDuration(Number(e.target.value))}>
@@ -319,7 +331,10 @@ export function LeadsDashboard({
           {slots.map((s) => (
             <li key={s.id} className="flex items-center gap-2">
               <span>{new Date(s.startsAt).toLocaleString()} ({s.durationMin} min)</span>
-              <span className="text-xs text-app-text-muted">{s.bookedBy ? `booked by ${s.bookedBy}` : 'open'}</span>
+              <span className="text-xs text-app-text-muted">{s.bookedBy ? `booked by ${s.bookedBy}${s.bookingStatus === 'CONFIRMED' ? ' (calendar confirmed)' : ' (pending manual confirmation)'}` : 'open'}</span>
+              {s.bookingId ? (
+                <button className={btn} disabled={pending} onClick={() => run(async () => { const r = await cancelBookingAction(projectId, s.bookingId!); return r.ok ? { ok: true, message: r.warning ?? 'Booking cancelled.' } : r; })}>Cancel booking</button>
+              ) : null}
               {!s.bookedBy ? (
                 <button className={btn} disabled={pending} onClick={() => run(() => deleteSlotAction(s.id))}>Remove</button>
               ) : null}

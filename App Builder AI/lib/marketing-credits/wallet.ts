@@ -22,7 +22,8 @@ async function totalBalance(tx: Tx, userId: string) {
 }
 
 async function ensureWallet(tx: Tx, userId: string) {
-  await tx.marketingWallet.upsert({ where: { userId }, create: { userId }, update: {} });
+  // INSERT ... ON CONFLICT DO NOTHING: concurrent first-time callers must not abort each other's transaction.
+  await tx.marketingWallet.createMany({ data: [{ userId }], skipDuplicates: true });
 }
 
 export async function getWallet(userId: string) {

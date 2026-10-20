@@ -63,6 +63,14 @@
     {
       "path": "/api/cron/investor-campaigns",
       "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/calendar-sync",
+      "schedule": "*/10 * * * *"
+    },
+    {
+      "path": "/api/cron/meeting-reminders",
+      "schedule": "*/5 * * * *"
     }
   ]
 }
