@@ -1,21 +1,50 @@
 import { PageHeader } from '@/components/app/shell/page-header';
 import { LaunchWorkbench } from '@/components/app/studio/launch-workbench';
+import { MetaAdsPanel } from '@/components/app/studio/meta-ads-panel';
 import { StudioWorkbench } from '@/components/app/studio/studio-workbench';
+import { customerAdsConfigured, listAssets, type MetaAssets } from '@/lib/ads/customer-oauth';
+import { decryptSecret } from '@/lib/crypto/secret-box';
 import { getCachedSession } from '@/lib/auth/cached';
 import { prisma } from '@/lib/prisma';
 
 export const dynamic = 'force-dynamic';
 
-export default async function StudioPage() {
+export default async function StudioPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ meta?: string }>;
+}) {
+  const { meta } = await searchParams;
   const userId = (await getCachedSession())?.user?.id;
-  const saved =
-    userId && process.env.DATABASE_URL
-      ? await prisma.launchKit.findMany({
-          where: { userId },
-          orderBy: { createdAt: 'desc' },
-          take: 10,
-        })
-      : [];
+  const hasDb = Boolean(userId && process.env.DATABASE_URL);
+  const saved = hasDb
+    ? await prisma.launchKit.findMany({
+        where: { userId },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+      })
+    : [];
+
+  const configured = customerAdsConfigured();
+  const connection = hasDb && configured ? await prisma.metaAdConnection.findUnique({ where: { userId } }) : null;
+  const ads = hasDb && configured
+    ? await prisma.customerAd.findMany({ where: { userId }, orderBy: { createdAt: 'desc' }, take: 20 })
+    : [];
+  const ready = Boolean(connection?.adAccountId && connection?.pageId);
+  let assets: MetaAssets | null = null;
+  if (connection && !ready) {
+    try {
+      assets = await listAssets(decryptSecret(connection.accessTokenEnc));
+    } catch {
+      assets = null;
+    }
+  }
+  const notice =
+    meta === 'connected'
+      ? 'Facebook connected. Choose your ad account and page.'
+      : meta === 'denied' || meta === 'error'
+        ? 'Facebook was not connected.'
+        : undefined;
 
   return (
     <main className="flex flex-1 flex-col overflow-y-auto">
@@ -46,6 +75,35 @@ export default async function StudioPage() {
             </div>
           </section>
         ) : null}
+        <hr className="border-app-border-subtle" />
+        <MetaAdsPanel
+          configured={configured}
+          notice={notice}
+          assets={assets}
+          connection={
+            connection
+              ? {
+                  adAccountName: connection.adAccountName,
+                  pageName: connection.pageName,
+                  currency: connection.currency,
+                  dailyCapCents: connection.dailyCapCents,
+                  ready,
+                }
+              : null
+          }
+          ads={ads.map((a) => ({
+            id: a.id,
+            headline: a.headline,
+            primaryText: a.primaryText,
+            status: a.status,
+            startsAt: a.startsAt.toISOString(),
+            endsAt: a.endsAt.toISOString(),
+            dailyCents: a.dailyCents,
+            spendCents: a.spendCents,
+            clicks: a.clicks,
+            impressions: a.impressions,
+          }))}
+        />
         <hr className="border-app-border-subtle" />
         <StudioWorkbench />
       </div>

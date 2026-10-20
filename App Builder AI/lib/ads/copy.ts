@@ -50,3 +50,23 @@ export async function generateAdCopy(winners: string[], recent: string[]): Promi
   const block = response.content.find((c) => c.type === 'text');
   return block && block.type === 'text' ? parseAdCopy(block.text) : null;
 }
+
+const CUSTOMER_SYSTEM = `You write a paid Facebook/Instagram advert for a small business, using ONLY the brief the user gives. The goal is clicks to their website.
+
+Rules:
+- Never invent statistics, customer counts, testimonials, reviews, awards, prices, discounts, guarantees or claims not in the brief.
+- No superlatives you cannot prove, no health, financial-return, employment or housing claims, nothing about the viewer's personal traits, no investing talk.
+- "headline": at most 40 characters. "primaryText": at most 125 characters, one clear benefit and a call to action.
+- "imagePrompt": a vivid description of a clean, modern, eye-catching image that fits the ad. No text, letters, logos or people's faces.
+Return ONLY JSON: {"headline": "...", "primaryText": "...", "imagePrompt": "..."}`;
+
+export async function generateCustomerAdCopy(brief: string): Promise<AdCopy | null> {
+  const response = await getAnthropicClient().messages.create({
+    model: MODEL,
+    max_tokens: 500,
+    system: CUSTOMER_SYSTEM,
+    messages: [{ role: 'user', content: brief }],
+  });
+  const block = response.content.find((c) => c.type === 'text');
+  return block && block.type === 'text' ? parseAdCopy(block.text) : null;
+}

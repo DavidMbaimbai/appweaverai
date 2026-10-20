@@ -1504,3 +1504,46 @@ model LaunchKit {
   @@index([userId, createdAt])
   @@map("launch_kits")
 }
+// -----------------------------------------------------------------------------
+// Customer-run Meta ads — a customer connects their own Facebook account and
+// launches AI-written ads, spending their own money under a per-user cap
+// -----------------------------------------------------------------------------
+model MetaAdConnection {
+  id             String    @id @default(cuid())
+  userId         String    @unique @map("user_id")
+  /// Encrypted long-lived user access token.
+  accessTokenEnc String    @map("access_token_enc") @db.Text
+  tokenExpiresAt DateTime? @map("token_expires_at")
+  adAccountId    String?   @map("ad_account_id")
+  adAccountName  String?   @map("ad_account_name")
+  currency       String?
+  pageId         String?   @map("page_id")
+  pageName       String?   @map("page_name")
+  /// Max total daily budget across the user's running ads, in minor currency units (cents).
+  dailyCapCents  Int       @default(500) @map("daily_cap_cents")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  @@map("meta_ad_connections")
+}
+
+model CustomerAd {
+  id           String   @id @default(cuid())
+  userId       String   @map("user_id")
+  headline     String
+  primaryText  String   @map("primary_text") @db.Text
+  link         String
+  dailyCents   Int      @map("daily_cents")
+  startsAt     DateTime @default(now()) @map("starts_at")
+  endsAt       DateTime @map("ends_at")
+  status       String   @default("ACTIVE")
+  metaAdId     String?  @map("meta_ad_id")
+  metaCampaign String?  @map("meta_campaign_id")
+  spendCents   Int      @default(0) @map("spend_cents")
+  clicks       Int      @default(0)
+  impressions  Int      @default(0)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@index([userId, createdAt])
+  @@map("customer_ads")
+}
