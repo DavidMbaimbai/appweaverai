@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+import {
+  ATTRIBUTION_COOKIE,
+  ATTRIBUTION_MAX_AGE_SECONDS,
+  attributionFromSearch,
+} from '@/lib/ads/attribution-cookie';
+
 /**
  * All pages/features are publicly browsable without signing in. Authentication
  * is only enforced at the point of actually using credits — e.g. creating a
@@ -36,7 +42,18 @@ export async function proxy(request: NextRequest) {
     host.endsWith('.vercel.app') ||
     host.endsWith('appweaverai.com')
   ) {
-    return NextResponse.next();
+    const response = NextResponse.next();
+    // First-touch ad attribution: remember which ad brought the visitor.
+    const attribution = attributionFromSearch(request.nextUrl.searchParams);
+    if (attribution && !request.cookies.has(ATTRIBUTION_COOKIE)) {
+      response.cookies.set(ATTRIBUTION_COOKIE, JSON.stringify(attribution), {
+        maxAge: ATTRIBUTION_MAX_AGE_SECONDS,
+        sameSite: 'lax',
+        path: '/',
+        secure: process.env.NODE_ENV === 'production',
+      });
+    }
+    return response;
   }
 
   try {

@@ -7,6 +7,7 @@ import { sso } from '@better-auth/sso';
 import { prisma } from './prisma';
 import { hasPermission } from './admin/permissions';
 import { provisionNewUser } from './auth/provision-user';
+import { recordAttribution } from './ads/attribution';
 import { recordAuthActivity } from './auth/record-auth-activity';
 import {
   sendLoginNotificationEmail,
@@ -160,7 +161,14 @@ export const auth = betterAuth({
         databaseHooks: {
           user: {
             create: {
-              after: async (user) => {
+              after: async (user, context) => {
+                try {
+                  const headers = context?.headers ?? context?.request?.headers;
+                  await recordAttribution(user.id, headers?.get?.('cookie'));
+                } catch (error) {
+                  console.error('[ads] attribution failed:', error);
+                }
+
                 await provisionNewUser({
                   id: user.id,
                   name: user.name,

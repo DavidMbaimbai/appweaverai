@@ -38,7 +38,7 @@ export default async function AdminOutreachPage() {
   if (!auth.ok) return null;
   const canWrite = hasPermission(auth.admin.adminRole, 'outreach:write');
 
-  const [interactions, leads, callList, sentToday, failedReplies, reviews] = await Promise.all([
+  const [interactions, leads, callList, sentToday, failedReplies, reviews, ads] = await Promise.all([
     prisma.socialInteraction.findMany({
       where: { status: { in: ['PENDING_APPROVAL', 'FAILED'] } },
       orderBy: { createdAt: 'desc' },
@@ -63,7 +63,27 @@ export default async function AdminOutreachPage() {
       orderBy: { createdAt: 'desc' },
       take: 50,
     }),
+    prisma.adCreative.findMany({ orderBy: { createdAt: 'desc' }, take: 20 }),
   ]);
+
+  const adIds = ads.map((ad) => ad.id);
+  const attributions = adIds.length
+    ? await prisma.adAttribution.findMany({
+        where: { content: { in: adIds } },
+        select: { userId: true, content: true },
+      })
+    : [];
+  const paidUsers = attributions.length
+    ? await prisma.user.findMany({
+        where: { id: { in: attributions.map((a) => a.userId) }, subscriptionPlan: { not: 'free' } },
+        select: { id: true },
+      })
+    : [];
+  const paidIds = new Set(paidUsers.map((u) => u.id));
+  const adResults = ads.map((ad) => {
+    const mine = attributions.filter((a) => a.content === ad.id);
+    return { ...ad, signups: mine.length, paid: mine.filter((a) => paidIds.has(a.userId)).length };
+  });
 
   return (
     <div>
@@ -141,6 +161,26 @@ export default async function AdminOutreachPage() {
                 <span className="text-xs font-normal text-app-text-muted">{formatDateTime(item.createdAt)}</span>
               </p>
               <p className="mt-1 whitespace-pre-wrap text-sm text-app-text-secondary">{item.text}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="mb-8">
+        <h2 className="mb-3 text-sm font-medium text-app-text">Paid ads (automatic, USD 5/day cap)</h2>
+        {adResults.length === 0 ? <AdminEmptyState message="No ads launched yet." /> : null}
+        <div className="space-y-3">
+          {adResults.map((ad) => (
+            <div key={ad.id} className="rounded-xl border border-app-border-subtle bg-app-surface p-4">
+              <p className="text-sm font-medium text-app-text">
+                {ad.headline}{' '}
+                <StatusPill tone={ad.status === 'FAILED' ? 'danger' : 'neutral'}>{ad.status}</StatusPill>
+              </p>
+              <p className="mt-1 text-sm text-app-text-secondary">{ad.primaryText}</p>
+              <p className="mt-1 text-xs text-app-text-muted">
+                Spend ${(ad.spendCents / 100).toFixed(2)} · {ad.impressions} views · {ad.clicks} clicks ·{' '}
+                {ad.signups} sign-ups · {ad.paid} paying
+              </p>
             </div>
           ))}
         </div>

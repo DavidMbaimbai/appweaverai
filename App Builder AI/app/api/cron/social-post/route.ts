@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { sendAlert } from '@/lib/alerts';
 import { hasBearerSecret } from '@/lib/rate-limit';
+import { ensureAdvertQueue } from '@/lib/social/adverts';
 import { publishNextDueSocialPost } from '@/lib/social/publish';
 
 export const maxDuration = 300;
@@ -26,8 +27,10 @@ export async function GET(request: Request) {
   }
 
   try {
+    const adverts = await ensureAdvertQueue();
     return NextResponse.json({
       success: true,
+      adverts,
       ...(await publishNextDueSocialPost()),
     });
   } catch (error) {

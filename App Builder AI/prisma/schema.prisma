@@ -1438,3 +1438,55 @@ model OutreachSuppression {
 
   @@map("outreach_suppressions")
 }
+
+// -----------------------------------------------------------------------------
+// Paid advertising (Meta) — AI-written creatives, launched and optimised
+// automatically, with sign-up / paid conversions attributed per creative
+// -----------------------------------------------------------------------------
+enum AdCreativeStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  FAILED
+}
+
+model AdCreative {
+  id          String           @id @default(cuid())
+  headline    String
+  primaryText String           @map("primary_text") @db.Text
+  imagePrompt String           @map("image_prompt") @db.Text
+  status      AdCreativeStatus @default(DRAFT)
+  metaAdId    String?          @map("meta_ad_id")
+  note        String?          @db.Text
+  spendCents  Int              @default(0) @map("spend_cents")
+  impressions Int              @default(0)
+  clicks      Int              @default(0)
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@map("ad_creatives")
+}
+
+/// First-touch attribution captured from the aw_attr cookie at sign-up.
+model AdAttribution {
+  id        String   @id @default(cuid())
+  userId    String   @unique @map("user_id")
+  source    String?
+  medium    String?
+  campaign  String?
+  /// utm_content: the AdCreative id for paid ads.
+  content   String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([content])
+  @@map("ad_attributions")
+}
+
+/// Small key/value store, e.g. the Meta campaign and ad set ids.
+model AdState {
+  key   String @id
+  value String
+
+  @@map("ad_state")
+}
