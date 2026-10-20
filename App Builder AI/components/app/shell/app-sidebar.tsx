@@ -40,6 +40,7 @@ const mainNav: Array<{
 }> = [
   { label: 'Home', href: '/app', icon: HomeIcon, exact: true },
   { label: 'Templates', href: '/app/templates', icon: TemplatesIcon, exact: true },
+  { label: 'Studio', href: '/app/studio', icon: PencilIcon, exact: true },
   { label: 'Projects', href: '/app/projects', icon: ProjectsIcon, exact: true },
   { label: 'Explore', href: '/app/explore', icon: ExploreIcon, exact: true },
 ];
