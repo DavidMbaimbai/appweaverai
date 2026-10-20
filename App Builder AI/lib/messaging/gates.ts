@@ -18,7 +18,11 @@ export function isStartKeyword(text: string) {
 
 export function normalizeContact(channel: MessageChannelName, contact: string): string {
   const value = contact.trim();
-  return channel === 'EMAIL' ? value.toLowerCase() : value;
+  if (channel === 'EMAIL') return value.toLowerCase();
+  // Phone numbers: formatting must not let a suppressed number slip through under another spelling.
+  if (channel === 'SMS') return value.replace(/[\s\-().]/g, '');
+  if (channel === 'WHATSAPP') return value.replace(/[\s\-().+]/g, '');
+  return value;
 }
 
 export type WindowInput = {

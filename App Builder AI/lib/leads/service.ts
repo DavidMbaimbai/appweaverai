@@ -1,3 +1,6 @@
+import { createBookingEvent, checkSlotFree, recordBookingSync } from '@/lib/calendar/bookings';
+import { SLOT_PREFIX } from '@/lib/calendar/logic';
+import { getVerifiedConnection, withScopeLock } from '@/lib/calendar/service';
 import { parseCsv, toCsv } from '@/lib/investor-hub/csv';
 import { prisma } from '@/lib/prisma';
 
@@ -211,23 +214,43 @@ export async function listOpenSlots(projectId: string) {
 export class BookingError extends Error {
   constructor(
     message: string,
-    readonly status: 404 | 409 = 409,
+    readonly status: 404 | 409 | 503 = 409,
   ) {
     super(message);
   }
 }
 
-/** The unique slotId on LeadBooking makes double-booking impossible even under races. */
+export type BookingStatus = 'CONFIRMED' | 'PENDING_MANUAL_CONFIRMATION';
+
+/**
+ * Books a slot. With a verified calendar the time is re-checked against live free/busy inside a per-project lock
+ * right before the booking is stored, then a real calendar event is created (idempotently). Without one the booking
+ * is recorded as PENDING_MANUAL_CONFIRMATION: it is never presented as confirmed.
+ * `cal:<ISO>` slot ids are generated from working hours + free/busy; other ids are owner-defined slots.
+ */
 export async function bookSlot(
   projectId: string,
   slotId: string,
   who: { name: string; email: string; phone?: string | null; consent?: boolean },
 ) {
-  const slot = await prisma.leadAvailabilitySlot.findFirst({
-    where: { id: slotId, projectId, startsAt: { gt: new Date() } },
-    select: { id: true, startsAt: true, durationMin: true },
-  });
-  if (!slot) throw new BookingError('That time is no longer available.', 404);
+  let conn = await getVerifiedConnection(projectId);
+  const calendarSlot = slotId.startsWith(SLOT_PREFIX);
+  let start: Date;
+  let durationMin: number;
+  let ownedSlotId: string | null = null;
+  if (calendarSlot) {
+    start = new Date(slotId.slice(SLOT_PREFIX.length));
+    if (!conn || Number.isNaN(start.getTime()) || start.getTime() <= Date.now()) throw new BookingError('That time is no longer available.', 404);
+    durationMin = conn.durationMin;
+  } else {
+    const slot = await prisma.leadAvailabilitySlot.findFirst({
+      where: { id: slotId, projectId, startsAt: { gt: new Date() } },
+      select: { id: true, startsAt: true, durationMin: true },
+    });
+    if (!slot) throw new BookingError('That time is no longer available.', 404);
+    ({ startsAt: start, durationMin } = slot);
+    ownedSlotId = slot.id;
+  }
 
   const lead = await upsertLead(
     projectId,
@@ -242,15 +265,39 @@ export async function bookSlot(
     },
     { consentText: CONSENT_TEXT },
   );
-  try {
-    await prisma.leadBooking.create({ data: { slotId: slot.id, leadId: lead.id } });
-  } catch {
-    throw new BookingError('That time was just taken. Please pick another.');
-  }
+
+  const booking = await withScopeLock(`lead-book:${projectId}`, async (tx) => {
+    if (conn) {
+      const check = await checkSlotFree(tx, conn, projectId, start, durationMin, { enforceHours: calendarSlot });
+      if (check === 'TAKEN') throw new BookingError('That time was just taken. Please pick another.');
+      if (check === 'UNVERIFIABLE') {
+        // A revoked token drops us to manual confirmation; a transient outage must not produce a guess.
+        conn = await getVerifiedConnection(projectId);
+        if (conn) throw new BookingError('We could not check availability right now. Please try again shortly.', 503);
+        if (calendarSlot) throw new BookingError('That time is no longer available.', 404);
+      }
+    }
+    let slotRowId = ownedSlotId;
+    if (!slotRowId) {
+      slotRowId = (await tx.leadAvailabilitySlot.create({ data: { projectId, startsAt: start, durationMin }, select: { id: true } })).id;
+    } else if (await tx.leadBooking.findUnique({ where: { slotId: slotRowId }, select: { id: true } })) {
+      throw new BookingError('That time was just taken. Please pick another.');
+    }
+    const row = await tx.leadBooking.create({ data: { slotId: slotRowId, leadId: lead.id }, select: { id: true } });
+    await recordBookingSync(tx, { bookingId: row.id, scopeKey: projectId, start, durationMin, provider: conn?.provider ?? null });
+    return row;
+  });
+
+  const status: BookingStatus = conn ? await createBookingEvent(booking.id) : 'PENDING_MANUAL_CONFIRMATION';
   const current = await prisma.lead.findUnique({ where: { id: lead.id }, select: { status: true } });
   if (current && current.status !== 'WON') {
     await prisma.lead.update({ where: { id: lead.id }, data: { status: 'DEMO_BOOKED' } });
   }
-  await logActivity(lead.id, 'DEMO_BOOKED', `Booked ${slot.startsAt.toISOString()} (${slot.durationMin} min)`);
-  return { leadId: lead.id, slot };
+  await logActivity(
+    lead.id,
+    'DEMO_BOOKED',
+    `${status === 'CONFIRMED' ? 'Booked' : 'Requested (awaiting manual confirmation)'} ${start.toISOString()} (${durationMin} min)`,
+  );
+  return { leadId: lead.id, bookingId: booking.id, status, slot: { startsAt: start, durationMin } };
 }
+
