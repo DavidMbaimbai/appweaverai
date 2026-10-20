@@ -372,16 +372,20 @@ enum ProjectAdminStatus {
 }
 
 model Project {
-  id          String    @id @default(cuid())
-  workspaceId String    @map("workspace_id")
-  name        String
-  slug        String
-  description String?   @db.Text
-  iconUrl     String?   @map("icon_url")
-  createdById String    @map("created_by_id")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
-  deletedAt   DateTime? @map("deleted_at")
+  id             String                 @id @default(cuid())
+  reviews        ProjectReview[]
+  reviewSettings ProjectReviewSettings?
+  knowledgeDocs  ProjectKnowledge[]
+  supportTickets ProjectSupportTicket[]
+  workspaceId    String                 @map("workspace_id")
+  name           String
+  slug           String
+  description    String?                @db.Text
+  iconUrl        String?                @map("icon_url")
+  createdById    String                 @map("created_by_id")
+  createdAt      DateTime               @default(now()) @map("created_at")
+  updatedAt      DateTime               @updatedAt @map("updated_at")
+  deletedAt      DateTime?              @map("deleted_at")
 
   /// Admin Console lifecycle controls (ADM-073, ADM-074).
   adminStatus     ProjectAdminStatus @default(ACTIVE) @map("admin_status")
@@ -1490,6 +1494,7 @@ model AdState {
 
   @@map("ad_state")
 }
+
 /// Saved output of the Studio one-prompt launch (brand kit, ad pack, plan).
 model LaunchKit {
   id          String   @id @default(cuid())
@@ -1504,6 +1509,7 @@ model LaunchKit {
   @@index([userId, createdAt])
   @@map("launch_kits")
 }
+
 // -----------------------------------------------------------------------------
 // Customer-run Meta ads — a customer connects their own Facebook account and
 // launches AI-written ads, spending their own money under a per-user cap
@@ -1546,4 +1552,719 @@ model CustomerAd {
 
   @@index([userId, createdAt])
   @@map("customer_ads")
+}
+
+// -----------------------------------------------------------------------------
+// Customer-app reviews + support assistant (for customers' own published apps;
+// AppWeaver's own platform AI never replies to reviews).
+// -----------------------------------------------------------------------------
+
+model ProjectReview {
+  id            String    @id @default(cuid())
+  projectId     String    @map("project_id")
+  rating        Int
+  authorName    String    @map("author_name")
+  authorEmail   String?   @map("author_email")
+  body          String    @db.Text
+  topic         String?
+  sentiment     String?
+  urgency       String?
+  status        String    @default("PENDING")
+  aiDraft       String?   @map("ai_draft") @db.Text
+  reply         String?   @db.Text
+  replyStatus   String    @default("NONE") @map("reply_status")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  /// Observatory: READY_FOR_REVIEW | NEEDS_INVESTIGATION | ESCALATION_REQUIRED | APPROVED_FOR_AUTOMATION
+  responseState String    @default("READY_FOR_REVIEW") @map("response_state")
+  /// Evidence bundle used for the draft (redacted; never contains secrets).
+  evidence      Json?
+  /// Original AI draft kept so owner corrections can be recorded.
+  draftOriginal String?   @map("draft_original") @db.Text
+  approvedById  String?   @map("approved_by_id")
+  approvedAt    DateTime? @map("approved_at")
+  repliedAt     DateTime? @map("replied_at")
+  corrections   Json?
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, status, createdAt])
+  @@map("project_reviews")
+}
+
+model ProjectReviewSettings {
+  id                String   @id @default(cuid())
+  projectId         String   @unique @map("project_id")
+  enabled           Boolean  @default(false)
+  autoReplyPositive Boolean  @default(false) @map("auto_reply_positive")
+  businessInfo      String   @default("") @map("business_info") @db.Text
+  tone              String   @default("friendly")
+  notifyEmail       String?  @map("notify_email")
+  /// Optional owner-configured read-only status endpoint; only a reference id is sent.
+  statusWebhookUrl  String?  @map("status_webhook_url")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("project_review_settings")
+}
+
+model ProjectKnowledge {
+  id        String   @id @default(cuid())
+  projectId String   @map("project_id")
+  title     String
+  content   String   @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, createdAt])
+  @@map("project_knowledge")
+}
+
+model ProjectSupportTicket {
+  id         String   @id @default(cuid())
+  projectId  String   @map("project_id")
+  question   String   @db.Text
+  contact    String?
+  transcript Json?
+  status     String   @default("OPEN")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, status, createdAt])
+  @@map("project_support_tickets")
+}
+
+// -----------------------------------------------------------------------------
+// Per-project marketing: campaigns and posts published to the customer's OWN
+// social accounts. userId/projectId are plain indexed columns (no relations) so
+// this feature does not touch the User/Project models.
+// -----------------------------------------------------------------------------
+
+enum MarketingPlatform {
+  X
+  LINKEDIN
+  FACEBOOK
+  INSTAGRAM
+  TIKTOK
+  YOUTUBE
+}
+
+enum ProjectCampaignStatus {
+  DRAFT
+  SCHEDULED
+  PUBLISHED
+}
+
+enum ProjectPostStatus {
+  DRAFT
+  APPROVED
+  SCHEDULED
+  PUBLISHING
+  PUBLISHED
+  FAILED
+  MANUAL
+}
+
+/// OAuth connection to a customer's own social account. Tokens are encrypted.
+model SocialConnection {
+  id              String            @id @default(cuid())
+  userId          String            @map("user_id")
+  platform        MarketingPlatform
+  accessTokenEnc  String            @map("access_token_enc")
+  refreshTokenEnc String?           @map("refresh_token_enc")
+  expiresAt       DateTime?         @map("expires_at")
+  accountName     String?           @map("account_name")
+  accountId       String?           @map("account_id")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+
+  @@unique([userId, platform])
+  @@map("social_connections")
+}
+
+model ProjectCampaign {
+  id        String                @id @default(cuid())
+  projectId String                @map("project_id")
+  userId    String                @map("user_id")
+  name      String
+  brief     String                @default("") @db.Text
+  status    ProjectCampaignStatus @default(DRAFT)
+  createdAt DateTime              @default(now()) @map("created_at")
+  updatedAt DateTime              @updatedAt @map("updated_at")
+
+  posts ProjectPost[]
+
+  @@index([projectId, createdAt])
+  @@index([userId])
+  @@map("project_campaigns")
+}
+
+model ProjectPost {
+  id          String            @id @default(cuid())
+  campaignId  String            @map("campaign_id")
+  platform    MarketingPlatform
+  text        String            @db.Text
+  imageUrl    String?           @map("image_url")
+  hashtags    String[]
+  /// UTC instant; the owner's wall-clock choice is converted with timeZone.
+  scheduledAt DateTime?         @map("scheduled_at")
+  timeZone    String            @default("UTC") @map("time_zone")
+  status      ProjectPostStatus @default(DRAFT)
+  externalId  String?           @map("external_id")
+  error       String?           @db.Text
+  publishedAt DateTime?         @map("published_at")
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+
+  campaign ProjectCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([status, scheduledAt])
+  @@index([campaignId])
+  @@map("project_posts")
+}
+
+/// Managed subdomain `<subdomain>.<APP_ROOT_DOMAIN>` served from a project's
+/// published deployment. No FK relation so the schema stays append-only; a row
+/// whose project no longer exists is treated as free (see subdomain-store.ts).
+model ProjectSubdomain {
+  id        String   @id @default(cuid())
+  projectId String   @unique @map("project_id")
+  subdomain String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("project_subdomains")
+}
+
+/// Result of a real health check against a project's live deployment.
+model ProjectHealthCheck {
+  id         String   @id @default(cuid())
+  projectId  String   @map("project_id")
+  ok         Boolean
+  statusCode Int?     @map("status_code")
+  latencyMs  Int?     @map("latency_ms")
+  detail     String   @db.Text
+  checkedAt  DateTime @default(now()) @map("checked_at")
+
+  @@index([projectId, checkedAt])
+  @@map("project_health_checks")
+}
+
+// -----------------------------------------------------------------------------
+// Investor Hub (customer-facing fundraising CRM). Every row is scoped by userId
+// AND projectId; no FK to User/Project so the schema stays append-only.
+// -----------------------------------------------------------------------------
+enum HubInvestorType {
+  VC
+  ANGEL
+  FAMILY_OFFICE
+  GRANT
+  ACCELERATOR
+  LENDER
+  OTHER
+}
+
+enum HubInvestorStage {
+  DISCOVERED
+  RESEARCHED
+  QUALIFIED
+  OUTREACH_DRAFTED
+  CONTACTED
+  REPLIED
+  MEETING_SCHEDULED
+  PITCH_DELIVERED
+  DUE_DILIGENCE
+  NEGOTIATION
+  FUNDING_SECURED
+  DECLINED
+}
+
+enum HubOutreachKind {
+  EMAIL
+  FOLLOW_UP
+  LINKEDIN
+  CALL_SCRIPT
+  MEETING_REQUEST
+}
+
+enum HubOutreachStatus {
+  DRAFT
+  APPROVED
+  SENT
+  CANCELLED
+}
+
+/// Only facts the founder typed in; these are the sole facts AI may use.
+model InvestorHubProfile {
+  id           String   @id @default(cuid())
+  userId       String   @map("user_id")
+  projectId    String   @map("project_id")
+  companyName  String   @default("") @map("company_name")
+  website      String   @default("")
+  description  String   @default("") @db.Text
+  sector       String   @default("")
+  stage        String   @default("")
+  amountSought Int?     @map("amount_sought")
+  currency     String   @default("USD")
+  geography    String   @default("")
+  traction     String   @default("") @db.Text
+  useOfFunds   String   @default("") @map("use_of_funds") @db.Text
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@unique([userId, projectId])
+  @@map("investor_hub_profiles")
+}
+
+model HubInvestor {
+  id               String           @id @default(cuid())
+  userId           String           @map("user_id")
+  projectId        String           @map("project_id")
+  name             String
+  firm             String?
+  type             HubInvestorType  @default(OTHER)
+  website          String?
+  /// Normalised host (no www) used for duplicate prevention.
+  domain           String?
+  email            String?
+  /// Lowercased email used for duplicate prevention.
+  emailKey         String?          @map("email_key")
+  linkedinUrl      String?          @map("linkedin_url")
+  focus            String?          @db.Text
+  sectors          String[]
+  stages           String[]
+  geographies      String[]
+  instruments      String[]
+  ticketMin        Int?             @map("ticket_min")
+  ticketMax        Int?             @map("ticket_max")
+  portfolio        String[]
+  sourceUrl        String?          @map("source_url")
+  verified         Boolean          @default(false)
+  lastVerifiedAt   DateTime?        @map("last_verified_at")
+  /// Per-field provenance: { field: { sourceUrl, lastVerifiedAt, verified } }.
+  fieldMeta        Json             @default("{}") @map("field_meta")
+  pipelineStage    HubInvestorStage @default(DISCOVERED) @map("pipeline_stage")
+  score            Int?
+  scoreDetail      Json?            @map("score_detail")
+  brief            String?          @db.Text
+  briefSources     Json?            @map("brief_sources")
+  briefAt          DateTime?        @map("brief_at")
+  tags             String[]
+  optedOut         Boolean          @default(false) @map("opted_out")
+  sequenceActive   Boolean          @default(true) @map("sequence_active")
+  nextFollowUpAt   DateTime?        @map("next_follow_up_at")
+  fundingConfirmed Boolean          @default(false) @map("funding_confirmed")
+  fundingAmount    Int?             @map("funding_amount")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+
+  activities HubInvestorActivity[]
+  outreach   HubInvestorOutreach[]
+  replies    HubInvestorReply[]
+
+  @@unique([projectId, domain])
+  @@unique([projectId, emailKey])
+  @@index([userId, projectId, pipelineStage])
+  @@index([userId, projectId, nextFollowUpAt])
+  @@map("hub_investors")
+}
+
+model HubInvestorActivity {
+  id         String   @id @default(cuid())
+  userId     String   @map("user_id")
+  projectId  String   @map("project_id")
+  investorId String   @map("investor_id")
+  type       String
+  summary    String   @db.Text
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  investor HubInvestor @relation(fields: [investorId], references: [id], onDelete: Cascade)
+
+  @@index([investorId, createdAt])
+  @@index([userId, projectId, createdAt])
+  @@map("hub_investor_activities")
+}
+
+model HubInvestorOutreach {
+  id         String            @id @default(cuid())
+  userId     String            @map("user_id")
+  projectId  String            @map("project_id")
+  investorId String            @map("investor_id")
+  kind       HubOutreachKind
+  variant    Int               @default(1)
+  subject    String?
+  body       String            @db.Text
+  status     HubOutreachStatus @default(DRAFT)
+  approvedAt DateTime?         @map("approved_at")
+  /// Always manual today: the founder copies the text and sends it themselves.
+  sentAt     DateTime?         @map("sent_at")
+  createdAt  DateTime          @default(now()) @map("created_at")
+  updatedAt  DateTime          @updatedAt @map("updated_at")
+
+  investor HubInvestor @relation(fields: [investorId], references: [id], onDelete: Cascade)
+
+  @@index([investorId, createdAt])
+  @@index([userId, projectId, status, sentAt])
+  @@map("hub_investor_outreach")
+}
+
+model HubInvestorReply {
+  id             String   @id @default(cuid())
+  userId         String   @map("user_id")
+  projectId      String   @map("project_id")
+  investorId     String   @map("investor_id")
+  text           String   @db.Text
+  classification String
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  investor HubInvestor @relation(fields: [investorId], references: [id], onDelete: Cascade)
+
+  @@index([investorId, createdAt])
+  @@index([userId, projectId, createdAt])
+  @@map("hub_investor_replies")
+}
+
+enum VideoJobMode {
+  TEXT
+  IMAGE
+  VIDEO
+}
+
+enum VideoJobStatus {
+  QUEUED
+  SUBMITTED
+  RUNNING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+}
+
+enum VideoProjectKind {
+  STANDALONE
+  SERIES
+}
+
+/// One AI video generation request sent to an external provider (e.g. Amazon
+/// Nova Reel). Object keys are never exposed to clients; playback uses
+/// short-lived presigned URLs minted after an owner check.
+model VideoJob {
+  id                 String         @id @default(cuid())
+  userId             String         @map("user_id")
+  projectId          String?        @map("project_id")
+  providerId         String         @map("provider_id")
+  model              String
+  mode               VideoJobMode
+  prompt             String         @db.Text
+  inputImageKey      String?        @map("input_image_key")
+  seconds            Int
+  aspect             String         @default("16:9")
+  status             VideoJobStatus @default(QUEUED)
+  progress           Int            @default(0)
+  externalId         String?        @map("external_id")
+  attempts           Int            @default(0)
+  nextAttemptAt      DateTime?      @map("next_attempt_at")
+  error              String?        @db.Text
+  outputKey          String?        @map("output_key")
+  thumbnailKey       String?        @map("thumbnail_key")
+  estimatedCostCents Int            @default(0) @map("estimated_cost_cents")
+  actualCostCents    Int            @default(0) @map("actual_cost_cents")
+  idempotencyKey     String         @unique @map("idempotency_key")
+  submittedAt        DateTime?      @map("submitted_at")
+  createdAt          DateTime       @default(now()) @map("created_at")
+  updatedAt          DateTime       @updatedAt @map("updated_at")
+
+  scenes VideoScene[]
+
+  @@index([userId, createdAt])
+  @@index([status, nextAttemptAt])
+  @@index([providerId, createdAt])
+  @@map("video_jobs")
+}
+
+model VideoProject {
+  id        String           @id @default(cuid())
+  userId    String           @map("user_id")
+  title     String
+  kind      VideoProjectKind @default(STANDALONE)
+  createdAt DateTime         @default(now()) @map("created_at")
+  updatedAt DateTime         @updatedAt @map("updated_at")
+
+  scenes VideoScene[]
+
+  @@index([userId, updatedAt])
+  @@map("video_projects")
+}
+
+model VideoScene {
+  id                String   @id @default(cuid())
+  videoProjectId    String   @map("video_project_id")
+  order             Int
+  prompt            String   @db.Text
+  seconds           Int      @default(6)
+  /// Optional reference image (S3 key, never sent to the client).
+  referenceImageKey String?  @map("reference_image_key")
+  jobId             String?  @map("job_id")
+  season            Int?
+  episode           Int?
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  videoProject VideoProject @relation(fields: [videoProjectId], references: [id], onDelete: Cascade)
+  job          VideoJob?    @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  @@index([videoProjectId, order])
+  @@index([jobId])
+  @@map("video_scenes")
+}
+
+/// Admin-managed switches and limits per video provider.
+model VideoProviderConfig {
+  id                 String   @id @default(cuid())
+  providerId         String   @unique @map("provider_id")
+  enabled            Boolean  @default(false)
+  models             Json     @default("[]")
+  maxSecondsPerJob   Int      @default(60) @map("max_seconds_per_job")
+  dailyJobLimit      Int      @default(100) @map("daily_job_limit")
+  monthlyBudgetCents Int      @default(10000) @map("monthly_budget_cents")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@map("video_provider_configs")
+}
+
+// -----------------------------------------------------------------------------
+// Admin Application Observatory. Plain indexed projectId columns (no FKs) so the
+// observatory never constrains Project deletion or other models.
+// -----------------------------------------------------------------------------
+enum AppFeatureStatus {
+  PLANNED
+  IMPLEMENTED
+  TESTED
+  DEPLOYED
+  KNOWN_ISSUE
+}
+
+enum ProjectIssueStatus {
+  OPEN
+  ANALYSING
+  FIX_PROPOSED
+  APPROVED
+  DEPLOYED
+  VERIFIED
+  CLOSED
+}
+
+/// Written every time an admin opens a project in the observatory.
+model AdminAccessLog {
+  id         String   @id @default(cuid())
+  adminId    String   @map("admin_id")
+  adminEmail String?  @map("admin_email")
+  projectId  String   @map("project_id")
+  action     String
+  ipAddress  String?  @map("ip_address")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([projectId, createdAt])
+  @@index([adminId, createdAt])
+  @@map("admin_access_logs")
+}
+
+/// Version-aware feature ledger built only from real evidence.
+model AppFeature {
+  id         String           @id @default(cuid())
+  projectId  String           @map("project_id")
+  key        String
+  name       String
+  summary    String?          @db.Text
+  status     AppFeatureStatus @default(PLANNED)
+  /// Array of { type, ref, detail }
+  evidence   Json             @default("[]")
+  version    Int?
+  verifiedAt DateTime?        @map("verified_at")
+  createdAt  DateTime         @default(now()) @map("created_at")
+  updatedAt  DateTime         @updatedAt @map("updated_at")
+
+  @@unique([projectId, key])
+  @@index([projectId, status])
+  @@map("app_features")
+}
+
+/// Result of an HTTP smoke check against the project's own published URL.
+model SmokeCheck {
+  id         String   @id @default(cuid())
+  projectId  String   @map("project_id")
+  url        String
+  /// PASS | SUSPECTED | CONFIRMED_FAILURE
+  outcome    String
+  statusCode Int?     @map("status_code")
+  title      String?
+  version    Int?
+  details    Json     @default("[]")
+  checkedAt  DateTime @default(now()) @map("checked_at")
+
+  @@index([projectId, checkedAt])
+  @@index([outcome, checkedAt])
+  @@map("smoke_checks")
+}
+
+/// A defect found via customer feedback, analysed into a plan the owner approves.
+model ProjectIssue {
+  id                String             @id @default(cuid())
+  projectId         String             @map("project_id")
+  reviewId          String?            @map("review_id")
+  title             String
+  severity          String             @default("medium")
+  status            ProjectIssueStatus @default(OPEN)
+  analysis          String?            @db.Text
+  proposedPlan      String?            @map("proposed_plan") @db.Text
+  evidence          Json               @default("[]")
+  createdById       String?            @map("created_by_id")
+  approvedById      String?            @map("approved_by_id")
+  approvedAt        DateTime?          @map("approved_at")
+  deployedAt        DateTime?          @map("deployed_at")
+  verifiedAt        DateTime?          @map("verified_at")
+  verifiedByCheckId String?            @map("verified_by_check_id")
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+
+  @@index([projectId, status])
+  @@index([reviewId])
+  @@map("project_issues")
+}
+
+// -----------------------------------------------------------------------------
+// Investor Hub: call outcomes and consent-gated SMS. Plain indexed columns (no
+// FKs) so the schema stays append-only; rows are removed with the investor or
+// project by lib/projects/cleanup.ts.
+// -----------------------------------------------------------------------------
+
+/// Phone, time zone and the founder's recorded SMS consent for one investor.
+model HubInvestorContact {
+  id              String    @id @default(cuid())
+  userId          String    @map("user_id")
+  projectId       String    @map("project_id")
+  investorId      String    @unique @map("investor_id")
+  /// E.164, e.g. +14155550123.
+  phone           String?
+  /// IANA zone used for quiet hours (08:00-20:00 investor-local).
+  timezone        String?
+  smsConsent      Boolean   @default(false) @map("sms_consent")
+  smsConsentAt    DateTime? @map("sms_consent_at")
+  /// How and when the investor agreed to be texted (required to enable SMS).
+  smsConsentNote  String?   @map("sms_consent_note")
+  smsOptedOut     Boolean   @default(false) @map("sms_opted_out")
+  smsOptedOutAt   DateTime? @map("sms_opted_out_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@index([phone])
+  @@index([userId, projectId])
+  @@map("hub_investor_contacts")
+}
+
+model HubInvestorCall {
+  id         String   @id @default(cuid())
+  userId     String   @map("user_id")
+  projectId  String   @map("project_id")
+  investorId String   @map("investor_id")
+  calledAt   DateTime @map("called_at")
+  outcome    String
+  notes      String?  @db.Text
+  nextStep   String?  @map("next_step")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([investorId, calledAt])
+  @@index([userId, projectId, calledAt])
+  @@map("hub_investor_calls")
+}
+
+model HubInvestorSms {
+  id         String   @id @default(cuid())
+  userId     String   @map("user_id")
+  projectId  String   @map("project_id")
+  investorId String   @map("investor_id")
+  body       String   @db.Text
+  /// SENT | DRY_RUN | FAILED
+  status     String
+  providerId String?  @map("provider_id")
+  error      String?  @db.Text
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([investorId, createdAt])
+  @@index([userId, projectId, createdAt])
+  @@map("hub_investor_sms")
+}
+
+// -----------------------------------------------------------------------------
+// Video release scheduler: generated videos published to the owner's OWN
+// connected accounts. Plain indexed columns (no FKs) so it never constrains
+// VideoJob / VideoProject deletion.
+// -----------------------------------------------------------------------------
+enum VideoReleasePlatform {
+  YOUTUBE
+  FACEBOOK
+  INSTAGRAM
+  LINKEDIN
+  X
+  TIKTOK
+}
+
+enum VideoReleaseStatus {
+  DRAFT
+  APPROVED
+  SCHEDULED
+  PUBLISHING
+  PUBLISHED
+  FAILED
+  MANUAL
+  CANCELLED
+  PAUSED
+}
+
+model VideoRelease {
+  id                 String               @id @default(cuid())
+  userId             String               @map("user_id")
+  videoProjectId     String?              @map("video_project_id")
+  sceneId            String?              @map("scene_id")
+  jobId              String               @map("job_id")
+  platform           VideoReleasePlatform
+  language           String               @default("en")
+  title              String
+  caption            String               @default("") @db.Text
+  hashtags           String[]
+  thumbnailKey       String?              @map("thumbnail_key")
+  /// UTC instant; the owner's wall-clock choice is converted with timeZone.
+  scheduledAt        DateTime             @map("scheduled_at")
+  timeZone           String               @default("UTC") @map("time_zone")
+  status             VideoReleaseStatus   @default(SCHEDULED)
+  approvedBy         String?              @map("approved_by")
+  approvedAt         DateTime?            @map("approved_at")
+  idempotencyKey     String               @unique @map("idempotency_key")
+  externalId         String?              @map("external_id")
+  postUrl            String?              @map("post_url")
+  attempts           Int                  @default(0)
+  nextAttemptAt      DateTime?            @map("next_attempt_at")
+  error              String?              @db.Text
+  /// Honest platform caveat shown to the owner (e.g. TikTok private-only posts).
+  note               String?              @db.Text
+  publishedAt        DateTime?            @map("published_at")
+  season             Int?
+  episode            Int?
+  /// Groups the releases created by one series operation.
+  seriesKey          String?              @map("series_key")
+  /// Platform-returned metrics only (YouTube views); null when unavailable.
+  metrics            Json?
+  metricsAt          DateTime?            @map("metrics_at")
+  reminderSentAt     DateTime?            @map("reminder_sent_at")
+  outcomeNotifiedAt  DateTime?            @map("outcome_notified_at")
+  createdAt          DateTime             @default(now()) @map("created_at")
+  updatedAt          DateTime             @updatedAt @map("updated_at")
+
+  @@index([status, scheduledAt])
+  @@index([userId, scheduledAt])
+  @@index([userId, seriesKey])
+  @@index([jobId])
+  @@map("video_releases")
 }

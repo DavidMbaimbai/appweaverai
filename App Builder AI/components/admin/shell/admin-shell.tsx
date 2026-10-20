@@ -36,6 +36,8 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { label: 'Audit Logs', href: '/admin/audit-logs', permission: 'audit:read' },
   { label: 'Feedback', href: '/admin/feedback', permission: 'feedback:read' },
   { label: 'Outreach', href: '/admin/outreach', permission: 'outreach:read' },
+  { label: 'Video', href: '/admin/video', permission: 'video:read' },
+  { label: 'Observatory', href: '/admin/observatory', permission: 'observatory:read' },
   { label: 'Settings', href: '/admin/settings', permission: 'settings:read' },
 ];
 

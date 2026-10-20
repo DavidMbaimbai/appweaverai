@@ -39,10 +39,29 @@ describe('hasPermission', () => {
 
   it('restricts ANALYTICS_VIEWER to read-only permissions', () => {
     for (const permission of ADMIN_PERMISSIONS) {
-      // outreach:read exposes investor data, so analytics viewers don't get it.
-      const expected = permission.endsWith(':read') && permission !== 'outreach:read';
+      // outreach/observatory reads expose investor and customer-app data, so analytics viewers don't get them.
+      const expected =
+        permission.endsWith(':read') &&
+        permission !== 'outreach:read' &&
+        permission !== 'observatory:read';
       expect(hasPermission('ANALYTICS_VIEWER', permission)).toBe(expected);
     }
+  });
+
+  it('limits the observatory to ADMIN and SUPER_ADMIN', () => {
+    expect(hasPermission('ADMIN', 'observatory:read')).toBe(true);
+    expect(hasPermission('ADMIN', 'observatory:write')).toBe(true);
+    expect(hasPermission('SUPPORT_ADMIN', 'observatory:read')).toBe(false);
+    expect(hasPermission('SECURITY_ADMIN', 'observatory:write')).toBe(false);
+  });
+
+  it('lets only ADMIN-level roles manage video providers', () => {
+    expect(hasPermission('ADMIN', 'video:write')).toBe(true);
+    expect(hasPermission('SUPER_ADMIN', 'video:write')).toBe(true);
+    expect(hasPermission('ANALYTICS_VIEWER', 'video:read')).toBe(true);
+    expect(hasPermission('ANALYTICS_VIEWER', 'video:write')).toBe(false);
+    expect(hasPermission('SUPPORT_ADMIN', 'video:write')).toBe(false);
+    expect(hasPermission('FINANCE_ADMIN', 'video:write')).toBe(false);
   });
 
   it('lets SECURITY_ADMIN ban users and manage security, but not payments', () => {

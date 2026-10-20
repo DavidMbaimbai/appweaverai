@@ -15,6 +15,7 @@
 
 # published website snapshots
 /.published
+/.published-versions
 
 # next.js
 /.next/

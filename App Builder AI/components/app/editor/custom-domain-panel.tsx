@@ -9,10 +9,26 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/toast';
 
+type DnsRecord = {
+  type: 'CNAME' | 'A' | 'TXT';
+  name: string;
+  value: string;
+  purpose: 'routing' | 'verification';
+};
+
+type Guidance = { isApex: boolean; records: DnsRecord[]; notes: string[] };
+
 type DomainRecord = {
   domain: string;
   verificationToken: string;
   verifiedAt: string | null;
+} | null;
+
+type VerifyOutcome = {
+  message: string;
+  found?: string[];
+  routing?: { ok: boolean; message: string };
+  attach?: { status: 'attached' | 'skipped' | 'failed'; message?: string };
 } | null;
 
 type CustomDomainPanelProps = {
@@ -29,6 +45,9 @@ export function CustomDomainPanel({
   const { success, error: toastError } = useToast();
   const [isLoading, setIsLoading] = useState(true);
   const [record, setRecord] = useState<DomainRecord>(null);
+  const [guidance, setGuidance] = useState<Guidance | null>(null);
+  const [attachInfo, setAttachInfo] = useState('');
+  const [outcome, setOutcome] = useState<VerifyOutcome>(null);
   const [allowed, setAllowed] = useState(true);
   const [domainInput, setDomainInput] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -47,6 +66,8 @@ export function CustomDomainPanel({
         const data = await res.json();
         if (cancelled) return;
         setRecord(data.domain ?? null);
+        setGuidance(data.guidance ?? null);
+        setAttachInfo(data.attachInfo ?? '');
         setAllowed(data.canUseCustomDomain !== false);
       } catch {
         if (!cancelled) toastError('Could not load custom domain status.');
@@ -76,6 +97,9 @@ export function CustomDomainPanel({
         return;
       }
       setRecord(data.domain);
+      setGuidance(data.guidance ?? null);
+      setAttachInfo(data.attachInfo ?? '');
+      setOutcome(null);
       setDomainInput('');
       success('Domain saved. Add the DNS records below, then verify.');
     } catch {
@@ -99,13 +123,13 @@ export function CustomDomainPanel({
       }
       if (data.verified) {
         success('Domain verified! It will start serving your project shortly.');
+        setOutcome({ message: 'Ownership verified.', routing: data.routing, attach: data.attach });
         setRecord((prev) =>
           prev ? { ...prev, verifiedAt: new Date().toISOString() } : prev,
         );
       } else {
-        toastError(
-          'TXT record not found yet. DNS changes can take a few minutes to propagate.',
-        );
+        setOutcome({ message: data.message, found: data.found, routing: data.routing });
+        toastError(data.message ?? 'Verification failed.');
       }
     } catch {
       toastError('Could not verify this domain.');
@@ -213,24 +237,57 @@ export function CustomDomainPanel({
 
                 <div className="space-y-2 rounded-xl border border-app-border-subtle px-4 py-3 text-xs text-app-text-secondary">
                   <p className="font-medium text-app-text">
-                    Add these DNS records at your domain provider:
+                    Add these DNS records at your domain provider
+                    {guidance?.isApex ? ' (root domain)' : ' (subdomain)'}:
                   </p>
-                  <div className="overflow-x-auto rounded-lg bg-app-surface-active p-2 font-mono">
-                    <p>Type: CNAME</p>
-                    <p>Name: {record.domain}</p>
-                    <p>Value: appweaverai.com</p>
-                  </div>
-                  <p className="text-app-text-muted">
-                    Use a subdomain such as www.yourcompany.com. For a root
-                    domain (yourcompany.com), use an ALIAS/ANAME record pointing
-                    to appweaverai.com if your provider supports it.
-                  </p>
-                  <div className="overflow-x-auto rounded-lg bg-app-surface-active p-2 font-mono">
-                    <p>Type: TXT</p>
-                    <p>Name: _appweaverai-verify.{record.domain}</p>
-                    <p className="break-all">Value: {record.verificationToken}</p>
-                  </div>
+                  {(guidance?.records ?? []).map((dns) => (
+                    <div
+                      key={`${dns.type}-${dns.name}`}
+                      className="overflow-x-auto rounded-lg bg-app-surface-active p-2 font-mono">
+                      <p>
+                        Type: {dns.type}{' '}
+                        <span className="font-sans text-app-text-muted">
+                          ({dns.purpose === 'routing' ? 'routes traffic' : 'proves ownership'})
+                        </span>
+                      </p>
+                      <p>Name: {dns.name}</p>
+                      <p className="break-all">Value: {dns.value}</p>
+                    </div>
+                  ))}
+                  {(guidance?.notes ?? []).map((note) => (
+                    <p key={note} className="text-app-text-muted">
+                      {note}
+                    </p>
+                  ))}
+                  {attachInfo ? (
+                    <p className="text-app-text-muted">{attachInfo}</p>
+                  ) : null}
                 </div>
+
+                {outcome ? (
+                  <div className="space-y-1 rounded-xl border border-app-border-subtle px-4 py-3 text-xs text-app-text-secondary">
+                    <p className="font-medium text-app-text">{outcome.message}</p>
+                    {outcome.found?.length ? (
+                      <p className="break-all font-mono">
+                        Found: {outcome.found.join(' | ')}
+                      </p>
+                    ) : null}
+                    {outcome.routing ? (
+                      <p>
+                        Routing record: {outcome.routing.ok ? 'OK' : 'Not ready'} —{' '}
+                        {outcome.routing.message}
+                      </p>
+                    ) : null}
+                    {outcome.attach ? (
+                      <p>
+                        Hosting platform:{' '}
+                        {outcome.attach.status === 'attached'
+                          ? 'domain attached; HTTPS is issued automatically.'
+                          : outcome.attach.message}
+                      </p>
+                    ) : null}
+                  </div>
+                ) : null}
 
                 {!record.verifiedAt ? (
                   <Button

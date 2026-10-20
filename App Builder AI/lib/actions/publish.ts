@@ -19,7 +19,13 @@ import {
   type PublishVisibility,
 } from "@/lib/publish/visibility";
 import { prisma } from "@/lib/prisma";
+import { getHostingLimits } from "@/lib/hosting/limits";
+import {
+  enforceDeploymentRetention,
+  saveVersionSnapshot,
+} from "@/lib/publish/versions";
 import { recordUserActivity } from "@/lib/activity/record-user-activity";
+import { refreshFeatureLedger } from "@/lib/observatory/understand";
 import { captureProjectScreenshots } from "@/lib/gallery/capture-screenshot";
 import { listProjectFiles, readProjectFile } from "@/lib/project-files";
 import { checkHtmlPage, type PreflightIssue } from "@/lib/publish/preflight";
@@ -239,6 +245,15 @@ export async function publishProjectAction(
     });
   });
 
+  const retention = getHostingLimits(tier).deploymentsRetained;
+  await saveVersionSnapshot(
+    projectId,
+    nextVersion,
+    project.artifacts.map((artifact) => artifact.slug),
+  )
+    .then(() => enforceDeploymentRetention(projectId, retention))
+    .catch(() => null);
+
   revalidatePath("/app/projects");
   revalidatePath(`/app/projects/${project.workspace.slug}/${project.slug}`);
   revalidatePath(urlPath);
@@ -250,6 +265,9 @@ export async function publishProjectAction(
   if (visibility === "public") {
     captureProjectScreenshots(project.id, project.artifacts);
   }
+
+  // Rebuild the observatory feature ledger from the newly published files. Best-effort, never blocks publishing.
+  void refreshFeatureLedger(projectId, { summarise: false }).catch(() => null);
 
   await recordUserActivity({
     userId,

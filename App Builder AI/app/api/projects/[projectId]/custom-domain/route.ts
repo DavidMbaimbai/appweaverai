@@ -5,9 +5,19 @@ import { auth } from '@/lib/auth';
 import { getAccessibleProject } from '@/lib/projects/access';
 import {
   getProjectCustomDomain,
+  countUserCustomDomains,
   removeProjectCustomDomain,
   setProjectCustomDomain,
 } from '@/lib/domains/custom-domain';
+import {
+  customDomainLimitMessage,
+  getHostingLimits,
+} from '@/lib/hosting/limits';
+import { getDnsGuidance } from '@/lib/domains/dns-guidance';
+import {
+  isVercelDomainApiConfigured,
+  MANUAL_ATTACH_MESSAGE,
+} from '@/lib/domains/vercel';
 import {
   CUSTOM_DOMAIN_UPGRADE_MESSAGE,
   canUseCustomDomain,
@@ -19,6 +29,12 @@ import { recordUserActivity } from '@/lib/activity/record-user-activity';
 const setSchema = z.object({
   domain: z.string().trim().min(1),
 });
+
+function attachInfo() {
+  return isVercelDomainApiConfigured()
+    ? 'When you verify, the domain is attached to the hosting project automatically and HTTPS is issued by the platform.'
+    : MANUAL_ATTACH_MESSAGE;
+}
 
 async function requireProjectAccess(
   projectId: string,
@@ -50,6 +66,10 @@ export async function GET(
   const record = await getProjectCustomDomain(projectId);
   return Response.json({
     domain: record,
+    guidance: record
+      ? getDnsGuidance(record.domain, record.verificationToken)
+      : null,
+    attachInfo: attachInfo(),
     canUseCustomDomain: canUseCustomDomain(getAppTier(user)),
   });
 }
@@ -63,9 +83,22 @@ export async function POST(
   if ('error' in access) return access.error;
 
   const user = await getUserBillingFields(access.userId);
-  if (!canUseCustomDomain(getAppTier(user))) {
+  const tier = getAppTier(user);
+  const domainLimit = getHostingLimits(tier).customDomains;
+  if (!canUseCustomDomain(tier)) {
     return Response.json(
       { error: CUSTOM_DOMAIN_UPGRADE_MESSAGE, upgradeRequired: true },
+      { status: 403 },
+    );
+  }
+
+  const alreadyConnected = await getProjectCustomDomain(projectId);
+  if (
+    !alreadyConnected &&
+    (await countUserCustomDomains(access.userId, projectId)) >= domainLimit
+  ) {
+    return Response.json(
+      { error: customDomainLimitMessage(tier, domainLimit), upgradeRequired: false },
       { status: 403 },
     );
   }
@@ -85,7 +118,12 @@ export async function POST(
       targetId: projectId,
       after: { domain: record.domain },
     });
-    return Response.json({ success: true, domain: record });
+    return Response.json({
+      success: true,
+      domain: record,
+      guidance: getDnsGuidance(record.domain, record.verificationToken),
+      attachInfo: attachInfo(),
+    });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : 'Could not save this domain.';

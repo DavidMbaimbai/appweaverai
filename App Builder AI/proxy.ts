@@ -5,6 +5,10 @@ import {
   ATTRIBUTION_MAX_AGE_SECONDS,
   attributionFromSearch,
 } from '@/lib/ads/attribution-cookie';
+import {
+  extractSubdomainLabel,
+  getAppRootDomain,
+} from '@/lib/domains/subdomain';
 
 /**
  * All pages/features are publicly browsable without signing in. Authentication
@@ -35,12 +39,16 @@ export async function proxy(request: NextRequest) {
   const hostHeader = request.headers.get('host') ?? '';
   const host = hostHeader.split(':')[0]?.toLowerCase() ?? '';
 
+  const subdomainLabel = extractSubdomainLabel(host);
+
   if (
-    !host ||
-    host === 'localhost' ||
-    host === '127.0.0.1' ||
-    host.endsWith('.vercel.app') ||
-    host.endsWith('appweaverai.com')
+    !subdomainLabel &&
+    (!host ||
+      host === 'localhost' ||
+      host === '127.0.0.1' ||
+      host === getAppRootDomain() ||
+      host.endsWith('.vercel.app') ||
+      host.endsWith('appweaverai.com'))
   ) {
     const response = NextResponse.next();
     // First-touch ad attribution: remember which ad brought the visitor.
@@ -58,7 +66,11 @@ export async function proxy(request: NextRequest) {
 
   try {
     const lookupUrl = new URL('/api/domains/resolve', request.url);
-    lookupUrl.searchParams.set('domain', host);
+    if (subdomainLabel) {
+      lookupUrl.searchParams.set('subdomain', subdomainLabel);
+    } else {
+      lookupUrl.searchParams.set('domain', host);
+    }
 
     const response = await fetch(lookupUrl, {
       headers: { 'x-internal-lookup': '1' },

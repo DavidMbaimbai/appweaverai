@@ -26,6 +26,7 @@ import { hasUnpublishedChanges } from '@/lib/publish/unpublished-changes';
 import { HistoryPanel } from './history-panel';
 import { GithubExportPanel } from './github-export-panel';
 import { CustomDomainPanel } from './custom-domain-panel';
+import { HostingPanel } from './hosting-panel';
 import { PresenceAvatars } from './presence-avatars';
 import { ActivityLogPanel } from './activity-log-panel';
 import { TerminalPanel } from './terminal-panel';
@@ -87,6 +88,7 @@ export function EditorTopBar({
   const [historyOpen, setHistoryOpen] = useState(false);
   const [githubOpen, setGithubOpen] = useState(false);
   const [domainOpen, setDomainOpen] = useState(false);
+  const [hostingOpen, setHostingOpen] = useState(false);
   const [activityOpen, setActivityOpen] = useState(false);
   const [terminalOpen, setTerminalOpen] = useState(false);
   const [analyticsOpen, setAnalyticsOpen] = useState(false);
@@ -376,6 +378,21 @@ export function EditorTopBar({
                     {item.label}
                   </Link>
                 ))}
+                {[
+                  { label: 'Marketing', href: `/app/projects/${project.workspaceSlug}/${project.slug}/marketing`, icon: AnalyticsIcon },
+                  { label: 'Reviews & support', href: `/app/projects/${project.workspaceSlug}/${project.slug}/reviews`, icon: FormsIcon },
+                  { label: 'Investor Hub', href: `/app/investors?project=${project.id}`, icon: ProjectsIcon },
+                ].map((item) => (
+                  <Link
+                    key={item.label}
+                    href={item.href}
+                    role="menuitem"
+                    onClick={() => setMenuOpen(false)}
+                    className="flex items-center gap-2.5 px-3 py-2 text-sm text-app-text-secondary transition-colors hover:bg-app-surface-hover hover:text-app-text">
+                    <item.icon className="h-3.5 w-3.5 shrink-0" />
+                    {item.label}
+                  </Link>
+                ))}
                 <button
                   type="button"
                   role="menuitem"
@@ -408,6 +425,17 @@ export function EditorTopBar({
                   className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-app-text-secondary transition-colors hover:bg-app-surface-hover hover:text-app-text">
                   <DomainIcon className="h-3.5 w-3.5 shrink-0" />
                   Custom domain
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    setHostingOpen(true);
+                  }}
+                  className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-app-text-secondary transition-colors hover:bg-app-surface-hover hover:text-app-text">
+                  <DomainIcon className="h-3.5 w-3.5 shrink-0" />
+                  Hosting &amp; deployments
                 </button>
                 <button
                   type="button"
@@ -555,6 +583,13 @@ export function EditorTopBar({
         open={domainOpen}
         onClose={() => setDomainOpen(false)}
         projectId={project.id}
+      />
+
+      <HostingPanel
+        open={hostingOpen}
+        onClose={() => setHostingOpen(false)}
+        projectId={project.id}
+        onRolledBack={() => router.refresh()}
       />
 
       <ActivityLogPanel

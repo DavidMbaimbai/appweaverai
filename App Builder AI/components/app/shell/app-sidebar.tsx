@@ -43,6 +43,7 @@ const mainNav: Array<{
   { label: 'Studio', href: '/app/studio', icon: PencilIcon, exact: true },
   { label: 'Projects', href: '/app/projects', icon: ProjectsIcon, exact: true },
   { label: 'Explore', href: '/app/explore', icon: ExploreIcon, exact: true },
+  { label: 'Investors', href: '/app/investors', icon: InvestorsIcon },
 ];
 
 const secondaryNav: Array<{
@@ -361,6 +362,14 @@ function ExploreIcon({ className }: { className?: string }) {
         strokeWidth="1.5"
         strokeLinejoin="round"
       />
+    </svg>
+  );
+}
+
+function InvestorsIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M4 18V9m5 9V5m5 13v-7m5 7V8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
     </svg>
   );
 }

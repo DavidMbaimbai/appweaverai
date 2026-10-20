@@ -27,6 +27,22 @@
     {
       "path": "/api/cron/ads",
       "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron/investor-reminders",
+      "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/cron/project-posts",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/observatory",
+      "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/cron/video-jobs",
+      "schedule": "*/2 * * * *"
     }
   ]
 }

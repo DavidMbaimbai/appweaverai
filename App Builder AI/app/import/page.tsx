@@ -1,11 +1,13 @@
 import { ProductPage } from '@/components/marketing/product-page';
+import { DesignImportTabs } from '@/components/import/design-import-tabs';
 
 export default function ImportPage() {
   return (
     <ProductPage
       eyebrow="Handy Links"
-      title="Import from GitHub"
-      description="Already have a codebase? Import an existing GitHub repository and keep building on it with App Weaver AI, instead of starting from a blank prompt."
+      title="Import a design or project"
+      description="Start from Figma, a website or a screenshot — or import an existing GitHub repository (including projects from Lovable and other builders) and keep building with App Weaver AI."
+      ctaSlot={<DesignImportTabs />}
       highlights={[
         {
           title: "Bring your repo",

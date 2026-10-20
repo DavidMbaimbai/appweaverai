@@ -1,4 +1,7 @@
-import { resolvePublishedPathForDomain } from '@/lib/domains/custom-domain';
+import {
+  resolvePublishedPathForDomain,
+  resolvePublishedPathForSubdomain,
+} from '@/lib/domains/custom-domain';
 
 /**
  * Internal lookup used by middleware.ts to map a verified custom domain's
@@ -9,6 +12,13 @@ import { resolvePublishedPathForDomain } from '@/lib/domains/custom-domain';
 export async function GET(request: Request) {
   const url = new URL(request.url);
   const domain = url.searchParams.get('domain');
+  const subdomain = url.searchParams.get('subdomain');
+
+  if (subdomain) {
+    return Response.json({
+      path: await resolvePublishedPathForSubdomain(subdomain),
+    });
+  }
 
   if (!domain) {
     return Response.json({ path: null }, { status: 400 });

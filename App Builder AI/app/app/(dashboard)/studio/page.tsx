@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 import { PageHeader } from '@/components/app/shell/page-header';
 import { LaunchWorkbench } from '@/components/app/studio/launch-workbench';
 import { MetaAdsPanel } from '@/components/app/studio/meta-ads-panel';
@@ -54,6 +56,9 @@ export default async function StudioPage({
           Design, marketing, advertising and strategy in one place. Describe what you need and
           AI produces it.
         </p>
+        <Link href="/app/studio/video" className="inline-block text-sm font-medium text-appweaver-orange">
+          Create AI videos →
+        </Link>
         <LaunchWorkbench />
         {saved.length > 0 ? (
           <section>
