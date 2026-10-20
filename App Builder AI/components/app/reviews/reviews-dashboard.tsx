@@ -501,7 +501,7 @@ export function ReviewsDashboard({
               if (!window.confirm('Permanently delete ALL reviews, support tickets and feedback issues for this project?')) return;
               start(async () => {
                 const result = await deleteAllReviewDataAction(projectId);
-                setMessage('error' in result ? result.error : `Deleted ${result.reviews} reviews and ${result.tickets} tickets.`);
+                setMessage('error' in result ? (result.error ?? '') : `Deleted ${result.reviews} reviews and ${result.tickets} tickets.`);
                 router.refresh();
               });
             }}

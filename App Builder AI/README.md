@@ -27,6 +27,11 @@ This is an early-stage MVP intended to validate the core product experience. Exp
 - Some features are scaffolded but not fully wired to production services (e.g. billing, OAuth providers require your own API keys).
 - Error handling, test coverage, and performance tuning are minimal.
 - The AI agent's output quality depends on the underlying model and prompt design, and is still evolving.
+- Project marketing: Instagram publishing (image posts via the Facebook Graph API) and Facebook Page choice need Meta app review (`instagram_basic`, `instagram_content_publish`); see `.env.example`.
+- Investor Hub: daily follow-up digest cron (`/api/cron/investor-reminders`), manual call logging, and consent-gated Twilio SMS (dry-run until `TWILIO_*` is set; inbound STOP via `/api/investor-hub/sms`). Calls are never auto-dialled.
+- Reviews: per-project CSV export (`/api/projects/<id>/reviews/export`) and a delete-all-data control on the Reviews page.
+- Deleting a project permanently also removes its marketing campaigns/posts and Investor Hub data (plus social connections when no campaigns remain).
+- Staging: there is no separate staging/preview deployment; deployments are LIVE with PUBLIC, WORKSPACE_ONLY or PRIVATE visibility only.
 
 ## Getting Started
 

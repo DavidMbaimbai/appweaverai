@@ -55,7 +55,7 @@ describe('processNewReview', () => {
     m.analyze.mockResolvedValue({ topic: 'service', sentiment: 'positive', urgency: 'low', reply: 'Thanks!' });
     m.reviewUpdate.mockResolvedValue({ authorEmail: 'ann@x.com', authorName: 'Ann', projectId: 'p1' });
     await processNewReview('r1');
-    expect(m.reviewUpdate.mock.calls[1][0].data).toEqual({ reply: 'Thanks!', replyStatus: 'SENT' });
+    expect(m.reviewUpdate.mock.calls[1][0].data).toEqual({ reply: 'Thanks!', replyStatus: 'SENT', repliedAt: expect.any(Date) });
     expect(m.sendEmail.mock.calls[0][0].to).toBe('ann@x.com');
   });
 

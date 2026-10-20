@@ -43,6 +43,10 @@
     {
       "path": "/api/cron/video-jobs",
       "schedule": "*/2 * * * *"
+    },
+    {
+      "path": "/api/cron/video-releases",
+      "schedule": "*/5 * * * *"
     }
   ]
 }

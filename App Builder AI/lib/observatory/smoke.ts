@@ -277,7 +277,7 @@ export async function runSmokeBatch(limit = 20) {
   for (const projectId of queue) {
     try {
       const run = await runSmokeCheck(projectId);
-      if ('result' in run && run.result.outcome !== 'PASS') failed += 1;
+      if ('result' in run && run.result && run.result.outcome !== 'PASS') failed += 1;
     } catch (error) {
       console.error('[observatory] smoke failed for project', projectId, error);
     }

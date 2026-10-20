@@ -46,7 +46,7 @@ export async function runSmokeAction(projectId: string): Promise<ActionResult> {
 
   const run = await runSmokeCheck(projectId).catch(() => null);
   if (!run) return { error: 'Smoke check failed to run.' };
-  if ('skipped' in run) return { error: run.skipped };
+  if ('skipped' in run) return { error: run.skipped ?? 'Skipped.' };
 
   await recordAuditLog({
     adminId: admin.id,

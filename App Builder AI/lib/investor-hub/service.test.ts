@@ -19,8 +19,10 @@ vi.mock('@/lib/prisma', () => ({
     hubInvestorActivity: { create: m.activityCreate },
     hubInvestorReply: { create: m.replyCreate },
     hubInvestorOutreach: { updateMany: m.outreachUpdateMany },
+    hubInvestorContact: { updateMany: vi.fn().mockResolvedValue({ count: 0 }) },
   },
 }));
+vi.mock('@/lib/outreach/process', () => ({ suppress: vi.fn().mockResolvedValue(undefined) }));
 vi.mock('@/lib/anthropic', () => ({ getAnthropicClient: vi.fn() }));
 
 import { recordReply } from './replies';

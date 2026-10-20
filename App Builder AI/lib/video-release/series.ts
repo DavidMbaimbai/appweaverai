@@ -128,6 +128,40 @@ export type SequencedRelease = {
 const DONE = new Set(['PUBLISHED', 'CANCELLED']);
 
 /**
+ * Rejects a reschedule that would put episode n at or after episode n + 1 (or
+ * n + 1 at or before n) of the same series, platform and language.
+ */
+export function sequenceOrderError<T extends SequencedRelease & { scheduledAt: Date }>(
+  release: T,
+  newTime: Date,
+  all: T[],
+): string | null {
+  if (!release.seriesKey || release.episode === null) return null;
+  const order = (r: SequencedRelease) => (r.season ?? 0) * 100_000 + (r.episode ?? 0);
+  const mine = order(release);
+  for (const other of all) {
+    if (
+      other.id === release.id ||
+      other.seriesKey !== release.seriesKey ||
+      other.platform !== release.platform ||
+      other.language !== release.language ||
+      other.episode === null ||
+      other.status === 'CANCELLED'
+    ) {
+      continue;
+    }
+    const theirs = order(other);
+    if (theirs < mine && other.scheduledAt.getTime() >= newTime.getTime()) {
+      return `Episode ${other.episode} must be released before episode ${release.episode}.`;
+    }
+    if (theirs > mine && other.scheduledAt.getTime() <= newTime.getTime()) {
+      return `Episode ${other.episode} must be released after episode ${release.episode}.`;
+    }
+  }
+  return null;
+}
+
+/**
  * Episode n + 1 must wait for n of the same series, platform and language.
  * Anything not PUBLISHED or CANCELLED (failed, paused, manual, draft...)
  * blocks the later episodes, so order can never be broken silently.

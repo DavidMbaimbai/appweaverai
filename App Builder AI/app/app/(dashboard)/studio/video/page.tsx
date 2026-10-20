@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 import { PageHeader } from '@/components/app/shell/page-header';
 import { VideoStudio, type ProjectView } from '@/components/app/studio/video/video-studio';
 import { getCachedSession } from '@/lib/auth/cached';
@@ -57,6 +59,9 @@ export default async function VideoStudioPage() {
     <main className="flex flex-1 flex-col overflow-y-auto">
       <PageHeader title="Video studio" />
       <div className="mx-auto w-full max-w-app-content flex-1 space-y-6 px-4 py-6 tablet-up:px-8">
+        <Link href="/app/studio/video/schedule" className="inline-block text-sm text-appweaver-orange underline">
+          Schedule releases
+        </Link>
         {hasDb ? (
           <VideoStudio projects={projects} usedThisMonth={used} monthlyLimit={limit} />
         ) : (
