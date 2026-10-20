@@ -85,7 +85,7 @@ export async function verifyMerged(input: PureVerifyInput): Promise<Verification
       else if (added.some((f) => !isBlockingSeverity(f.severity) && f.severity !== 'INFO')) warnings.push('The change introduces lower-severity scan findings.');
     } catch {
       scan = { status: 'NOT_RUN', reason: 'The scanner failed to run. Nothing was verified.' };
-      warnings.push('The security scan failed to run, so these changes were not scanned.');
+      blockers.push('The security scan failed to run, so these changes were not verified. Try again.');
     }
   }
 

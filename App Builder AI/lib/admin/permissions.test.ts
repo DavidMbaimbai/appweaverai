@@ -53,7 +53,8 @@ describe('hasPermission', () => {
         permission !== 'codescan:read' &&
         permission !== 'privacy:read' &&
         permission !== 'revenue:read' &&
-        permission !== 'integrations:read';
+        permission !== 'integrations:read' &&
+        permission !== 'marketplace:read';
       expect(hasPermission('ANALYTICS_VIEWER', permission)).toBe(expected);
     }
   });
