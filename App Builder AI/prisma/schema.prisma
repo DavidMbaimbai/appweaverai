@@ -1490,3 +1490,17 @@ model AdState {
 
   @@map("ad_state")
 }
+/// Saved output of the Studio one-prompt launch (brand kit, ad pack, plan).
+model LaunchKit {
+  id          String   @id @default(cuid())
+  userId      String   @map("user_id")
+  brief       String   @db.Text
+  brand       String   @db.Text
+  adPack      String   @map("ad_pack") @db.Text
+  plan        String   @db.Text
+  buildPrompt String   @map("build_prompt") @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([userId, createdAt])
+  @@map("launch_kits")
+}

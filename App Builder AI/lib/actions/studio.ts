@@ -2,6 +2,7 @@
 
 import { generateAdImage } from '@/lib/ads/image';
 import { getAnthropicClient } from '@/lib/anthropic';
+import { prisma } from '@/lib/prisma';
 import { requireUserId } from '@/lib/auth/require-user';
 import { rateLimit } from '@/lib/rate-limit';
 import {
@@ -97,6 +98,9 @@ export async function generateLaunchKitAction(brief: unknown): Promise<LaunchKit
     if (!brand || !adPack || !plan || !buildPrompt) {
       return { ok: false, error: 'No result. Please try again.' };
     }
+    await prisma.launchKit.create({
+      data: { userId: auth.userId, brief: text, brand, adPack, plan, buildPrompt: buildPrompt.slice(0, 1800) },
+    });
     return { ok: true, brand, adPack, plan, buildPrompt: buildPrompt.slice(0, 1800) };
   } catch (error) {
     console.error('[studio] launch kit failed:', error);
