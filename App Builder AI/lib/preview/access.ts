@@ -1,3 +1,4 @@
+import { hasPermission } from '@/lib/admin/permissions';
 import { prisma } from '@/lib/prisma';
 import { hasProjectAccess, projectAccessWhere } from '@/lib/projects/access';
 
@@ -7,6 +8,18 @@ export async function authorizePreviewAccess(
 ) {
   if (userId && (await hasProjectAccess(projectId, userId))) {
     return { allowed: true as const };
+  }
+
+  // Admins with observatory access may view any project's development preview
+  // (each admin page open is recorded in AdminAccessLog).
+  if (userId) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { adminRole: true },
+    });
+    if (hasPermission(user?.adminRole, 'observatory:read')) {
+      return { allowed: true as const };
+    }
   }
 
   const publicDeployment = await prisma.deployment.findFirst({
