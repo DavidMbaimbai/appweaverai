@@ -185,3 +185,24 @@ export const isHttpsUrl = (v: unknown): v is string => {
     return false;
   }
 };
+
+export type BucketRow = { status: string; category: string; startsAt: Date | null; nextSteps?: unknown };
+export const MEETING_BUCKETS = ['today', 'upcoming', 'pending', 'awaiting', 'investor', 'customer', 'closed', 'followUps'] as const;
+export type MeetingBucket = (typeof MEETING_BUCKETS)[number];
+
+/** Admin dashboard grouping; a meeting may appear in several lists (e.g. an upcoming investor meeting). */
+export function bucketsFor(m: BucketRow, now: Date, timeZone = 'UTC'): MeetingBucket[] {
+  const out: MeetingBucket[] = [];
+  const open = (OPEN_STATUSES as string[]).includes(m.status);
+  const live = m.status === 'CONFIRMED' || m.status === 'RESCHEDULED';
+  const day = (d: Date) => new Intl.DateTimeFormat('en-CA', { timeZone: isValidTimeZone(timeZone) ? timeZone : 'UTC' }).format(d);
+  if (live && m.startsAt && day(m.startsAt) === day(now)) out.push('today');
+  if (live && m.startsAt && m.startsAt > now) out.push('upcoming');
+  if (m.status === 'REQUESTED') out.push('pending');
+  if (m.status === 'PROPOSED' || m.status === 'AWAITING_CONFIRMATION') out.push('awaiting');
+  if (open && m.category === 'INVESTOR') out.push('investor');
+  if (open && (m.category === 'USER' || m.category === 'CUSTOMER')) out.push('customer');
+  if (['COMPLETED', 'CANCELLED', 'MISSED', 'FAILED'].includes(m.status)) out.push('closed');
+  if (m.status === 'COMPLETED' && Array.isArray(m.nextSteps) && m.nextSteps.length > 0) out.push('followUps');
+  return out;
+}

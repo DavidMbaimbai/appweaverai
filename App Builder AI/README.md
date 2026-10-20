@@ -112,6 +112,54 @@ Autonomous sends only owner-allowed low-risk categories with a verified answer. 
 security, payment, account changes, commitments) are never auto-sent. Owner UI: project → Inbox; admin UI: `/admin/inbox`
 (`inbox:read` / `inbox:write`). Env names and webhook URLs are in `.env.example`.
 
+### Calendar sync and AI meeting scheduling
+
+`lib/calendar` connects Google Calendar or Microsoft Outlook (OAuth with state + PKCE, encrypted refresh tokens,
+least-privilege scopes) per project, and the platform has one connection for `/admin/meetings`. `lib/meetings` builds on it:
+availability from free/busy plus working hours, buffers, minimum notice and time zone (DST-safe), confirm-then-book with a
+conflict re-check and a unique slot lock, idempotent calendar events, reminders (`/api/cron/meeting-reminders`, every 5 min),
+and poll sync (`/api/cron/calendar-sync`, every 10 min). Both crons need `CRON_SECRET`.
+
+Integrations show **UNAVAILABLE** (UI and API) until credentials are set and a live verification call has passed. Without a
+verified calendar, lead bookings are recorded as `PENDING_MANUAL_CONFIRMATION`; nothing is simulated. Conference links come
+only from the provider response (Meet via Calendar, Teams via Graph, Zoom S2S); otherwise the host adds a manual link.
+Register these redirect URIs: `{APP_URL}/api/calendar/callback/google` and `/api/calendar/callback/microsoft`.
+Env: `GOOGLE_CALENDAR_CLIENT_ID/SECRET`, `MICROSOFT_CALENDAR_CLIENT_ID/SECRET`, `ZOOM_ACCOUNT_ID/CLIENT_ID/CLIENT_SECRET`,
+optional `MEETING_LINK_SECRET` (falls back to `BETTER_AUTH_SECRET`). Admin permissions: `meetings:read`, `meetings:write`,
+`meetings:notes` (private notes). WhatsApp/SMS reminders go only through `lib/messaging` with consent and credit gates.
+
+### Testing
+
+| Command | What it runs |
+| --- | --- |
+| `npm test` | Fast unit tests (in-memory mocks, no database). `*.integration.test.ts` files are excluded. |
+| `npm run test:integration` | Integration tests against a **real PostgreSQL** (`vitest.integration.config.ts`). |
+| `npm run db:verify-persistence` | `scripts/verify-db-persistence.mjs`: data survives a Postgres container restart. |
+
+**Integration suite.** Start the local database first (`docker compose up -d`, container `appweaverai-postgres`). On each
+run the global setup (`tests/integration/global-setup.ts`):
+
+1. creates a uniquely named throwaway database `appweaverai_it_<random>` on the server in `TEST_DATABASE_URL`
+   (default `postgresql://appweaverai:appweaverai@localhost:5432/postgres`);
+2. runs `prisma migrate deploy` on the empty database, asserts every migration applied in order, and runs
+   `prisma migrate diff --exit-code` to fail on drift between the migrations and `prisma/schema.prisma`;
+3. points the app's `@/lib/prisma` at that database, truncates every table before each test, and
+4. drops the database when the run ends (also on failure).
+
+Safety guards (`tests/integration/guard.ts`): the suite refuses to run unless the host is `localhost`/`127.0.0.1` and the
+database name starts with `appweaverai_it_` or ends with `_test`. It never reads `DATABASE_URL`, so it cannot touch the
+development or production database. If a run is killed, leftover `appweaverai_it_*` databases can be dropped manually.
+
+Tests live next to the code they cover (`lib/**/*.integration.test.ts`, `app/api/**/*.integration.test.ts`,
+`tests/integration/schema.integration.test.ts`) and call the real library functions; only external HTTP (X, Stripe API
+signing is done offline, platform publishers) and S3 are mocked. They cover migrations and constraints (including the
+immutable marketing ledger), credit accounting under concurrency, access control between workspaces, media storage,
+scheduled publishing retries and duplicate prevention, Stripe and messaging webhook idempotency, and meeting double-booking.
+
+**Persistence check.** `npm run db:verify-persistence` applies the migrations to a scratch database, inserts a row, runs
+`docker restart appweaverai-postgres` (override with `POSTGRES_CONTAINER`), then verifies the tables, applied migrations and
+the row are still present, and drops the scratch database. It uses the same host/name guards.
+
 ## Learn More
 
 To learn more about the underlying framework, take a look at:

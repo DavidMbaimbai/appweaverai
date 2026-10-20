@@ -251,7 +251,7 @@ export async function calendarStatus(scopeKey: string): Promise<CalendarStatus> 
   if (!providers.GOOGLE.configured && !providers.MICROSOFT.configured) reason = 'Calendar credentials are not configured on this server.';
   else if (!conn) reason = 'No calendar connected.';
   else if (conn.status === 'NEEDS_RECONNECT') reason = 'The calendar connection was revoked or expired. Reconnect it.';
-  else if (!isVerified(conn)) reason = conn.lastError ?? 'The connection has not passed a live verification.';
+  else if (conn.verifiedAt === null || !isVerified(conn)) reason = conn.lastError ?? 'The connection has not passed a live verification.';
   return {
     integration: reason ? 'UNAVAILABLE' : 'AVAILABLE',
     reason,

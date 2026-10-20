@@ -69,7 +69,10 @@ export async function upsertLead(projectId: string, input: LeadInput, options: U
 export async function captureFromSubmission(projectId: string, submissionId: string, formName: string, data: unknown) {
   try {
     const input = leadFromSubmissionData(formName, data);
-    if (input) await upsertLead(projectId, input, { formSubmissionId: submissionId });
+    if (input) {
+      const saved = await upsertLead(projectId, input, { formSubmissionId: submissionId });
+      await import('@/lib/meetings/ai').then((m) => m.onLeadConsultation(projectId, saved.id, `${formName}\n${input.notes ?? ''}`));
+    }
   } catch (error) {
     console.error('[leads] capture from form failed:', error);
   }

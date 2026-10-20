@@ -57,5 +57,9 @@ export async function recordReply(ctx: Ctx, investorId: string, text: string) {
   if (effect.stage) {
     await applyStage(ctx, investorId, investor.pipelineStage as PipelineStage, effect.stage, `Reply: ${label.replace('_', ' ')}.`);
   }
+  // Positive replies may start a meeting request; failures here must never break reply recording.
+  await import('@/lib/meetings/ai')
+    .then((m) => m.onInvestorReply({ userId: ctx.userId, projectId: ctx.projectId, investorId, classification: label, text }))
+    .catch((error) => console.error('[meetings] investor hook failed:', error));
   return { classification: label, effect };
 }

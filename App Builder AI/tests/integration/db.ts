@@ -41,7 +41,7 @@ export async function resetDatabase() {
 
 export const uid = (prefix = 'id') => `${prefix}_${randomBytes(6).toString('hex')}`;
 
-export async function makeUser(overrides: { adminRole?: 'SUPER_ADMIN' | 'ADMIN' | 'SUPPORT' | null; plan?: string; email?: string } = {}) {
+export async function makeUser(overrides: { adminRole?: 'SUPER_ADMIN' | 'ADMIN' | 'SUPPORT_ADMIN' | null; plan?: string; email?: string } = {}) {
   const id = uid('user');
   return prisma.user.create({
     data: {
@@ -49,7 +49,7 @@ export async function makeUser(overrides: { adminRole?: 'SUPER_ADMIN' | 'ADMIN' 
       email: overrides.email ?? `${id}@example.test`,
       name: id,
       subscriptionPlan: overrides.plan ?? 'free',
-      ...(overrides.adminRole ? { adminRole: overrides.adminRole } : {}),
+      adminRole: overrides.adminRole ?? null,
     },
   });
 }

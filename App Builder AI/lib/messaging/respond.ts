@@ -268,6 +268,9 @@ async function sideEffects(args: {
             transcript: { conversationId: conversation.id, channel, category },
           },
         });
+        await import('@/lib/meetings/ai')
+          .then((m) => m.onSupportEscalation({ projectId: scopeId(scope), ticketId: ticket.id, category, contact: conversation.contactRef, summary: args.inbound }))
+          .catch((error) => console.error('[meetings] support hook failed:', error));
         return { summary: `Support ticket ${ticket.id} created` };
       },
     }).catch((error) => console.error('[inbox] ticket creation failed:', error));

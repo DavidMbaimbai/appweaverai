@@ -57,8 +57,8 @@ describe('marketing credit accounting (real PostgreSQL)', () => {
         reserveCredits({ userId: 'fresh-user', operation: 'text_post', maxCredits: 5, idempotencyKey: `fresh:${i}` }),
       ),
     );
+    expect(results.every((r) => r.status === 'fulfilled')).toBe(true);
     for (const r of results) {
-      expect(r.status === 'rejected' ? String(r.reason) : 'fulfilled').toBe('fulfilled');
       if (r.status === 'fulfilled') expect(r.value).toMatchObject({ ok: false, code: 'INSUFFICIENT_CREDITS' });
     }
     expect((await getWallet('fresh-user')).available).toBe(0);

@@ -13,15 +13,16 @@ import {
 import { getStripeClient, getPlanIdsByPriceId } from '@/lib/stripe';
 
 async function markEventProcessed(eventId: string) {
-  const existing = await prisma.stripeEvent.findUnique({
-    where: { id: eventId },
-    select: { id: true },
+  // createMany + skipDuplicates is an atomic claim, so concurrent deliveries of one event id cannot both win.
+  const { count } = await prisma.stripeEvent.createMany({
+    data: [{ id: eventId }],
+    skipDuplicates: true,
   });
+  return count === 1;
+}
 
-  if (existing) return false;
-
-  await prisma.stripeEvent.create({ data: { id: eventId } });
-  return true;
+async function releaseEventClaim(eventId: string) {
+  await prisma.stripeEvent.deleteMany({ where: { id: eventId } }).catch(() => undefined);
 }
 
 async function resolveUserIdFromCustomer(customerId: string) {
@@ -247,6 +248,8 @@ export async function POST(request: Request) {
     }
   } catch (error) {
     console.error('Stripe webhook handler error:', error);
+    // Release the claim so Stripe's retry is processed instead of being dropped as a duplicate.
+    await releaseEventClaim(event.id);
     return NextResponse.json(
       { error: 'Webhook handler failed.' },
       { status: 500 },
