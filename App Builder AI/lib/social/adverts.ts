@@ -1,5 +1,6 @@
 import { getAnthropicClient } from '@/lib/anthropic';
 import { prisma } from '@/lib/prisma';
+import { isSafeAdText } from '@/lib/social/ad-safety';
 import { recordInternalOperation } from '@/lib/marketing-credits/internal-cost';
 
 const AD_MODEL =
@@ -27,14 +28,9 @@ Rules:
 - Under 260 characters in total so it fits every platform.
 Return ONLY JSON: {"title": "<short internal title>", "message": "<advert text>"}`;
 
-const BANNED =
-  /\b(guarantee[sd]?|#1|number one|best in|award[- ]winning|risk[- ]free|invest(?:ment|or|ors)?|fundrais\w*|valuation|\d+\s?%|\d[\d,]*\+?\s+(?:users|customers|apps))\b/i;
-
 export type Advert = { title: string; message: string };
 
-export function isSafeAdText(text: string) {
-  return !BANNED.test(text);
-}
+export { isSafeAdText };
 
 export function parseAdvert(text: string): Advert | null {
   const match = text.match(/\{[\s\S]*\}/);
@@ -49,7 +45,7 @@ export function parseAdvert(text: string): Advert | null {
   const message = typeof parsed.message === 'string' ? parsed.message.trim() : '';
   if (!title || !message || message.length > 280) return null;
   if (!message.includes('appweaverai.com')) return null;
-  if (BANNED.test(message)) return null;
+  if (!isSafeAdText(message)) return null;
   return { title: title.slice(0, 120), message };
 }
 

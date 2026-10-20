@@ -1,4 +1,4 @@
-import { isSafeAdText } from '@/lib/social/adverts';
+import { isSafeAdText } from '@/lib/social/ad-safety';
 import { MAX_SCHEDULE_AHEAD_DAYS, zonedTimeToUtc } from '@/lib/ads/schedule';
 
 import {
