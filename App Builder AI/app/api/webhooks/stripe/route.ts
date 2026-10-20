@@ -11,6 +11,7 @@ import {
   sendSubscriptionConfirmationEmail,
 } from '@/lib/billing/receipts';
 import { getStripeClient, getPlanIdsByPriceId } from '@/lib/stripe';
+import { reportFailure } from '@/lib/monitoring';
 
 async function markEventProcessed(eventId: string) {
   // createMany + skipDuplicates is an atomic claim, so concurrent deliveries of one event id cannot both win.
@@ -248,6 +249,7 @@ export async function POST(request: Request) {
     }
   } catch (error) {
     console.error('Stripe webhook handler error:', error);
+    await reportFailure('stripe-webhook', error, { extra: { eventType: event.type } });
     // Release the claim so Stripe's retry is processed instead of being dropped as a duplicate.
     await releaseEventClaim(event.id);
     return NextResponse.json(

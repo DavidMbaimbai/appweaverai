@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { monitoredCron } from '@/lib/monitoring/cron';
 
 import { sendAlert } from '@/lib/alerts';
 import { isAgentPaused } from '@/lib/agents/pause';
@@ -8,7 +9,9 @@ import { processSocialReplies } from '@/lib/social/replies/process';
 export const maxDuration = 300;
 
 /** Cron: classifies new social interactions and answers or queues them for approval. */
-export async function GET(request: Request) {
+export const GET = monitoredCron('social-replies', handler);
+
+async function handler(request: Request) {
   const cronSecret = process.env.CRON_SECRET;
   if (!cronSecret) {
     return NextResponse.json(

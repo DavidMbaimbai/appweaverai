@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { monitoredCron } from '@/lib/monitoring/cron';
 
 import { sendAlert } from '@/lib/alerts';
 import { hasBearerSecret } from '@/lib/rate-limit';
@@ -7,7 +8,9 @@ import { processVideoJobs } from '@/lib/video/jobs';
 export const maxDuration = 120;
 
 /** Submits due video jobs (with retry/backoff) and polls in-flight ones. */
-export async function GET(request: Request) {
+export const GET = monitoredCron('video-jobs', handler);
+
+async function handler(request: Request) {
   const cronSecret = process.env.CRON_SECRET;
   if (!cronSecret) {
     return NextResponse.json({ error: 'CRON_SECRET is not configured.' }, { status: 500 });

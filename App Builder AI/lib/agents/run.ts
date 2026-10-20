@@ -1,5 +1,6 @@
 import type { Prisma } from '@/lib/generated/prisma/client';
 import { prisma } from '@/lib/prisma';
+import { reportFailure } from '@/lib/monitoring';
 
 import { getAgentExecutor, type AgentExecutor } from './executors';
 import { isGloballyPaused, isAgentPaused } from './pause';
@@ -167,6 +168,7 @@ export async function finish(
     return toResult(done, 'DONE', reason, false, outcome);
   } catch (error) {
     const message = redactSensitive(error instanceof Error ? error.message : String(error)).slice(0, 500);
+    await reportFailure('agent-run', error, { tags: { agent: String(agent) } });
     const failed = await prisma.agentActivity.update({ where: { id }, data: { status: 'FAILED', error: message } });
     return toResult(failed, 'FAILED', reason, false, outcome);
   }

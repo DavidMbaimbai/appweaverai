@@ -1,0 +1,123 @@
+name: Database backup
+
+# Daily pg_dump of production -> encrypted S3 object, 30-day retention, result reported to /api/cron/backups
+# (shown at /admin/backups; failures and staleness alert via ALERT_WEBHOOK_URL / ALERT_EMAIL).
+# A weekly restore drill pulls the newest dump back from S3 and restores it into a throwaway Postgres.
+# Setup and secrets: docs/runbooks/backup-restore.md
+
+on:
+  schedule:
+    - cron: '15 2 * * *'
+    - cron: '45 3 * * 0'
+  workflow_dispatch:
+    inputs:
+      run_drill:
+        description: 'Also run the restore drill'
+        type: boolean
+        default: true
+
+concurrency:
+  group: db-backup
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: App Builder AI
+    env:
+      BACKUP_S3_BUCKET: ${{ secrets.BACKUP_S3_BUCKET }}
+      BACKUP_S3_PREFIX: ${{ vars.BACKUP_S3_PREFIX || 'db-backups/' }}
+      BACKUP_S3_SSE: ${{ vars.BACKUP_S3_SSE || 'AES256' }}
+      BACKUP_S3_KMS_KEY_ID: ${{ secrets.BACKUP_S3_KMS_KEY_ID }}
+      BACKUP_RETENTION_DAYS: ${{ vars.BACKUP_RETENTION_DAYS || '30' }}
+      BACKUP_REPORT_URL: ${{ secrets.BACKUP_REPORT_URL }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+      BACKUP_TRIGGER: ${{ github.event_name == 'workflow_dispatch' && 'MANUAL' || 'SCHEDULE' }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_AWS_SECRET_ACCESS_KEY }}
+      AWS_REGION: ${{ secrets.BACKUP_AWS_REGION }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: App Builder AI/package-lock.json
+      - name: Install PostgreSQL 16 client
+        working-directory: .
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client-16
+      - run: npm ci --omit=dev --ignore-scripts
+      - name: pg_dump
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+        run: node scripts/db-backup.mjs backup
+      - name: Upload (encrypted) + retention + report
+        run: node scripts/backup-offsite.mjs upload
+      - name: Report failure
+        if: failure()
+        run: node scripts/backup-offsite.mjs report-failure "Backup workflow failed: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+  restore-drill:
+    needs: backup
+    if: ${{ always() && needs.backup.result != 'skipped' && (github.event.schedule == '45 3 * * 0' || (github.event_name == 'workflow_dispatch' && inputs.run_drill)) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: App Builder AI
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      BACKUP_S3_BUCKET: ${{ secrets.BACKUP_S3_BUCKET }}
+      BACKUP_S3_PREFIX: ${{ vars.BACKUP_S3_PREFIX || 'db-backups/' }}
+      BACKUP_REPORT_URL: ${{ secrets.BACKUP_REPORT_URL }}
+      CRON_SECRET: ${{ secrets.CRON_SECRET }}
+      BACKUP_TRIGGER: ${{ github.event_name == 'workflow_dispatch' && 'MANUAL' || 'SCHEDULE' }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_AWS_SECRET_ACCESS_KEY }}
+      AWS_REGION: ${{ secrets.BACKUP_AWS_REGION }}
+      TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: App Builder AI/package-lock.json
+      - name: Install PostgreSQL 16 client
+        working-directory: .
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client-16
+      - run: npm ci --ignore-scripts
+      - name: Fetch newest dump from S3 (verifies checksum)
+        run: node scripts/backup-offsite.mjs fetch-latest
+      - name: Restore into a throwaway database and verify row counts
+        run: npm run db:restore-drill
+      - name: Report failure
+        if: failure()
+        run: node scripts/backup-offsite.mjs report-failure "Restore drill workflow failed: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" RESTORE_DRILL

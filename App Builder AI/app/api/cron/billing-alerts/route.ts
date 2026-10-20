@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { monitoredCron } from '@/lib/monitoring/cron';
 
 import { runBillingAlertsSweep } from '@/lib/billing/alerts';
 import { hasBearerSecret } from '@/lib/rate-limit';
@@ -8,7 +9,9 @@ import { hasBearerSecret } from '@/lib/rate-limit';
  * depleted" emails. Trigger this daily via Vercel Cron (see vercel.json) or
  * any external scheduler, authenticated with the CRON_SECRET env var.
  */
-export async function GET(request: Request) {
+export const GET = monitoredCron('billing-alerts', handler);
+
+async function handler(request: Request) {
   const cronSecret = process.env.CRON_SECRET;
 
   if (cronSecret) {

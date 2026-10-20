@@ -3533,3 +3533,30 @@ model MeetingProviderStatus {
 
   @@map("meeting_provider_status")
 }
+
+/// One database backup or restore drill, reported by the backup workflow (see docs/runbooks/backup-restore.md).
+model BackupRun {
+  id               String   @id @default(cuid())
+  /// BACKUP | RESTORE_DRILL
+  kind             String   @default("BACKUP")
+  /// SUCCESS | FAILED
+  status           String
+  /// SCHEDULE | MANUAL
+  trigger          String   @default("SCHEDULE")
+  /// Object-storage URI of the dump (s3://bucket/key).
+  location         String?
+  sizeBytes        BigInt?  @map("size_bytes")
+  checksumSha256   String?  @map("checksum_sha256")
+  /// Server-side encryption was requested for the uploaded object.
+  encrypted        Boolean  @default(false)
+  retentionDeleted Int      @default(0) @map("retention_deleted")
+  /// table -> row count, from the backup (BACKUP) or the restored database (RESTORE_DRILL).
+  rowCounts        Json?    @map("row_counts")
+  error            String?  @db.Text
+  startedAt        DateTime @map("started_at")
+  finishedAt       DateTime @map("finished_at")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  @@index([kind, status, finishedAt])
+  @@map("backup_runs")
+}

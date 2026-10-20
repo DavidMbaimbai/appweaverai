@@ -31,6 +31,7 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
     href: '/admin/system-health',
     permission: 'system_health:read',
   },
+  { label: 'Backups', href: '/admin/backups', permission: 'backups:read' },
   { label: 'Security', href: '/admin/security', permission: 'security:read' },
   { label: 'Enterprise SSO', href: '/admin/sso', permission: 'sso:read' },
   { label: 'Audit Logs', href: '/admin/audit-logs', permission: 'audit:read' },

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { monitoredCron } from '@/lib/monitoring/cron';
 
 import { prisma } from '@/lib/prisma';
 import { hasBearerSecret } from '@/lib/rate-limit';
@@ -13,7 +14,9 @@ import {
  * after they started. Trigger this every few minutes via Vercel Cron (see
  * vercel.json) or any external scheduler, authenticated with CRON_SECRET.
  */
-export async function GET(request: Request) {
+export const GET = monitoredCron('auth-reminders', handler);
+
+async function handler(request: Request) {
   const cronSecret = process.env.CRON_SECRET;
 
   if (cronSecret) {

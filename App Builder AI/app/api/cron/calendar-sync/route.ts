@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { monitoredCron } from '@/lib/monitoring/cron';
 
 import { sendAlert } from '@/lib/alerts';
 import { pollCalendarSync } from '@/lib/calendar/bookings';
@@ -7,7 +8,9 @@ import { hasBearerSecret } from '@/lib/rate-limit';
 export const maxDuration = 120;
 
 /** Every 10 minutes: re-verifies connections, detects external changes, retries pending calendar events. */
-export async function GET(request: Request) {
+export const GET = monitoredCron('calendar-sync', handler);
+
+async function handler(request: Request) {
   const cronSecret = process.env.CRON_SECRET;
   if (!cronSecret) return NextResponse.json({ error: 'CRON_SECRET is not configured.' }, { status: 500 });
   if (!hasBearerSecret(request, cronSecret)) return NextResponse.json({ error: 'Unauthorized.' }, { status: 401 });

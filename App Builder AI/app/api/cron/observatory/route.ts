@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { monitoredCron } from '@/lib/monitoring/cron';
 
 import { sendAlert } from '@/lib/alerts';
 import { verifyPendingIssues } from '@/lib/observatory/issues';
@@ -8,7 +9,9 @@ import { hasBearerSecret } from '@/lib/rate-limit';
 export const maxDuration = 300;
 
 /** Every 30 minutes: smoke-checks deployed apps in batches, then verifies fixes that now have a later passing check. */
-export async function GET(request: Request) {
+export const GET = monitoredCron('observatory', handler);
+
+async function handler(request: Request) {
   const cronSecret = process.env.CRON_SECRET;
   if (!cronSecret) {
     return NextResponse.json({ error: 'CRON_SECRET is not configured.' }, { status: 500 });

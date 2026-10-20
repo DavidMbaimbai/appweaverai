@@ -71,6 +71,10 @@
     {
       "path": "/api/cron/meeting-reminders",
       "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/backups",
+      "schedule": "0 9 * * *"
     }
   ]
 }

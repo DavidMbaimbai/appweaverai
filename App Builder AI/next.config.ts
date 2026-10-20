@@ -38,4 +38,16 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Source maps are uploaded to Sentry only when a build token is configured; otherwise the config is untouched.
+export default async function config(): Promise<NextConfig> {
+  if (!process.env.SENTRY_AUTH_TOKEN) return nextConfig;
+  const { withSentryConfig } = await import('@sentry/nextjs/config');
+  return withSentryConfig(nextConfig, {
+    org: process.env.SENTRY_ORG,
+    project: process.env.SENTRY_PROJECT,
+    authToken: process.env.SENTRY_AUTH_TOKEN,
+    silent: !process.env.CI,
+    sourcemaps: { deleteSourcemapsAfterUpload: true },
+    telemetry: false,
+  });
+}

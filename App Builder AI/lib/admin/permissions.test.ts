@@ -48,7 +48,8 @@ describe('hasPermission', () => {
         permission !== 'marketing-reports:read' &&
         permission !== 'contentpipeline:read' &&
         permission !== 'inbox:read' &&
-        permission !== 'meetings:read';
+        permission !== 'meetings:read' &&
+        permission !== 'backups:read';
       expect(hasPermission('ANALYTICS_VIEWER', permission)).toBe(expected);
     }
   });
@@ -126,6 +127,18 @@ describe('hasPermission', () => {
     expect(hasPermission('FINANCE_ADMIN', 'marketing-reports:read')).toBe(true);
     expect(hasPermission('ANALYTICS_VIEWER', 'marketing-reports:read')).toBe(false);
     expect(hasPermission('SUPPORT_ADMIN', 'marketing-reports:read')).toBe(false);
+  });
+
+  it('limits backups to read for admins/security and write for super admin only', () => {
+    expect(hasPermission('SUPER_ADMIN', 'backups:write')).toBe(true);
+    for (const role of ['ADMIN', 'SECURITY_ADMIN'] as const) {
+      expect(hasPermission(role, 'backups:read')).toBe(true);
+      expect(hasPermission(role, 'backups:write')).toBe(false);
+    }
+    for (const role of ['FINANCE_ADMIN', 'SUPPORT_ADMIN', 'ANALYTICS_VIEWER'] as const) {
+      expect(hasPermission(role, 'backups:read')).toBe(false);
+      expect(hasPermission(role, 'backups:write')).toBe(false);
+    }
   });
 
   it('lets SECURITY_ADMIN ban users and manage security, but not payments', () => {

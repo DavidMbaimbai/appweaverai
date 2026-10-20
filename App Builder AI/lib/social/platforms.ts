@@ -1,4 +1,5 @@
 import { getAnthropicClient } from '@/lib/anthropic';
+import { reportFailure } from '@/lib/monitoring';
 
 export type SocialPlatform =
   | 'FACEBOOK'
@@ -287,6 +288,7 @@ export async function publishToPlatform(
   try {
     return { ok: true, id: await POSTERS[platform](content) };
   } catch (error) {
+    await reportFailure(`provider:${platform.toLowerCase()}`, error, { tags: { platform } });
     return {
       ok: false,
       error: error instanceof Error ? error.message : String(error),

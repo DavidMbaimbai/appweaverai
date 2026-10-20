@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { monitoredCron } from '@/lib/monitoring/cron';
 
 import { sendAlert } from '@/lib/alerts';
 import { runContentPipelines } from '@/lib/content-pipeline/engine';
@@ -7,7 +8,9 @@ import { hasBearerSecret } from '@/lib/rate-limit';
 export const maxDuration = 300;
 
 /** Hourly: starts each pipeline whose local time of day has passed (once per day) and resumes open runs. */
-export async function GET(request: Request) {
+export const GET = monitoredCron('content-pipeline', handler);
+
+async function handler(request: Request) {
   const cronSecret = process.env.CRON_SECRET;
   if (!cronSecret) {
     return NextResponse.json({ error: 'CRON_SECRET is not configured.' }, { status: 500 });

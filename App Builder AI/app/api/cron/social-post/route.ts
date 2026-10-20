@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { monitoredCron } from '@/lib/monitoring/cron';
 
 import { sendAlert } from '@/lib/alerts';
 import { isAgentPaused } from '@/lib/agents/pause';
@@ -9,7 +10,9 @@ import { publishNextDueSocialPost } from '@/lib/social/publish';
 export const maxDuration = 300;
 
 /** Daily cron: publishes the next queued marketing post to social media. */
-export async function GET(request: Request) {
+export const GET = monitoredCron('social-post', handler);
+
+async function handler(request: Request) {
   const cronSecret = process.env.CRON_SECRET;
   if (!cronSecret) {
     return NextResponse.json(

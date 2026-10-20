@@ -14,6 +14,8 @@
     "seed:templates": "tsx prisma/seed-website-templates.ts",
     "db:backup": "node scripts/db-backup.mjs backup",
     "db:restore": "node scripts/db-backup.mjs restore",
+    "db:restore-drill": "tsx scripts/restore-drill.ts",
+    "db:backup-offsite": "node scripts/backup-offsite.mjs",
     "test:e2e": "playwright test"
   },
   "dependencies": {
@@ -26,6 +28,7 @@
     "@better-auth/sso": "^1.7.5",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
+    "@sentry/nextjs": "^11.8.0",
     "@types/nodemailer": "^8.0.1",
     "better-auth": "^1.6.23",
     "dotenv": "^17.4.2",

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { monitoredCron } from '@/lib/monitoring/cron';
 
 import { sendAlert } from '@/lib/alerts';
 import { hasBearerSecret } from '@/lib/rate-limit';
@@ -13,7 +14,9 @@ export const maxDuration = 300;
  * Scheduled endpoint that answers unread mail in the support mailbox
  * (SUPPORT_EMAIL) with an AI-generated reply. Authenticated with CRON_SECRET.
  */
-export async function GET(request: Request) {
+export const GET = monitoredCron('support-inbox', handler);
+
+async function handler(request: Request) {
   const cronSecret = process.env.CRON_SECRET;
   if (!cronSecret) {
     return NextResponse.json(
