@@ -16,6 +16,7 @@ import {
 } from '../billing/entitlements';
 import { prisma } from '../prisma';
 import { dropAllProjectDatabases } from '../databases/provision';
+import { deleteProjectSideData } from '../projects/cleanup';
 import { getWebsiteType, withWebsiteTypeGuidance } from '../website-types';
 import {
   getUserBrandKit,
@@ -622,6 +623,7 @@ export async function permanentlyDeleteProjectAction(projectId: string) {
 
   // Cascade would drop the rows, but the real database/role must be removed too.
   await dropAllProjectDatabases(project.id);
+  await deleteProjectSideData(project.id, userId);
   await prisma.project.delete({ where: { id: project.id } });
   await removeProjectFilesFromDisk(project.id);
 

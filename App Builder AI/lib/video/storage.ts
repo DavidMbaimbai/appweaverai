@@ -52,6 +52,19 @@ export async function headVideoObject(key: string): Promise<boolean> {
   }
 }
 
+/** Stored object size in bytes, or null when it does not exist. */
+export async function getVideoObjectSize(key: string): Promise<number | null> {
+  const { bucket, region } = requireConfig();
+  try {
+    const head = await s3(region).send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
+    return head.ContentLength ?? null;
+  } catch (error) {
+    const err = error as { name?: string; $metadata?: { httpStatusCode?: number } };
+    if (err.name === 'NotFound' || err.$metadata?.httpStatusCode === 404) return null;
+    throw error;
+  }
+}
+
 export async function putVideoObject(key: string, body: Buffer, contentType: string) {
   const { bucket, region } = requireConfig();
   await s3(region).send(
@@ -68,7 +81,7 @@ export async function getVideoObjectBytes(key: string): Promise<Buffer> {
 
 export async function presignVideoUrl(
   key: string,
-  options: { download?: boolean; filename?: string } = {},
+  options: { download?: boolean; filename?: string; expiresIn?: number } = {},
 ): Promise<string> {
   const { bucket, region } = requireConfig();
   return getSignedUrl(
@@ -81,6 +94,6 @@ export async function presignVideoUrl(
         ? `attachment; filename="${(options.filename ?? 'video.mp4').replace(/[^\w.-]/g, '_')}"`
         : 'inline',
     }),
-    { expiresIn: VIDEO_URL_TTL_SECONDS },
+    { expiresIn: options.expiresIn ?? VIDEO_URL_TTL_SECONDS },
   );
 }
