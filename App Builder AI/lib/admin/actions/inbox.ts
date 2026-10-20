@@ -4,7 +4,9 @@ import { revalidatePath } from 'next/cache';
 
 import { recordAuditLog } from '@/lib/admin/audit';
 import { requireAdmin } from '@/lib/auth/require-admin';
+import { verifyChannel } from '@/lib/messaging/availability';
 import { runInboxOp, type InboxOp, type InboxOpResult } from '@/lib/messaging/ops';
+import { isMessageChannel } from '@/lib/messaging/types';
 import { prisma } from '@/lib/prisma';
 
 const PATH = '/admin/inbox';
@@ -29,6 +31,24 @@ export async function adminInboxOpAction(input: InboxOp): Promise<InboxOpResult>
   });
   revalidatePath(PATH);
   return result;
+}
+
+export async function verifyPlatformChannelAction(channel: string): Promise<InboxOpResult> {
+  const admin = await guard();
+  if (!admin) return { ok: false, error: 'Not authorized.' };
+  if (!isMessageChannel(channel)) return { ok: false, error: 'Unknown channel.' };
+  const r = await verifyChannel({ type: 'PLATFORM' }, channel);
+  await recordAuditLog({
+    adminId: admin.id,
+    adminEmail: admin.email,
+    action: 'inbox.channel.verify',
+    targetType: 'ChannelVerification',
+    targetId: channel,
+    result: r.status === 'AVAILABLE' ? 'SUCCESS' : 'FAILURE',
+    reason: r.status === 'AVAILABLE' ? null : r.detail,
+  });
+  revalidatePath(PATH);
+  return r.status === 'AVAILABLE' ? { ok: true, message: r.detail } : { ok: false, error: r.detail };
 }
 
 export async function addPlatformKnowledgeAction(title: string, content: string): Promise<InboxOpResult> {

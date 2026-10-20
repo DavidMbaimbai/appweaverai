@@ -101,6 +101,8 @@ vi.mock('@/lib/prisma', () => {
     marketingPriceItem: table('marketingPriceItem', []),
     marketingPurchase: table('marketingPurchase', ['stripeSessionId', 'paymentIntentId']),
     internalMarketingCost: table('internalMarketingCost', []),
+    adminSetting: table('adminSetting', ['key']),
+    marketingPackage: table('marketingPackage', []),
     user: table('user', ['id']),
     project: {
       findUnique: async ({ where, select }: { where: { id: string }; select: Row }) => {
@@ -137,6 +139,7 @@ import { grantPurchase } from './purchase';
 import { detectAnomalies, NOT_AVAILABLE, summarizeReport } from './reports';
 import { finishScheduledSlot, holdScheduledSlot, settleMarketingUsage, withMarketingCredits } from './run';
 import { withScopeMarketing } from './system';
+import { approveCatalogue, catalogueFingerprint, ensureTrialAllowance, getApproval, purchasesAllowed } from './settings';
 import { grantCredits, refundReservation, reserveCredits } from './wallet';
 
 const t = () => store.tables;
@@ -385,6 +388,70 @@ describe('messaging, voice and recurring-job metering', () => {
     expect(resumed).toMatchObject({ ok: true });
     if (resumed.ok) await finishScheduledSlot(resumed.key, 'lead_reminder', false);
     expect(wallet('c1')!.reserved).toBe(0);
+  });
+});
+
+describe('free-plan trial allowance and catalogue approval', () => {
+  beforeEach(() => {
+    t().user.push({ id: 'f1', adminRole: null, subscriptionPlan: 'free', email: 'f1@example.com' });
+    t().workspace.push({ id: 'wf', ownerId: 'f1', members: [] });
+    delete process.env.FREE_PLAN_MARKETING_CREDITS;
+    delete process.env.MARKETING_CREDITS_ALLOW_UNAPPROVED;
+  });
+
+  it('is disabled by default', async () => {
+    expect(await ensureTrialAllowance({ userId: 'f1', plan: 'free' })).toMatchObject({ granted: false, reason: 'disabled' });
+    expect(wallet('f1')).toBeUndefined();
+  });
+
+  it('grants promotional credits once per user, never to paid plans', async () => {
+    const env = { FREE_PLAN_MARKETING_CREDITS: '20' } as unknown as NodeJS.ProcessEnv;
+    expect(await ensureTrialAllowance({ userId: 'f1', plan: 'free', env })).toMatchObject({ granted: true });
+    expect(await ensureTrialAllowance({ userId: 'f1', plan: 'free', env })).toMatchObject({ granted: false, reason: 'already_granted' });
+    expect(await ensureTrialAllowance({ userId: 'c1', plan: 'pro', env })).toMatchObject({ granted: false, reason: 'not_free_plan' });
+    expect(wallet('f1')!.available).toBe(20);
+    expect(t().marketingCreditLot[0]).toMatchObject({ source: 'PROMO' });
+    expect(t().marketingCreditLot[0].expiresAt).toBeInstanceOf(Date);
+  });
+
+  it('monthly mode grants again in a new month only', async () => {
+    const env = { FREE_PLAN_MARKETING_CREDITS: '5', FREE_PLAN_MARKETING_CREDITS_MODE: 'MONTHLY' } as unknown as NodeJS.ProcessEnv;
+    const jan = new Date('2026-01-10T00:00:00Z');
+    await ensureTrialAllowance({ userId: 'f1', plan: 'free', env, now: jan });
+    await ensureTrialAllowance({ userId: 'f1', plan: 'free', env, now: new Date('2026-01-20T00:00:00Z') });
+    await ensureTrialAllowance({ userId: 'f1', plan: 'free', env, now: new Date('2026-02-01T00:00:00Z') });
+    expect(wallet('f1')!.available).toBe(10);
+  });
+
+  it('is applied to a free customer running a billable op but never to internal scope', async () => {
+    process.env.FREE_PLAN_MARKETING_CREDITS = '10';
+    const customer = await withMarketingCredits({ userId: 'f1', projectId: undefined, operation: 'text_post', idempotencyKey: 'fp1' }, async () => 'ok');
+    expect(customer).toMatchObject({ ok: true, charged: 3 });
+    expect(wallet('f1')!.available).toBe(7);
+    const internal = await withMarketingCredits({ userId: 'admin', operation: 'text_post', idempotencyKey: 'fp2' }, async () => 'ok');
+    expect(internal).toMatchObject({ ok: true, charged: 0, billing: 'APPWEAVER_INTERNAL' });
+    expect(wallet('admin')).toBeUndefined();
+  });
+
+  it('blocks package purchases until the current catalogue is approved, and a change voids approval', async () => {
+    t().marketingPriceItem = [{ operation: 'text_post', version: 1 }];
+    t().marketingPackage = [{ id: 'pk1', credits: 500, priceCents: 900, active: true }];
+    expect(await purchasesAllowed()).toBe(false);
+    await approveCatalogue({ id: 'admin', email: 'a@example.com' });
+    expect(await purchasesAllowed()).toBe(true);
+    expect((await getApproval()).approval).toMatchObject({ approvedById: 'admin' });
+    t().marketingPriceItem.push({ operation: 'text_post', version: 2 });
+    expect(await purchasesAllowed()).toBe(false);
+    expect(await purchasesAllowed({ MARKETING_CREDITS_ALLOW_UNAPPROVED: 'true' } as unknown as NodeJS.ProcessEnv)).toBe(true);
+  });
+
+  it('fingerprint ignores inactive packages and older versions', () => {
+    const a = catalogueFingerprint([{ operation: 'x', version: 2 }], [{ id: 'p', credits: 1, priceCents: 1, active: true }]);
+    const b = catalogueFingerprint(
+      [{ operation: 'x', version: 1 }, { operation: 'x', version: 2 }],
+      [{ id: 'p', credits: 1, priceCents: 1, active: true }, { id: 'q', credits: 9, priceCents: 9, active: false }],
+    );
+    expect(a).toBe(b);
   });
 });
 

@@ -12,6 +12,8 @@ export const INSTAGRAM_PERMISSION_NOTE =
 
 export function hasInstagramImage(imageUrl: string | null | undefined): imageUrl is string {
   if (!imageUrl) return false;
+  // Hosted media is resolved to a verified https URL at publish time.
+  if (/^media:\/\/[A-Za-z0-9_-]{8,40}$/.test(imageUrl)) return true;
   try {
     return new URL(imageUrl).protocol === 'https:';
   } catch {

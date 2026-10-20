@@ -13,6 +13,7 @@ import {
   type MarketingQuote,
 } from './pricing';
 import { getWallet, refundReservation, releaseReservation, reserveCredits, settleReservation } from './wallet';
+import { ensureTrialAllowance } from './settings';
 
 export const MARKETING_CREDITS_PATH = '/app/marketing-credits';
 
@@ -233,6 +234,8 @@ export async function withMarketingCredits<T>(
   if (control?.suspendedAt) {
     return fail('suspended', `Marketing is suspended for this organisation${control.suspendedReason ? `: ${control.suspendedReason}` : ''}. Contact support.`);
   }
+  // Trial allowance is only reachable here: after classification excluded internal scope.
+  await ensureTrialAllowance({ userId: ctx.walletUserId, plan: ctx.plan }).catch(() => undefined);
   if (q.planRestrictions.includes(ctx.plan)) {
     return fail('plan', `${q.estimate.split(':')[0]} is not available on the ${ctx.plan} plan. Upgrade at /app/billing.`);
   }

@@ -7,6 +7,7 @@ import { redirect } from 'next/navigation';
 import { recordAuditLog } from '@/lib/admin/audit';
 import { requireAdmin } from '@/lib/auth/require-admin';
 import { isMarketingOperation, seedMarketingPrices } from '@/lib/marketing-credits/pricing';
+import { approveCatalogue, getFreeAllowance, saveFreeAllowance } from '@/lib/marketing-credits/settings';
 import { grantCredits } from '@/lib/marketing-credits/wallet';
 import { prisma } from '@/lib/prisma';
 
@@ -123,6 +124,53 @@ export async function savePackageAction(formData: FormData): Promise<void> {
   });
   revalidatePath(PRICING);
   back(PRICING, 'Package saved.');
+}
+
+/** Free-plan trial allowance (promotional credits). 0 disables it. */
+export async function saveFreeAllowanceAction(formData: FormData): Promise<void> {
+  const auth = await requireAdmin('marketing-pricing:write');
+  if (!auth.ok) return back(PRICING, 'Not authorized.');
+  const credits = int(formData.get('credits'));
+  if (credits === null) return back(PRICING, 'Credits must be a whole number (0 disables the allowance).');
+  const days = String(formData.get('expiryDays') ?? '').trim() ? int(formData.get('expiryDays')) : null;
+  if (String(formData.get('expiryDays') ?? '').trim() && days === null) return back(PRICING, 'Expiry must be a whole number of days.');
+  const mode = formData.get('mode') === 'MONTHLY' ? 'MONTHLY' : 'ONCE';
+  const before = await getFreeAllowance();
+  const next = { credits, mode, expiryDays: days } as const;
+  await saveFreeAllowance({ ...next }, auth.admin.id);
+  await recordAuditLog({
+    adminId: auth.admin.id,
+    adminEmail: auth.admin.email,
+    action: 'marketing.free_allowance',
+    targetType: 'AdminSetting',
+    targetId: 'marketing.free_allowance',
+    before,
+    after: next,
+    reason: String(formData.get('reason') ?? '').trim() || 'Free-plan marketing allowance change',
+    ipAddress: await ip(),
+  });
+  revalidatePath(PRICING);
+  back(PRICING, credits === 0 ? 'Trial allowance disabled.' : `Trial allowance set to ${credits} ${mode.toLowerCase()} promo credits.`);
+}
+
+/** Marks the current catalogue (price versions + packages) approved; any later change voids it. */
+export async function approveCatalogueAction(): Promise<void> {
+  const auth = await requireAdmin('marketing-pricing:write');
+  if (!auth.ok) return back(PRICING, 'Not authorized.');
+  await seedMarketingPrices();
+  const approval = await approveCatalogue({ id: auth.admin.id, email: auth.admin.email ?? auth.admin.id });
+  await recordAuditLog({
+    adminId: auth.admin.id,
+    adminEmail: auth.admin.email,
+    action: 'marketing.catalogue_approve',
+    targetType: 'AdminSetting',
+    targetId: 'marketing.catalogue_approval',
+    after: { fingerprint: approval.fingerprint },
+    reason: 'Catalogue approved by product owner',
+    ipAddress: await ip(),
+  });
+  revalidatePath(PRICING);
+  back(PRICING, 'Catalogue approved. Package purchases are now enabled.');
 }
 
 /** Suspend an org's marketing and/or set its monthly credit limit. */

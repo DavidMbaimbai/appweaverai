@@ -37,7 +37,14 @@ export type InboxMessageView = {
   error: string | null;
 };
 
-export type ChannelStatusView = { channel: MessageChannelName; configured: boolean; missing: string[]; note?: string };
+export type ChannelStatusView = {
+  channel: MessageChannelName;
+  configured: boolean;
+  missing: string[];
+  note?: string;
+  availability?: 'AVAILABLE' | 'UNAVAILABLE';
+  availabilityReason?: string;
+};
 
 type Props = {
   baseHref: string;
@@ -47,6 +54,7 @@ type Props = {
   statuses: ChannelStatusView[];
   canWrite: boolean;
   onOp: (input: InboxOp) => Promise<InboxOpResult>;
+  onVerify?: (channel: MessageChannelName) => Promise<InboxOpResult>;
 };
 
 const btn = 'rounded-lg border border-app-border px-3 py-1.5 text-sm text-app-text hover:bg-app-border-subtle disabled:opacity-50';
@@ -57,7 +65,16 @@ function windowOpen(thread: InboxThread) {
   return Boolean(thread.lastInboundAt) && Date.now() - new Date(thread.lastInboundAt as string).getTime() < SESSION_WINDOW_MS;
 }
 
-export function ChannelStatusPanel({ statuses }: { statuses: ChannelStatusView[] }) {
+export function ChannelStatusPanel({
+  statuses,
+  onVerify,
+}: {
+  statuses: ChannelStatusView[];
+  onVerify?: (channel: MessageChannelName) => Promise<InboxOpResult>;
+}) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [message, setMessage] = useState('');
   return (
     <section className="space-y-2 rounded-xl border border-app-border-subtle p-3">
       <h2 className="text-sm font-semibold text-app-text">Channels</h2>
@@ -66,11 +83,30 @@ export function ChannelStatusPanel({ statuses }: { statuses: ChannelStatusView[]
           <li key={s.channel}>
             <span className="font-medium text-app-text">{CHANNEL_LABELS[s.channel]}</span>{' '}
             <span className={s.configured ? 'text-emerald-600' : 'text-app-text-muted'}>{s.configured ? 'connected' : 'not configured'}</span>
+            {s.availability ? (
+              <span className={s.availability === 'AVAILABLE' ? ' text-emerald-600' : ' text-amber-600'}> · {s.availability.toLowerCase()}</span>
+            ) : null}
             {s.missing.length ? <p className="break-words text-xs text-app-text-muted">Missing: {s.missing.join(', ')}</p> : null}
+            {s.availability === 'UNAVAILABLE' && s.availabilityReason ? <p className="text-xs text-app-text-muted">{s.availabilityReason}</p> : null}
             {s.note ? <p className="text-xs text-app-text-muted">{s.note}</p> : null}
+            {onVerify && s.availability && s.configured ? (
+              <button
+                className="mt-1 rounded-lg border border-app-border px-2 py-0.5 text-xs text-app-text hover:bg-app-border-subtle disabled:opacity-50"
+                disabled={pending}
+                onClick={() =>
+                  start(async () => {
+                    const r = await onVerify(s.channel);
+                    setMessage(r.ok ? (r.message ?? 'Verified.') : r.error);
+                    router.refresh();
+                  })
+                }>
+                Verify now
+              </button>
+            ) : null}
           </li>
         ))}
       </ul>
+      {message ? <p className="text-xs text-app-text-muted">{message}</p> : null}
     </section>
   );
 }
@@ -191,7 +227,7 @@ function ThreadView({ selected, canWrite, onOp }: { selected: NonNullable<Props[
   );
 }
 
-export function InboxView({ baseHref, threads, selected, filters, statuses, canWrite, onOp }: Props) {
+export function InboxView({ baseHref, threads, selected, filters, statuses, canWrite, onOp, onVerify }: Props) {
   const href = (patch: Record<string, string | undefined>) => {
     const params = new URLSearchParams();
     const next = { ...filters, ...patch };
@@ -237,7 +273,7 @@ export function InboxView({ baseHref, threads, selected, filters, statuses, canW
             </li>
           ))}
         </ul>
-        <ChannelStatusPanel statuses={statuses} />
+        <ChannelStatusPanel statuses={statuses} onVerify={canWrite ? onVerify : undefined} />
       </aside>
       <main>
         {selected ? <ThreadView key={`${selected.thread.id}:${selected.messages.at(-1)?.id ?? ''}`} selected={selected} canWrite={canWrite} onOp={onOp} /> : <p className="text-sm text-app-text-muted">Select a conversation.</p>}

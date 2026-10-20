@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma';
 import { type AgentScope } from '@/lib/agents/types';
 
 import type { MessageChannelName } from './types';
+import { getAvailability } from './availability';
 import { PROJECT_CONNECTION_FIELDS_VIEW } from './connection-fields';
 
 type Env = Record<string, string | undefined>;
@@ -41,6 +42,9 @@ export type ChannelStatus = {
   /** Exact env var names (or connection fields) that are missing. */
   missing: string[];
   note?: string;
+  /** SMS/WhatsApp only: UNAVAILABLE until credentials are set AND a live verification succeeded. */
+  availability?: 'AVAILABLE' | 'UNAVAILABLE';
+  availabilityReason?: string;
 };
 
 const has = (env: Env, name: string) => Boolean(env[name]?.trim());
@@ -95,7 +99,10 @@ export async function channelStatuses(scope: AgentScope): Promise<ChannelStatus[
     channels.map(async (channel) => {
       const connection =
         scope.type === 'PROJECT' ? await getProjectConnectionFields(scope.projectId, channel).catch(() => null) : null;
-      return computeChannelStatus(channel, scope.type, process.env, connection);
+      const status = computeChannelStatus(channel, scope.type, process.env, connection);
+      if (channel !== 'SMS' && channel !== 'WHATSAPP') return status;
+      const availability = await getAvailability(scope, channel).catch(() => ({ status: 'UNAVAILABLE' as const, reason: 'Could not read verification state.' }));
+      return { ...status, availability: availability.status, availabilityReason: availability.reason };
     }),
   );
 }

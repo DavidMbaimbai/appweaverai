@@ -1,7 +1,7 @@
 import { PlatformKnowledgePanel } from '@/components/admin/inbox/platform-knowledge';
 import { AdminPageHeader } from '@/components/admin/ui/primitives';
 import { InboxView } from '@/components/app/inbox/inbox-view';
-import { adminInboxOpAction } from '@/lib/admin/actions/inbox';
+import { adminInboxOpAction, verifyPlatformChannelAction } from '@/lib/admin/actions/inbox';
 import { hasPermission } from '@/lib/admin/permissions';
 import { requireAdmin } from '@/lib/auth/require-admin';
 import { loadInboxPageData } from '@/lib/messaging/view';
@@ -35,6 +35,7 @@ export default async function AdminInboxPage({ searchParams }: Props) {
         statuses={data.statuses}
         canWrite={canWrite}
         onOp={adminInboxOpAction}
+        onVerify={verifyPlatformChannelAction}
       />
       <PlatformKnowledgePanel entries={knowledge} canWrite={canWrite} />
     </div>

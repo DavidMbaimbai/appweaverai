@@ -3258,3 +3258,278 @@ model ChannelVerification {
   @@unique([scopeType, scopeId, channel])
   @@map("channel_verifications")
 }
+
+// -----------------------------------------------------------------------------
+// Calendar sync (Google Calendar / Microsoft Outlook). scopeKey is a projectId or "PLATFORM".
+// Plain indexed columns (no relations) so Project / LeadBooking stay untouched.
+// -----------------------------------------------------------------------------
+
+/// One calendar connection per project (or the platform). Tokens are AES-GCM encrypted.
+model CalendarConnection {
+  id                   String    @id @default(cuid())
+  scopeKey             String    @unique @map("scope_key")
+  ownerId              String    @map("owner_id")
+  /// GOOGLE | MICROSOFT
+  provider             String
+  /// PENDING | CONNECTED | NEEDS_RECONNECT
+  status               String    @default("PENDING")
+  refreshTokenEnc      String?   @map("refresh_token_enc") @db.Text
+  accessTokenEnc       String?   @map("access_token_enc") @db.Text
+  accessTokenExpiresAt DateTime? @map("access_token_expires_at")
+  scopes               String    @default("")
+  accountLabel         String?   @map("account_label")
+  calendarId           String    @default("primary") @map("calendar_id")
+  /// Last successful live call against the provider; availability is UNAVAILABLE without it.
+  verifiedAt           DateTime? @map("verified_at")
+  lastError            String?   @map("last_error") @db.Text
+  lastSyncAt           DateTime? @map("last_sync_at")
+  /// { mon: [["09:00","17:00"]], ... } in timeZone.
+  workingHours         Json?     @map("working_hours")
+  bufferBeforeMin      Int       @default(0) @map("buffer_before_min")
+  bufferAfterMin       Int       @default(0) @map("buffer_after_min")
+  minNoticeMin         Int       @default(120) @map("min_notice_min")
+  slotStepMin          Int       @default(30) @map("slot_step_min")
+  durationMin          Int       @default(30) @map("duration_min")
+  timeZone             String    @default("UTC") @map("time_zone")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  @@map("calendar_connections")
+}
+
+/// Short-lived OAuth state + PKCE verifier; consumed (deleted) by the callback.
+model CalendarOAuthState {
+  id              String   @id @default(cuid())
+  stateHash       String   @unique @map("state_hash")
+  scopeKey        String   @map("scope_key")
+  userId          String   @map("user_id")
+  provider        String
+  codeVerifierEnc String   @map("code_verifier_enc") @db.Text
+  returnTo        String   @default("") @map("return_to")
+  expiresAt       DateTime @map("expires_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([expiresAt])
+  @@map("calendar_oauth_states")
+}
+
+/// Calendar state of a LeadBooking. No booking is ever CONFIRMED without a real provider event.
+model CalendarBookingSync {
+  id              String    @id @default(cuid())
+  bookingId       String    @unique @map("booking_id")
+  scopeKey        String    @map("scope_key")
+  provider        String?
+  /// CONFIRMED | PENDING_MANUAL_CONFIRMATION | CANCELLED
+  status          String    @default("PENDING_MANUAL_CONFIRMATION")
+  externalEventId String?   @map("external_event_id")
+  startsAt        DateTime  @map("starts_at")
+  endsAt          DateTime  @map("ends_at")
+  retryCreate     Boolean   @default(false) @map("retry_create")
+  attempts        Int       @default(0)
+  lastError       String?   @map("last_error") @db.Text
+  lastSyncedAt    DateTime? @map("last_synced_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@index([scopeKey, status])
+  @@index([retryCreate, status])
+  @@map("calendar_booking_syncs")
+}
+
+// -----------------------------------------------------------------------------
+// AI Meeting Scheduling and Coordination. scopeType PLATFORM | PROJECT, scopeId = "PLATFORM" or projectId.
+// -----------------------------------------------------------------------------
+
+/// Admin-configurable meeting template.
+model MeetingType {
+  id                   String   @id @default(cuid())
+  scopeType            String   @default("PLATFORM") @map("scope_type")
+  scopeId              String   @default("PLATFORM") @map("scope_id")
+  key                  String
+  name                 String
+  /// USER | INVESTOR | CUSTOMER | BUSINESS | INTERNAL
+  category             String   @default("CUSTOMER")
+  durationMin          Int      @default(30) @map("duration_min")
+  bufferBeforeMin      Int      @default(0) @map("buffer_before_min")
+  bufferAfterMin       Int      @default(10) @map("buffer_after_min")
+  /// GOOGLE_MEET | TEAMS | ZOOM | PHONE | IN_PERSON | MANUAL_LINK
+  locationKind         String   @default("MANUAL_LINK") @map("location_kind")
+  requiredParticipants Int      @default(1) @map("required_participants")
+  workingHours         Json?    @map("working_hours")
+  timeZone             String   @default("UTC") @map("time_zone")
+  minNoticeMin         Int      @default(240) @map("min_notice_min")
+  reminderOffsetsMin   Int[]    @map("reminder_offsets_min")
+  requiresApproval     Boolean  @default(true) @map("requires_approval")
+  /// Owner explicitly authorises the agent to book this routine type once the participant agreed.
+  autonomousBooking    Boolean  @default(false) @map("autonomous_booking")
+  active               Boolean  @default(true)
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  @@unique([scopeType, scopeId, key])
+  @@map("meeting_types")
+}
+
+model Meeting {
+  id               String    @id @default(cuid())
+  scopeType        String    @default("PLATFORM") @map("scope_type")
+  scopeId          String    @default("PLATFORM") @map("scope_id")
+  typeId           String?   @map("type_id")
+  title            String
+  /// REQUESTED | PROPOSED | AWAITING_CONFIRMATION | CONFIRMED | RESCHEDULED | CANCELLED | COMPLETED | MISSED | FAILED
+  status           String    @default("REQUESTED")
+  category         String    @default("CUSTOMER")
+  startsAt         DateTime? @map("starts_at")
+  endsAt           DateTime? @map("ends_at")
+  durationMin      Int       @default(30) @map("duration_min")
+  timeZone         String    @default("UTC") @map("time_zone")
+  hostUserId       String?   @map("host_user_id")
+  assigneeId       String?   @map("assignee_id")
+  /// [{ name, email, phone, timeZone, role, userId }]
+  participants     Json      @default("[]")
+  agenda           String    @default("") @db.Text
+  /// LEAD | INVESTOR | SUPPORT_TICKET | PROJECT | USER_REQUEST | MANUAL
+  sourceType       String    @default("MANUAL") @map("source_type")
+  sourceId         String?   @map("source_id")
+  requestedById    String?   @map("requested_by_id")
+  requestedByAgent Boolean   @default(false) @map("requested_by_agent")
+  locationKind     String    @default("MANUAL_LINK") @map("location_kind")
+  locationText     String?   @map("location_text")
+  conferenceProvider String? @map("conference_provider")
+  conferenceUrl    String?   @map("conference_url") @db.Text
+  conferenceId     String?   @map("conference_id")
+  calendarProvider String?   @map("calendar_provider")
+  externalEventId  String?   @map("external_event_id")
+  idempotencyKey   String    @unique @map("idempotency_key")
+  /// Private to staff with meetings:notes; never rendered to participants.
+  internalNotes    String?   @map("internal_notes") @db.Text
+  transcriptConsent Boolean  @default(false) @map("transcript_consent")
+  transcript       String?   @db.Text
+  outcome          String?   @db.Text
+  nextSteps        Json?     @map("next_steps")
+  summary          String?   @db.Text
+  /// Bumped on every change so older signed links stop working.
+  tokenVersion     Int       @default(1) @map("token_version")
+  failureReason    String?   @map("failure_reason") @db.Text
+  confirmedAt      DateTime? @map("confirmed_at")
+  cancelledAt      DateTime? @map("cancelled_at")
+  cancelReason     String?   @map("cancel_reason")
+  notesPurgedAt    DateTime? @map("notes_purged_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  @@index([scopeType, scopeId, status, startsAt])
+  @@index([sourceType, sourceId])
+  @@index([startsAt])
+  @@map("meetings")
+}
+
+model MeetingSlotProposal {
+  id         String   @id @default(cuid())
+  meetingId  String   @map("meeting_id")
+  startsAt   DateTime @map("starts_at")
+  endsAt     DateTime @map("ends_at")
+  /// PROPOSED | ACCEPTED | DECLINED | EXPIRED
+  status     String   @default("PROPOSED")
+  proposedBy String   @default("system") @map("proposed_by")
+  expiresAt  DateTime @map("expires_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@unique([meetingId, startsAt])
+  @@index([meetingId, status])
+  @@map("meeting_slot_proposals")
+}
+
+/// Backstop against double booking: one row per active meeting, unique per host and start.
+model MeetingSlotLock {
+  id          String   @id @default(cuid())
+  meetingId   String   @unique @map("meeting_id")
+  resourceKey String   @map("resource_key")
+  startsAt    DateTime @map("starts_at")
+  endsAt      DateTime @map("ends_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@unique([resourceKey, startsAt])
+  @@index([resourceKey, endsAt])
+  @@map("meeting_slot_locks")
+}
+
+model MeetingReminder {
+  id        String    @id @default(cuid())
+  meetingId String    @map("meeting_id")
+  offsetMin Int       @map("offset_min")
+  /// EMAIL | WHATSAPP | SMS | IN_APP
+  channel   String    @default("EMAIL")
+  dueAt     DateTime  @map("due_at")
+  /// PENDING | SENT | FAILED | SKIPPED
+  status    String    @default("PENDING")
+  attempts  Int       @default(0)
+  lastError String?   @map("last_error") @db.Text
+  sentAt    DateTime? @map("sent_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@unique([meetingId, offsetMin, channel])
+  @@index([status, dueAt])
+  @@map("meeting_reminders")
+}
+
+model MeetingAudit {
+  id        String   @id @default(cuid())
+  meetingId String   @map("meeting_id")
+  actor     String
+  action    String
+  detail    Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([meetingId, createdAt])
+  @@map("meeting_audits")
+}
+
+/// In-app notification for staff or a signed-in user.
+model MeetingNotification {
+  id        String    @id @default(cuid())
+  userId    String    @map("user_id")
+  meetingId String    @map("meeting_id")
+  title     String
+  body      String    @default("") @db.Text
+  readAt    DateTime? @map("read_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([userId, readAt, createdAt])
+  @@map("meeting_notifications")
+}
+
+/// Manual availability when no calendar is connected: weekly hours plus blocked ranges. resourceKey = scope or "user:<id>".
+model MeetingAvailabilityRule {
+  id           String   @id @default(cuid())
+  resourceKey  String   @unique @map("resource_key")
+  timeZone     String   @default("UTC") @map("time_zone")
+  workingHours Json?    @map("working_hours")
+  /// [{ start, end }] ISO instants; reasons are never stored.
+  blocked      Json     @default("[]")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("meeting_availability_rules")
+}
+
+/// Per-scope retention and conference-provider verification.
+model MeetingSettings {
+  id            String   @id @default(cuid())
+  scopeKey      String   @unique @map("scope_key")
+  /// Notes/transcripts older than this (after the meeting) are purged; null keeps them until deleted manually.
+  retentionDays Int?     @map("retention_days")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@map("meeting_settings")
+}
+
+/// Live verification of a conference provider (ZOOM; MEET/TEAMS follow the calendar connection).
+model MeetingProviderStatus {
+  provider    String    @id
+  verifiedAt  DateTime? @map("verified_at")
+  fingerprint String    @default("")
+  lastError   String?   @map("last_error") @db.Text
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@map("meeting_provider_status")
+}

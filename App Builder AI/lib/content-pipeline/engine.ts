@@ -16,7 +16,9 @@ import { approvedStatus, composePostText, isAutoPublishPlatform, type Platform }
 import { connectionPlatform } from '@/lib/project-marketing/instagram';
 import { syncCampaignStatus } from '@/lib/project-marketing/publish';
 import { createVideoJob, planVideo } from '@/lib/video/jobs';
-import { getVideoStorageConfig, putVideoObject } from '@/lib/video/storage';
+import { getVideoStorageConfig } from '@/lib/video/storage';
+import { uploadMedia } from '@/lib/media-hosting/upload';
+import { mediaRef } from '@/lib/media-hosting/logic';
 import { isReleasePlatform, validateReleaseText } from '@/lib/video-release/capabilities';
 import { approveRelease } from '@/lib/video-release/service';
 import { releaseIdempotencyKey } from '@/lib/video-release/status';
@@ -431,9 +433,19 @@ async function stepImage(ctx: Ctx): Promise<StepState> {
     'Generate one image for the first idea.',
     async () => {
       const base64 = await paid(ctx, 'image', 'image', undefined, () => generateAdImage(prompt));
-      const key = `content-pipeline/${ctx.run.id}/image-0.png`;
-      await putVideoObject(key, Buffer.from(base64, 'base64'), 'image/png');
-      return { summary: 'Image generated and stored.', value: key };
+      // JPEG is the one format every target platform (including Instagram) accepts.
+      const { default: sharp } = await import('sharp');
+      const jpeg = await sharp(Buffer.from(base64, 'base64')).flatten({ background: '#ffffff' }).jpeg({ quality: 88 }).toBuffer();
+      const uploaded = await uploadMedia({
+        scope: { scopeKey: ctx.pipeline.scopeKey, projectId: ctx.pipeline.projectId, ownerUserId: ctx.pipeline.ownerUserId },
+        kind: 'IMAGE',
+        bytes: jpeg,
+        contentType: 'image/jpeg',
+        visibility: 'PUBLIC',
+        contentRunId: ctx.run.id,
+      });
+      if (!uploaded.ok) throw new Error(uploaded.error);
+      return { summary: 'Image generated and uploaded.', value: { key: uploaded.asset.key, assetId: uploaded.asset.id } };
     },
     4,
   );
@@ -441,8 +453,8 @@ async function stepImage(ctx: Ctx): Promise<StepState> {
   return {
     status: 'DONE',
     activityId: draft.activityId,
-    detail: 'Image generated and stored privately (used as the video reference when a video is requested).',
-    data: { key: draft.value },
+    detail: 'Image generated and hosted; it is attached to image-capable posts and used as the video reference.',
+    data: draft.value,
   };
 }
 
@@ -466,6 +478,8 @@ async function createJob(ctx: Ctx, prompt: string, imageKey: string | null, jobK
   );
   if (!outcome.ok) throw new Error(outcome.error);
   if (!outcome.value.ok) throw new Error(outcome.value.error);
+  const assetId = (ctx.steps.image?.data as { assetId?: string } | undefined)?.assetId;
+  if (assetId) await prisma.mediaAsset.update({ where: { id: assetId }, data: { videoJobId: outcome.value.jobId } }).catch(() => undefined);
   return outcome.value.jobId;
 }
 
@@ -696,6 +710,7 @@ async function createRows(ctx: Ctx, items: Item[], approve: boolean): Promise<Sc
   const existing = await prisma.projectPost.findMany({ where: { campaignId: campaign.id }, select: { id: true, status: true } });
   if (existing.length) return { kind: 'ProjectPost', ids: existing.map((e) => e.id), approved: existing.every((e) => e.status !== 'DRAFT') };
   const ids: string[] = [];
+  const imageAssetId = (ctx.steps.image?.data as { assetId?: string } | undefined)?.assetId;
   for (const item of items) {
     const status = approve ? await projectPostStatus(p.ownerUserId, item.platform) : 'DRAFT';
     const row = await prisma.projectPost.create({
@@ -704,6 +719,7 @@ async function createRows(ctx: Ctx, items: Item[], approve: boolean): Promise<Sc
         platform: item.platform as never,
         text: item.text,
         hashtags: item.hashtags,
+        imageUrl: imageAssetId ? mediaRef(imageAssetId) : null,
         scheduledAt: slots[item.ideaIndex],
         timeZone: p.timeZone,
         status,

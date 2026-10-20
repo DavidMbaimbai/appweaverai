@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { requireUser } from '@/lib/auth/require-user';
 import { resolveBillingContext, BillingClassificationError } from '@/lib/marketing-credits/billing-class';
 import { DEFAULT_PACKAGES } from '@/lib/marketing-credits/purchase';
+import { purchasesAllowed } from '@/lib/marketing-credits/settings';
 import { prisma } from '@/lib/prisma';
 import { getAppBaseUrl, getStripeClient } from '@/lib/stripe';
 
@@ -27,6 +28,9 @@ export async function buyMarketingPackageAction(packageId: string) {
     if (row) pkg = row;
   }
   if (!pkg) return { error: 'That package is not available.' };
+  if (!(await purchasesAllowed())) {
+    return { error: 'Marketing credit packages are not open for purchase yet: pricing is awaiting approval.' };
+  }
 
   try {
     const stripe = getStripeClient();

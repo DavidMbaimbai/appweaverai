@@ -3,6 +3,7 @@ import { BudgetForm, BuyPackageButton } from '@/components/app/marketing-credits
 import { getCachedSession } from '@/lib/auth/cached';
 import { getActivePrices } from '@/lib/marketing-credits/pricing';
 import { listActivePackages } from '@/lib/marketing-credits/purchase';
+import { getFreeAllowance, purchasesAllowed } from '@/lib/marketing-credits/settings';
 import { getWallet } from '@/lib/marketing-credits/wallet';
 import { prisma } from '@/lib/prisma';
 
@@ -49,6 +50,7 @@ export default async function MarketingCreditsPage({
       take: 5,
     }),
   ]);
+  const [allowance, purchasable] = await Promise.all([getFreeAllowance(), purchasesAllowed()]);
   const budgets = await prisma.marketingProjectBudget.findMany({
     where: { projectId: { in: projects.map((p) => p.id) } },
   });
@@ -87,6 +89,19 @@ export default async function MarketingCreditsPage({
 
         <section className="space-y-3">
           <h2 className="text-sm font-medium text-app-text">Top up</h2>
+          {allowance.credits <= 0 ? (
+            <p className="text-xs text-app-text-muted">Trial allowance not enabled.</p>
+          ) : (
+            <p className="text-xs text-app-text-muted">
+              Free plan: {allowance.credits} promotional credits {allowance.mode === 'MONTHLY' ? 'every month' : 'one time'}
+              {allowance.expiryDays ? `, expiring after ${allowance.expiryDays} days` : ''}.
+            </p>
+          )}
+          {!purchasable ? (
+            <p className="rounded-md bg-app-surface p-3 text-sm text-app-text-secondary">
+              Credit packages are not open for purchase yet. Check back soon.
+            </p>
+          ) : null}
           <div className="grid gap-3 sm:grid-cols-3">
             {packages.map((p) => (
               <div key={p.id} className="space-y-2 rounded-xl border border-app-border-subtle bg-app-surface p-4">
@@ -94,7 +109,7 @@ export default async function MarketingCreditsPage({
                 <p className="text-sm text-app-text-secondary">
                   {p.credits.toLocaleString('en-GB')} credits · {money(p.priceCents, p.currency)}
                 </p>
-                <BuyPackageButton packageId={p.id} label={`Buy for ${money(p.priceCents, p.currency)}`} />
+                {purchasable ? <BuyPackageButton packageId={p.id} label={`Buy for ${money(p.priceCents, p.currency)}`} /> : null}
               </div>
             ))}
           </div>

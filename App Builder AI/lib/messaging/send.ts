@@ -5,9 +5,10 @@ import { withScopeMarketing } from '@/lib/marketing-credits/system';
 import { prisma } from '@/lib/prisma';
 
 import { getAdapter } from './adapters';
+import { getAvailability } from './availability';
 import { getCredentials } from './connections';
-import { getConsent } from './consent';
-import { consentBlockReason, windowBlockReason } from './gates';
+import { getConsent, getOptInProof, getSuppression } from './consent';
+import { consentBlockReason, marketingConsentBlockReason, suppressionBlockReason, windowBlockReason, type MessagePurpose } from './gates';
 import type { MessageChannelName, TemplateMessage } from './types';
 
 export type SendOutboundInput = {
@@ -21,6 +22,8 @@ export type SendOutboundInput = {
   /** Existing draft to send; it is claimed atomically so it can never go out twice. */
   draftId?: string;
   category?: string | null;
+  /** Defaults to 'conversation' (a reply). 'marketing' and 'lead' require recorded opt-in proof. */
+  purpose?: MessagePurpose;
   sources?: unknown;
 };
 
@@ -86,11 +89,23 @@ async function deliverOutbound(input: SendOutboundInput): Promise<SendOutboundRe
   if (channel !== 'WEBCHAT' && channel !== 'EMAIL' && !creds) {
     return { ok: false, error: `${channel} is not configured for this scope.`, blocked: true };
   }
+  const availability = await getAvailability(scope, channel);
+  if (availability.status === 'UNAVAILABLE') {
+    return { ok: false, error: `${channel} is UNAVAILABLE: ${availability.reason ?? 'not verified'} Nothing was sent.`, blocked: true };
+  }
 
   const consent = await getConsent(scope, channel, conversation.contactRef);
   const consentReason = consentBlockReason(channel, consent, conversation.lastInboundAt !== null);
   if (consentReason) return { ok: false, error: consentReason, blocked: true };
 
+  if (channel === 'SMS' || channel === 'WHATSAPP') {
+    const suppressionReason = suppressionBlockReason(await getSuppression(scope, channel, conversation.contactRef));
+    if (suppressionReason) return { ok: false, error: suppressionReason, blocked: true };
+    if (input.purpose === 'marketing' || input.purpose === 'lead') {
+      const proofReason = marketingConsentBlockReason(await getOptInProof(scope, channel, conversation.contactRef), now);
+      if (proofReason) return { ok: false, error: proofReason, blocked: true };
+    }
+  }
   const approved = creds && 'approvedTemplates' in creds ? creds.approvedTemplates : [];
   const windowReason = windowBlockReason({
     channel,

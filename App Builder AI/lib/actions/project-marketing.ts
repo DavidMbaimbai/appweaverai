@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { requireUserId } from '@/lib/auth/require-user';
 import { prisma } from '@/lib/prisma';
 import { isSafePublicUrl } from '@/lib/outreach/compliance';
+import { parseMediaRef } from '@/lib/media-hosting/logic';
 import { getAccessibleProject } from '@/lib/projects/access';
 import { isValidTimeZone } from '@/lib/ads/schedule';
 import { generateCampaignPosts } from '@/lib/project-marketing/generate';
@@ -137,7 +138,14 @@ export async function savePostAction(
   const invalid = validatePostText(post.platform, String(input.text ?? ''), hashtags);
   if (invalid) return { ok: false, error: invalid };
   const imageUrl = input.imageUrl?.trim() || null;
-  if (imageUrl && !isSafePublicUrl(imageUrl)) return { ok: false, error: 'Image must be a public https URL.' };
+  const mediaId = parseMediaRef(imageUrl);
+  if (mediaId) {
+    // A hosted image may only be kept if it belongs to this project.
+    const asset = await prisma.mediaAsset.findFirst({ where: { id: mediaId, scopeKey: post.campaign.projectId, status: 'READY' }, select: { id: true } });
+    if (!asset) return { ok: false, error: 'That hosted image is not available for this project.' };
+  } else if (imageUrl && !isSafePublicUrl(imageUrl)) {
+    return { ok: false, error: 'Image must be a public https URL.' };
+  }
 
   await prisma.projectPost.update({
     where: { id: post.id },

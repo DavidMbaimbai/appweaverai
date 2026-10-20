@@ -1,6 +1,7 @@
 import { after, NextResponse } from 'next/server';
 
 import { parseMetaMessaging, parseMetaMessagingStatus } from '@/lib/messaging/adapters/meta';
+import { safeEqual } from '@/lib/messaging/safe-equal';
 import { processInboundBatch } from '@/lib/messaging/webhooks';
 import { ingestInteraction } from '@/lib/social/replies/process';
 import { parseMetaWebhook, verifyMetaSignature } from '@/lib/social/replies/sources';
@@ -12,7 +13,7 @@ export async function GET(request: Request) {
   if (
     expected &&
     params.get('hub.mode') === 'subscribe' &&
-    params.get('hub.verify_token') === expected
+    safeEqual(params.get('hub.verify_token'), expected)
   ) {
     return new NextResponse(params.get('hub.challenge') ?? '', { status: 200 });
   }

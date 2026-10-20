@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma';
 import { recordConsent, getConsent } from './consent';
 import { isStartKeyword, isStopKeyword, normalizeContact } from './gates';
 import { respondToMessage, type RespondResult } from './respond';
-import type { InboundMessage } from './types';
+import type { InboundMessage, StatusUpdate } from './types';
 
 export type IngestResult =
   | { duplicate: true }
@@ -102,16 +102,46 @@ export async function handleInbound(
   }
 }
 
-/** Applies provider delivery receipts. Receipts only move forward (SENT < DELIVERED < READ); FAILED always applies. */
-export async function applyStatusUpdates(updates: Array<{ channel: InboundMessage['channel']; providerMessageId: string; status: 'SENT' | 'DELIVERED' | 'READ' | 'FAILED'; error?: string }>) {
-  const rank = { SENT: 1, DELIVERED: 2, READ: 3, FAILED: 4 } as const;
+/**
+ * Applies provider delivery receipts. Each provider event is recorded once (unique channel+eventId), so retried
+ * webhooks have no second effect. Receipts only move forward (SENT < DELIVERED < READ); FAILED never overrides
+ * DELIVERED/READ. QUEUED is audit-only (recorded as an event, never written to the message).
+ */
+export async function applyStatusUpdates(updates: StatusUpdate[]) {
+  const rank = { SENT: 1, DELIVERED: 2, READ: 3, FAILED: 1 } as const;
   for (const u of updates) {
     const row = await prisma.inboxMessage.findUnique({
       where: { channel_providerMessageId: { channel: u.channel, providerMessageId: u.providerMessageId } },
       select: { id: true, direction: true, deliveryStatus: true },
     });
+    // Unknown message (e.g. receipt raced the send): not recorded, so the provider's retry can still apply it.
     if (!row || row.direction !== 'OUTBOUND') continue;
-    if (row.deliveryStatus && rank[row.deliveryStatus] >= rank[u.status] && u.status !== 'FAILED') continue;
-    await prisma.inboxMessage.update({ where: { id: row.id }, data: { deliveryStatus: u.status, error: u.error?.slice(0, 500) } });
+    try {
+      await prisma.messageStatusEvent.create({
+        data: {
+          channel: u.channel,
+          eventId: (u.eventId ?? `${u.providerMessageId}:${u.status}`).slice(0, 200),
+          providerMessageId: u.providerMessageId,
+          status: u.status,
+          errorCode: u.errorCode?.slice(0, 50),
+          errorMessage: u.error?.slice(0, 500),
+        },
+      });
+    } catch (error) {
+      if (isUniqueViolation(error)) continue;
+      throw error;
+    }
+    if (u.status === 'QUEUED') continue;
+    const current = row.deliveryStatus;
+    if (u.status === 'FAILED') {
+      if (current === 'DELIVERED' || current === 'READ') continue;
+    } else if (current && rank[current] >= rank[u.status]) {
+      continue;
+    }
+    const detail = u.error ?? (u.errorCode ? `Error ${u.errorCode}` : undefined);
+    await prisma.inboxMessage.update({
+      where: { id: row.id },
+      data: { deliveryStatus: u.status, error: u.status === 'FAILED' ? detail?.slice(0, 500) : undefined },
+    });
   }
 }

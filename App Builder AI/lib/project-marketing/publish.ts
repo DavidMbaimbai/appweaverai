@@ -11,7 +11,17 @@ import {
   selectDuePosts,
   type Platform,
 } from './logic';
+import { ensurePublishableMedia, waitForProcessing } from '@/lib/media-hosting/urls';
+import { parseMediaRef } from '@/lib/media-hosting/logic';
 import { refreshXToken } from './oauth';
+import {
+  IMAGE_MAX_BYTES,
+  IMAGE_TYPES_BY_PLATFORM,
+  instagramContainerState,
+  uploadLinkedInImage,
+  uploadXImage,
+  type PostMedia,
+} from './media';
 import {
   buildContainerPayload,
   buildPublishPayload,
@@ -24,10 +34,13 @@ import {
 export type SendInput = {
   text: string;
   imageUrl: string | null;
+  /** Verified, fetchable hosted image (resolved from a media:// reference); X and LinkedIn upload its bytes. */
+  media?: PostMedia | null;
   token: string;
   accountId: string | null;
 };
-export type SendResult = { ok: true; id: string } | { ok: false; error: string };
+/** `retry` marks a not-yet-processed media upload: the post was NOT published and may be attempted again. */
+export type SendResult = { ok: true; id: string } | { ok: false; error: string; retry?: boolean };
 
 const MAX_PER_RUN = 20;
 
@@ -41,11 +54,17 @@ async function failure(response: Response, label: string): Promise<SendResult> {
   return { ok: false, error: `${label} ${response.status}: ${body}` };
 }
 
-async function sendX({ text, token }: SendInput): Promise<SendResult> {
+async function sendX({ text, token, media }: SendInput): Promise<SendResult> {
+  let mediaId: string | null = null;
+  if (media) {
+    const uploaded = await uploadXImage(token, media);
+    if (!uploaded.ok) return { ok: false, error: uploaded.error };
+    mediaId = uploaded.value;
+  }
   const response = await fetch('https://api.x.com/2/tweets', {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text }),
+    body: JSON.stringify(mediaId ? { text, media: { media_ids: [mediaId] } } : { text }),
     signal: AbortSignal.timeout(30_000),
   });
   if (!response.ok) return failure(response, 'X');
@@ -58,8 +77,14 @@ export function escapeLinkedIn(text: string) {
   return text.replace(/[\\(){}[\]<>@|~_*]/g, (c) => `\\${c}`);
 }
 
-async function sendLinkedIn({ text, token, accountId }: SendInput): Promise<SendResult> {
+async function sendLinkedIn({ text, token, accountId, media }: SendInput): Promise<SendResult> {
   if (!accountId) return { ok: false, error: 'LinkedIn member id is missing. Reconnect LinkedIn.' };
+  let imageUrn: string | null = null;
+  if (media) {
+    const uploaded = await uploadLinkedInImage(token, accountId, media);
+    if (!uploaded.ok) return { ok: false, error: uploaded.error };
+    imageUrn = uploaded.value;
+  }
   const response = await fetch('https://api.linkedin.com/rest/posts', {
     method: 'POST',
     headers: {
@@ -71,6 +96,7 @@ async function sendLinkedIn({ text, token, accountId }: SendInput): Promise<Send
     body: JSON.stringify({
       author: `urn:li:person:${accountId}`,
       commentary: escapeLinkedIn(text),
+      ...(imageUrn ? { content: { media: { id: imageUrn } } } : {}),
       visibility: 'PUBLIC',
       distribution: { feedDistribution: 'MAIN_FEED', targetEntities: [], thirdPartyDistributionChannels: [] },
       lifecycleState: 'PUBLISHED',
@@ -110,6 +136,11 @@ async function sendInstagram({ text, imageUrl, token, accountId }: SendInput): P
     }
     const container = await graph<{ id?: string }>(`${igId}/media`, buildContainerPayload(text, imageUrl), token);
     if (!container.id) return { ok: false, error: 'Instagram returned no media container.' };
+    const ready = await waitForProcessing(async () => {
+      const state = await graph<{ status_code?: string; status?: string }>(`${container.id}?fields=status_code,status`, undefined, token);
+      return { state: instagramContainerState(state.status_code), detail: state.status ?? state.status_code };
+    });
+    if (!ready.ok) return { ok: false, error: `Instagram: ${ready.error}`, retry: ready.retryable };
     const published = await graph<{ id?: string }>(`${igId}/media_publish`, buildPublishPayload(container.id), token);
     return published.id ? { ok: true, id: published.id } : { ok: false, error: 'Instagram returned no post id.' };
   } catch (error) {
@@ -242,7 +273,26 @@ export async function publishDueProjectPosts(now = new Date()) {
         summary.manual++;
         continue;
       }
-      const result = await send({ text, imageUrl: post.imageUrl, token, accountId: connection.accountId });
+      let imageUrl = post.imageUrl;
+      let media: PostMedia | null = null;
+      const assetId = parseMediaRef(post.imageUrl);
+      if (assetId) {
+        // Hosted media is re-signed and fetched like a platform would before anything is sent.
+        const hosted = await ensurePublishableMedia(assetId, {
+          publishAt: now,
+          scopeKey: post.campaign.projectId,
+          acceptTypes: IMAGE_TYPES_BY_PLATFORM[platform],
+          maxBytes: IMAGE_MAX_BYTES,
+        });
+        if (!hosted.ok) {
+          await prisma.projectPost.update({ where: { id: post.id }, data: { status: 'FAILED', error: `Image not publishable: ${hosted.error}` } });
+          summary.failed++;
+          continue;
+        }
+        imageUrl = hosted.url;
+        media = { assetId, url: hosted.url, contentType: hosted.contentType };
+      }
+      const result = await send({ text, imageUrl, media, token, accountId: connection.accountId });
       if (result.ok) {
         await prisma.projectPost.update({
           where: { id: post.id },
@@ -250,8 +300,12 @@ export async function publishDueProjectPosts(now = new Date()) {
         });
         summary.published++;
       } else {
-        await prisma.projectPost.update({ where: { id: post.id }, data: { status: 'FAILED', error: result.error } });
-        summary.failed++;
+        if (result.retry) {
+          await prisma.projectPost.update({ where: { id: post.id }, data: { status: 'SCHEDULED', error: result.error } });
+        } else {
+          await prisma.projectPost.update({ where: { id: post.id }, data: { status: 'FAILED', error: result.error } });
+          summary.failed++;
+        }
       }
     } catch (error) {
       console.error('[project-posts] publish failed:', error);

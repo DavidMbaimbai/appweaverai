@@ -8,10 +8,16 @@ const db = vi.hoisted(() => ({
   contactConsent: { findFirst: vi.fn(), findUnique: vi.fn(), upsert: vi.fn(), create: vi.fn(), update: vi.fn() },
 }));
 const adapterSend = vi.hoisted(() => vi.fn());
-const consent = vi.hoisted(() => ({ getConsent: vi.fn(), recordConsent: vi.fn() }));
+const consent = vi.hoisted(() => ({
+  getConsent: vi.fn(),
+  recordConsent: vi.fn(),
+  getSuppression: vi.fn().mockResolvedValue(null),
+  getOptInProof: vi.fn().mockResolvedValue(null),
+}));
 const creds = vi.hoisted(() => vi.fn());
 
 vi.mock('@/lib/prisma', () => ({ prisma: db }));
+vi.mock('./availability', () => ({ getAvailability: async () => ({ status: 'AVAILABLE' }) }));
 vi.mock('@/lib/marketing-credits/system', () => ({
   withScopeMarketing: async (_o: unknown, fn: () => Promise<unknown>) => ({ ok: true, value: await fn(), charged: 0 }),
 }));

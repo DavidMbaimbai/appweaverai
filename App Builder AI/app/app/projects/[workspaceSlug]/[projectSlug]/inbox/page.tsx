@@ -2,7 +2,7 @@ import { notFound } from 'next/navigation';
 
 import { ConnectionsPanel } from '@/components/app/inbox/connections-panel';
 import { InboxView } from '@/components/app/inbox/inbox-view';
-import { inboxOpAction } from '@/lib/actions/inbox';
+import { inboxOpAction, verifyChannelAction } from '@/lib/actions/inbox';
 import { getCachedSession } from '@/lib/auth/cached';
 import { loadInboxPageData } from '@/lib/messaging/view';
 import { prisma } from '@/lib/prisma';
@@ -51,6 +51,7 @@ export default async function ProjectInboxPage({ params, searchParams }: Props) 
         statuses={data.statuses}
         canWrite
         onOp={inboxOpAction.bind(null, project.id)}
+        onVerify={verifyChannelAction.bind(null, project.id)}
       />
       <ConnectionsPanel projectId={project.id} widgetSnippet={widgetSnippet} />
     </div>
