@@ -5,10 +5,12 @@ import type { Metadata } from 'next';
 import { auth } from '@/lib/auth';
 import { getPublishedProjectBySlugs } from '@/lib/queries/published';
 import { recordPageView } from '@/lib/analytics/record-page-view';
+import { attributionFromSearch } from '@/lib/ads/attribution-cookie';
 import { PublishedProjectViewer } from '@/components/app/published/published-project-viewer';
 
 type PublishedPageProps = {
   params: Promise<{ workspaceSlug: string; projectSlug: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 };
 
 export async function generateMetadata({
@@ -46,8 +48,15 @@ export async function generateMetadata({
 
 export default async function PublishedProjectPage({
   params,
+  searchParams,
 }: PublishedPageProps) {
   const { workspaceSlug, projectSlug } = await params;
+  const query = (await searchParams) ?? {};
+  const utmParams = new URLSearchParams();
+  for (const key of ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content']) {
+    const value = query[key];
+    if (typeof value === 'string') utmParams.set(key, value);
+  }
   const headerList = await headers();
   const session = await auth.api.getSession({ headers: headerList });
   const userId = session?.user?.id ?? null;
@@ -73,6 +82,7 @@ export default async function PublishedProjectPage({
     projectId: result.id,
     path: `/p/${workspaceSlug}/${projectSlug}`,
     referrer: headerList.get('referer'),
+    utm: attributionFromSearch(utmParams),
     ip:
       headerList.get('x-forwarded-for')?.split(',')[0]?.trim() ??
       headerList.get('x-real-ip'),

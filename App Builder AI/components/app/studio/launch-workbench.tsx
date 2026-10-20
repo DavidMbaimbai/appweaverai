@@ -8,6 +8,7 @@ import {
   type LaunchKitResult,
 } from '@/lib/actions/studio';
 import { MAX_BRIEF_LENGTH } from '@/lib/studio/tools';
+import type { StudioCredits } from './studio-workbench';
 
 const Block = ({ title, text }: { title: string; text: string }) => (
   <section>
@@ -18,7 +19,7 @@ const Block = ({ title, text }: { title: string; text: string }) => (
   </section>
 );
 
-export function LaunchWorkbench() {
+export function LaunchWorkbench({ credits }: { credits?: StudioCredits }) {
   const [brief, setBrief] = useState('');
   const [kit, setKit] = useState<LaunchKitResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -64,8 +65,15 @@ export function LaunchWorkbench() {
         onClick={generate}
         disabled={pending || building || brief.trim().length < 10}
         className="rounded-lg bg-app-text px-4 py-2 text-sm font-medium text-app-bg disabled:opacity-50">
-        {pending ? 'Creating your launch kit…' : 'Create launch kit'}
+        {pending
+          ? 'Creating your launch kit…'
+          : credits?.metered
+            ? `Create launch kit · ${credits.launchKitCost} credits`
+            : 'Create launch kit'}
       </button>
+      {credits?.metered ? (
+        <p className="text-xs text-app-text-muted">Balance: {credits.balance} credits.</p>
+      ) : null}
 
       {kit && !kit.ok ? <p className="text-sm text-red-500">{kit.error}</p> : null}
       {error ? <p className="text-sm text-red-500">{error}</p> : null}

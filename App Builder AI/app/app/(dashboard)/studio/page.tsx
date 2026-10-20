@@ -8,6 +8,9 @@ import { customerAdsConfigured, listAssets, type MetaAssets } from '@/lib/ads/cu
 import { decryptSecret } from '@/lib/crypto/secret-box';
 import { getCachedSession } from '@/lib/auth/cached';
 import { prisma } from '@/lib/prisma';
+import { quote as quoteCredits } from '@/lib/credits/pricing';
+import { getCreditHint } from '@/lib/credits/queries';
+import { getMarketingHint } from '@/lib/marketing-credits/run';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,6 +31,18 @@ export default async function StudioPage({
     : [];
 
   const configured = customerAdsConfigured();
+  const hint = hasDb && userId ? await getCreditHint(userId) : null;
+  const imageHint = hasDb && userId ? await getMarketingHint(userId, 'image') : null;
+  const credits = hint
+    ? {
+        metered: hint.metered,
+        balance: hint.balance,
+        textCost: quoteCredits('studio_text').credits,
+        imageCost: imageHint?.quote.credits ?? 0,
+        marketingBalance: imageHint?.available ?? 0,
+        launchKitCost: quoteCredits('launch_kit').credits,
+      }
+    : undefined;
   const connection = hasDb && configured ? await prisma.metaAdConnection.findUnique({ where: { userId } }) : null;
   const ads = hasDb && configured
     ? await prisma.customerAd.findMany({ where: { userId }, orderBy: { createdAt: 'desc' }, take: 20 })
@@ -59,7 +74,7 @@ export default async function StudioPage({
         <Link href="/app/studio/video" className="inline-block text-sm font-medium text-appweaver-orange">
           Create AI videos →
         </Link>
-        <LaunchWorkbench />
+        <LaunchWorkbench credits={credits} />
         {saved.length > 0 ? (
           <section>
             <h2 className="mb-3 text-sm font-medium text-app-text">Your saved launch kits</h2>
@@ -110,7 +125,7 @@ export default async function StudioPage({
           }))}
         />
         <hr className="border-app-border-subtle" />
-        <StudioWorkbench />
+        <StudioWorkbench credits={credits} />
       </div>
     </main>
   );

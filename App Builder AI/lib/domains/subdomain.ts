@@ -93,8 +93,34 @@ export function validateSubdomain(input: string): SubdomainValidation {
   if (RESERVED_SUBDOMAINS.has(value)) {
     return { ok: false, error: `“${value}” is reserved. Choose another name.` };
   }
+  if (value.endsWith(STAGING_SUFFIX)) {
+    return { ok: false, error: `Names ending in “${STAGING_SUFFIX}” are reserved for staging.` };
+  }
 
   return { ok: true, value };
+}
+
+/** Staging for subdomain `<label>` lives at `<label>--staging.<root>`. */
+export const STAGING_SUFFIX = '--staging';
+
+export function stagingHost(label: string, rootDomain = getAppRootDomain()) {
+  return `${label}${STAGING_SUFFIX}.${rootDomain}`;
+}
+
+/** Returns the production label when `host` is `<label>--staging.<root>`, else null. */
+export function extractStagingLabel(
+  host: string,
+  rootDomain = getAppRootDomain(),
+): string | null {
+  const normalizedHost = host.trim().toLowerCase().split(':')[0] ?? '';
+  const suffix = `.${rootDomain}`;
+  if (!normalizedHost.endsWith(suffix)) return null;
+
+  const first = normalizedHost.slice(0, -suffix.length);
+  if (!first.endsWith(STAGING_SUFFIX)) return null;
+
+  const result = validateSubdomain(first.slice(0, -STAGING_SUFFIX.length));
+  return result.ok ? result.value : null;
 }
 
 /**

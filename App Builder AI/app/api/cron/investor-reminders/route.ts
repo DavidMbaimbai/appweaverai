@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { sendAlert } from '@/lib/alerts';
+import { isAgentPaused } from '@/lib/agents/pause';
 import { sendInvestorReminderDigests } from '@/lib/investor-hub/reminders';
 import { hasBearerSecret } from '@/lib/rate-limit';
 
@@ -20,6 +21,9 @@ export async function GET(request: Request) {
   }
 
   try {
+    if (await isAgentPaused('INVESTOR')) {
+      return NextResponse.json({ success: true, paused: true });
+    }
     return NextResponse.json({ success: true, ...(await sendInvestorReminderDigests()) });
   } catch (error) {
     console.error('[cron/investor-reminders] failed:', error);

@@ -11,6 +11,7 @@ import {
   publishUpgradeMessage,
 } from "@/lib/billing/entitlements";
 import { getAccessibleProject } from "@/lib/projects/access";
+import { evaluatePublishGate, formatGateError } from "@/lib/launch-readiness/service";
 import { getUserBillingFields } from "@/lib/queries/billing";
 import {
   fromDeploymentVisibility,
@@ -175,11 +176,17 @@ export async function publishProjectAction(
     return { error: "Build your project before publishing." };
   }
 
+  const gate = await evaluatePublishGate(projectId, "WORKING");
+  if (gate.blocked) {
+    return { error: formatGateError(gate), launchBlocked: true as const };
+  }
+
   if (tier === "free" && visibility === "private") {
     const otherPrivateDeployments = await prisma.deployment.count({
       where: {
         status: "LIVE",
         visibility: "PRIVATE",
+        environment: "PRODUCTION",
         projectId: { not: projectId },
         project: {
           deletedAt: null,
@@ -222,7 +229,7 @@ export async function publishProjectAction(
 
   await prisma.$transaction(async (tx) => {
     await tx.deployment.updateMany({
-      where: { projectId, isCurrent: true },
+      where: { projectId, environment: "PRODUCTION", isCurrent: true },
       data: { isCurrent: false, status: "SUPERSEDED" },
     });
 
@@ -230,6 +237,7 @@ export async function publishProjectAction(
       data: {
         projectId,
         version: nextVersion,
+        environment: "PRODUCTION",
         status: "LIVE",
         visibility: deploymentVisibility,
         domain: urlPath,
@@ -281,5 +289,6 @@ export async function publishProjectAction(
     success: true,
     url: urlPath,
     visibility: fromDeploymentVisibility(deploymentVisibility),
+    warnings: gate.warnings.length,
   };
 }

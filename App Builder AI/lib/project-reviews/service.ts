@@ -1,6 +1,7 @@
 import { sendEmail } from '@/lib/email';
 import { createIssueFromReview, isDefectReview } from '@/lib/observatory/issues';
 import { prisma } from '@/lib/prisma';
+import { withScopeMarketing } from '@/lib/marketing-credits/system';
 
 import { analyzeReview, type ReviewAnalysis } from './ai';
 import { emptyBundle, gatherEvidenceBundle } from './evidence';
@@ -137,20 +138,38 @@ export async function processNewReview(reviewId: string) {
       statusWebhookUrl: settings.statusWebhookUrl,
     }).catch(() => emptyBundle());
 
-    if (used < DAILY_ANALYSIS_CAP) {
-      analysis = await analyzeReview({
-        projectId: review.projectId,
-        rating: review.rating,
-        authorName: review.authorName,
-        body: review.body,
-        businessInfo: settings.businessInfo,
-        tone: settings.tone,
-        evidence: formatEvidenceForPrompt(bundle),
-      }).catch((error) => {
-        console.error('Review analysis failed:', error);
-        return null;
-      });
-    }
+    const owner = await prisma.project.findUnique({
+      where: { id: review.projectId },
+      select: { createdById: true },
+    });
+    const analysisCharge =
+      used >= DAILY_ANALYSIS_CAP || !owner
+        ? null
+        : await withScopeMarketing(
+            { scope: { type: 'PROJECT', projectId: review.projectId },
+              operation: 'engagement_reply',
+              idempotencyKey: `review-ai:${review.id}`,
+              retryable: true,
+              refType: 'ProjectReview',
+              refId: review.id,
+              isFailure: (r: ReviewAnalysis | null) => r === null,
+            },
+            () =>
+              analyzeReview({
+                projectId: review.projectId,
+                rating: review.rating,
+                authorName: review.authorName,
+                body: review.body,
+                businessInfo: settings.businessInfo,
+                tone: settings.tone,
+                evidence: formatEvidenceForPrompt(bundle),
+              }).catch((error) => {
+                console.error('Review analysis failed:', error);
+                return null;
+              }),
+          );
+    // Out of credits: skip the AI draft and fall back to owner approval.
+    if (analysisCharge?.ok) analysis = analysisCharge.value;
 
     const decision = decideReply(
       {

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { verifyUnsubscribeToken } from '@/lib/outreach/compliance';
+import { applyEmailOptOut } from '@/lib/investor-hub/campaigns';
 import { suppress } from '@/lib/outreach/process';
 
 function valid(email: string | null, token: string | null): email is string {
@@ -50,6 +51,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Invalid link.' }, { status: 400 });
   }
   await suppress(email, 'unsubscribed');
+  await applyEmailOptOut(email, 'Unsubscribed via link');
   const wantsHtml = (request.headers.get('accept') ?? '').includes('text/html');
   return wantsHtml
     ? page('<p>You have been removed. We will not email you again.</p>')

@@ -133,6 +133,7 @@ export default async function AdminUserDetailPage({
             canWrite={hasPermission(auth.admin.adminRole, 'users:write')}
             canBan={hasPermission(auth.admin.adminRole, 'users:ban')}
             canSetRole={hasPermission(auth.admin.adminRole, 'users:roles')}
+            canAdjustCredits={hasPermission(auth.admin.adminRole, 'credits:write')}
           />
         </div>
       </div>

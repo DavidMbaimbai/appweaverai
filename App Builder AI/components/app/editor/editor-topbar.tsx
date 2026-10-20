@@ -381,6 +381,12 @@ export function EditorTopBar({
                 {[
                   { label: 'Marketing', href: `/app/projects/${project.workspaceSlug}/${project.slug}/marketing`, icon: AnalyticsIcon },
                   { label: 'Reviews & support', href: `/app/projects/${project.workspaceSlug}/${project.slug}/reviews`, icon: FormsIcon },
+                  { label: 'Leads', href: `/app/projects/${project.workspaceSlug}/${project.slug}/leads`, icon: FormsIcon },
+                  { label: 'Growth', href: `/app/projects/${project.workspaceSlug}/${project.slug}/growth`, icon: AnalyticsIcon },
+  { label: 'Launch readiness', href: `/app/projects/${project.workspaceSlug}/${project.slug}/launch`, icon: ProjectsIcon },
+                  { label: 'AI Agents', href: `/app/projects/${project.workspaceSlug}/${project.slug}/agents`, icon: ProjectsIcon },
+                  { label: 'Inbox', href: `/app/projects/${project.workspaceSlug}/${project.slug}/inbox`, icon: FormsIcon },
+                  { label: 'Daily content', href: `/app/projects/${project.workspaceSlug}/${project.slug}/content-pipeline`, icon: AnalyticsIcon },
                   { label: 'Investor Hub', href: `/app/investors?project=${project.id}`, icon: ProjectsIcon },
                 ].map((item) => (
                   <Link
@@ -589,6 +595,7 @@ export function EditorTopBar({
         open={hostingOpen}
         onClose={() => setHostingOpen(false)}
         projectId={project.id}
+        launchHref={`/app/projects/${project.workspaceSlug}/${project.slug}/launch`}
         onRolledBack={() => router.refresh()}
       />
 

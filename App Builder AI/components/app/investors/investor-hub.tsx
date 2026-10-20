@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
+import { CampaignsTab } from './investor-campaigns';
+import { VoicePanel } from './investor-voice';
 import { PIPELINE_STAGES, STAGE_LABELS, INVESTOR_TYPES, OUTREACH_KINDS, type PipelineStage } from '@/lib/investor-hub/constants';
 
 type Json = Record<string, unknown>;
@@ -20,7 +22,7 @@ type Activity = { id: string; type: string; summary: string; createdAt: string }
 const input = 'w-full rounded-lg border border-app-border-subtle bg-app-surface p-2 text-sm text-app-text';
 const button = 'rounded-lg bg-app-text px-3 py-1.5 text-sm font-medium text-app-bg disabled:opacity-50';
 const ghost = 'rounded-lg border border-app-border-subtle px-3 py-1.5 text-sm text-app-text disabled:opacity-50';
-const TABS = ['Profile', 'Discover', 'Pipeline', 'Outreach', 'Replies', 'Analytics'] as const;
+const TABS = ['Profile', 'Discover', 'Pipeline', 'Outreach', 'Replies', 'Campaigns', 'Analytics'] as const;
 type Tab = (typeof TABS)[number];
 
 export function InvestorHub({ projectId }: { projectId: string }) {
@@ -68,6 +70,7 @@ export function InvestorHub({ projectId }: { projectId: string }) {
       {tab === 'Pipeline' && <PipelineTab {...shared} />}
       {tab === 'Outreach' && <OutreachTab {...shared} />}
       {tab === 'Replies' && <RepliesTab {...shared} />}
+      {tab === 'Campaigns' && <CampaignsTab call={call} get={get} busy={busy} setMsg={setMsg} />}
       {tab === 'Analytics' && <AnalyticsTab {...shared} />}
     </div>
   );
@@ -327,6 +330,7 @@ function InvestorDetail({ id, call, get, busy, setMsg, onChange }: Shared & { id
         {inv.sequenceActive && <button type="button" className={ghost} onClick={() => act({ action: 'stopSequence' })}>Stop follow-ups</button>}
       </div>
       <CommsPanel id={id} call={call} get={get} busy={busy} setMsg={setMsg} base="" optedOut={inv.optedOut} onChange={async () => { await load(); onChange(); }} />
+      <VoicePanel id={id} call={call} get={get} busy={busy} setMsg={setMsg} optedOut={inv.optedOut} onChange={async () => { await load(); onChange(); }} />
       <div className="flex gap-2">
         <input className={input} placeholder="Add a note" value={note} onChange={(e) => setNote(e.target.value)} />
         <button type="button" className={ghost} disabled={!note} onClick={async () => { await act({ action: 'addNote', note }); setNote(''); }}>Add</button>

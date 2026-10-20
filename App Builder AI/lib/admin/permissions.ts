@@ -38,6 +38,15 @@ export const ADMIN_PERMISSIONS = [
   'video:write',
   'observatory:read',
   'observatory:write',
+  'commandcentre:read',
+  'commandcentre:write',
+  'credits:write',
+  'marketing-pricing:write',
+  'marketing-reports:read',
+  'contentpipeline:read',
+  'contentpipeline:write',
+  'inbox:read',
+  'inbox:write',
 ] as const;
 
 export type AdminPermission = (typeof ADMIN_PERMISSIONS)[number];
@@ -49,7 +58,11 @@ const READ_ONLY_PERMISSIONS = new Set<AdminPermission>(
     (permission) =>
       permission.endsWith(':read') &&
       permission !== 'outreach:read' &&
-      permission !== 'observatory:read',
+      permission !== 'observatory:read' &&
+      permission !== 'commandcentre:read' &&
+      permission !== 'marketing-reports:read' &&
+      permission !== 'contentpipeline:read' &&
+      permission !== 'inbox:read',
   ),
 );
 
@@ -83,12 +96,23 @@ const ROLE_PERMISSIONS: Record<AdminRole, Set<AdminPermission>> = {
     'video:write',
     'observatory:read',
     'observatory:write',
+    'commandcentre:read',
+    'commandcentre:write',
+    'credits:write',
+    'marketing-pricing:write',
+    'marketing-reports:read',
+    'contentpipeline:read',
+    'contentpipeline:write',
+    'inbox:read',
+    'inbox:write',
   ]),
   FINANCE_ADMIN: new Set<AdminPermission>([
     'dashboard:read',
     'users:read',
     'payments:read',
     'payments:refund',
+    'credits:write',
+    'marketing-reports:read',
     'subscriptions:read',
     'subscriptions:write',
     'ai_usage:read',
@@ -100,12 +124,15 @@ const ROLE_PERMISSIONS: Record<AdminRole, Set<AdminPermission>> = {
     'dashboard:read',
     'users:read',
     'users:write',
+    'credits:write',
     'projects:read',
     'projects:write',
     'subscriptions:read',
     'ai_usage:read',
     'feedback:read',
     'feedback:write',
+    'inbox:read',
+    'inbox:write',
   ]),
   ANALYTICS_VIEWER: READ_ONLY_PERMISSIONS,
   SECURITY_ADMIN: new Set<AdminPermission>([

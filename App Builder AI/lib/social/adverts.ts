@@ -1,5 +1,6 @@
 import { getAnthropicClient } from '@/lib/anthropic';
 import { prisma } from '@/lib/prisma';
+import { recordInternalOperation } from '@/lib/marketing-credits/internal-cost';
 
 const AD_MODEL =
   process.env.BEDROCK_MODEL_ID?.trim() ||
@@ -96,9 +97,10 @@ export async function ensureAdvertQueue() {
       const advert = block && block.type === 'text' ? parseAdvert(block.text) : null;
       if (!advert) continue;
 
-      await prisma.socialPost.create({
+      const post = await prisma.socialPost.create({
         data: { title: advert.title, message: advert.message, platforms: [] },
       });
+      await recordInternalOperation('text_post', { refType: 'SocialPost', refId: post.id });
       recent.unshift({ message: advert.message });
       created += 1;
     } catch (error) {

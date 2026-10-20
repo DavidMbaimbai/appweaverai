@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma';
+import { withMarketingCredits } from '@/lib/marketing-credits/run';
 import { suppress } from '@/lib/outreach/process';
 
 import type { PipelineStage } from './constants';
@@ -230,21 +231,39 @@ export async function sendInvestorSms(ctx: Ctx, investorId: string, rawBody: str
   let status = 'SENT';
   let providerId: string | null = null;
   let error: string | null = null;
+  let httpStatus = 502;
   if (dryRun) {
     status = 'DRY_RUN';
     console.info(`[investor-hub] SMS DRY RUN to ${contact.phone}: ${body.slice(0, 120)}`);
   } else {
     try {
-      providerId = await twilioSend(contact.phone, body);
+      const phone = contact.phone;
+      const paid = await withMarketingCredits(
+        {
+          userId: ctx.userId,
+          projectId: ctx.projectId,
+          operation: 'sms',
+          params: { units: Math.max(1, Math.ceil(body.length / 160)) },
+          refType: 'hub_sms',
+          refId: investorId,
+        },
+        () => twilioSend(phone, body),
+      );
+      if (paid.ok) providerId = paid.value;
+      else {
+        status = 'FAILED';
+        error = paid.insufficient ? `blocked: insufficient credits. ${paid.error}` : paid.error;
+        httpStatus = paid.insufficient ? 402 : 403;
+      }
     } catch (e) {
       status = 'FAILED';
       error = e instanceof Error ? e.message.slice(0, 300) : 'Send failed';
     }
   }
   const row = await prisma.hubInvestorSms.create({
-    data: { ...scope(ctx), investorId, body, status, providerId, error },
+    data: { ...scope(ctx), investorId, body, status, providerId, error: error?.slice(0, 500) ?? null },
   });
   await logActivity(ctx, investorId, 'sms', `SMS ${status.toLowerCase().replace('_', ' ')}.`);
-  if (status === 'FAILED') throw new HubError(error ?? 'SMS failed.', 502);
+  if (status === 'FAILED') throw new HubError(error ?? 'SMS failed.', httpStatus);
   return { id: row.id, status, dryRun };
 }

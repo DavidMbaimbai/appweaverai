@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { headers } from 'next/headers';
 
 import { prisma } from '@/lib/prisma';
+import { adjustCredits } from '@/lib/credits/ledger';
 import { recordAuditLog } from '@/lib/admin/audit';
 import { recordSecurityEvent } from '@/lib/admin/security-events';
 import { requireAdmin } from '@/lib/auth/require-admin';
@@ -237,11 +238,11 @@ export async function adjustCreditsAction(
   amount: number,
   reason: string,
 ): Promise<ActionResult> {
-  const auth = await requireAdmin('users:write');
+  const auth = await requireAdmin('credits:write');
   if (!auth.ok) return { error: 'Not authorized.' };
   if (!reason.trim()) return { error: 'A reason is required.' };
-  if (!Number.isFinite(amount) || amount === 0) {
-    return { error: 'Enter a non-zero adjustment amount.' };
+  if (!Number.isInteger(amount) || amount === 0) {
+    return { error: 'Enter a non-zero whole-number adjustment.' };
   }
 
   const user = await prisma.user.findUnique({
@@ -250,21 +251,22 @@ export async function adjustCreditsAction(
   });
   if (!user) return { error: 'User not found.' };
 
-  const nextBalance = user.creditBalance + amount;
-  if (nextBalance < 0) {
-    return { error: 'Adjustment would result in a negative balance.' };
+  const adjusted = await adjustCredits({
+    userId,
+    delta: amount,
+    reason,
+    operation: 'ADJUSTMENT',
+    adjustedBy: auth.admin.id,
+  });
+  if (!adjusted.ok) {
+    return {
+      error:
+        adjusted.code === 'NEGATIVE_BALANCE'
+          ? 'Adjustment would result in a negative balance.'
+          : 'User not found.',
+    };
   }
-
-  await prisma.$transaction([
-    prisma.user.update({
-      where: { id: userId },
-      data: { creditBalance: nextBalance },
-    }),
-    prisma.creditAdjustment.create({
-      data: { userId, amount, reason, adminId: auth.admin.id },
-    }),
-  ]);
-
+  const nextBalance = adjusted.balanceAfter;
   await recordAuditLog({
     adminId: auth.admin.id,
     adminEmail: auth.admin.email,

@@ -2,6 +2,7 @@ import { graph } from '@/lib/ads/meta';
 import { sendAlert } from '@/lib/alerts';
 import { decryptSecret, encryptSecret } from '@/lib/crypto/secret-box';
 import { prisma } from '@/lib/prisma';
+import { finishScheduledSlot, holdScheduledSlot } from '@/lib/marketing-credits/run';
 
 import {
   campaignStatus,
@@ -163,11 +164,12 @@ export async function publishDueProjectPosts(now = new Date()) {
     where: { status: { in: ['APPROVED', 'SCHEDULED'] }, scheduledAt: { lte: now } },
     orderBy: { scheduledAt: 'asc' },
     take: MAX_PER_RUN * 3,
-    include: { campaign: { select: { userId: true } } },
+    include: { campaign: { select: { userId: true, projectId: true } } },
   });
   const { due, stale } = selectDuePosts(candidates, now);
   const touched = new Set<string>();
-  const summary = { published: 0, manual: 0, failed: 0, stale: stale.length, dryRun: isDryRun() };
+  const held: Array<{ id: string; key: string }> = [];
+  const summary = { published: 0, manual: 0, failed: 0, paused: 0, stale: stale.length, dryRun: isDryRun() };
 
   for (const post of stale) {
     await prisma.projectPost.update({
@@ -184,6 +186,21 @@ export async function publishDueProjectPosts(now = new Date()) {
       console.info(`[project-posts] DRY RUN ${platform} post ${post.id}: ${text.slice(0, 120)}`);
       continue;
     }
+
+    // Billable schedules check budget and balance first; when reached the post stays queued and the owner is told.
+    const slot = await holdScheduledSlot({
+      userId: post.campaign.userId,
+      projectId: post.campaign.projectId,
+      operation: 'publish_post',
+      slot: post.scheduledAt?.toISOString() ?? 'unscheduled',
+      jobId: `post:${post.id}`,
+    });
+    if (!slot.ok) {
+      if (slot.reason === 'duplicate') continue;
+      summary.paused++;
+      break;
+    }
+    if (slot.key) held.push({ id: post.id, key: slot.key });
 
     // Claim first so overlapping cron runs cannot publish the same post twice.
     const claim = await prisma.projectPost.updateMany({
@@ -246,6 +263,15 @@ export async function publishDueProjectPosts(now = new Date()) {
     }
   }
 
+  if (held.length > 0) {
+    const rows = await prisma.projectPost.findMany({ where: { id: { in: held.map((h) => h.id) } }, select: { id: true, status: true } });
+    const status = new Map(rows.map((r) => [r.id, r.status]));
+    for (const h of held) {
+      await finishScheduledSlot(h.key, 'publish_post', status.get(h.id) === 'PUBLISHED').catch((e) =>
+        console.error('[project-posts] credit settle failed:', e),
+      );
+    }
+  }
   for (const id of touched) await syncCampaignStatus(id);
   if (summary.failed > 0) await sendAlert('Project posts failed', JSON.stringify(summary));
   return summary;

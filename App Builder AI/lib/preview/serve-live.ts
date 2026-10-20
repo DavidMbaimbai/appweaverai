@@ -11,6 +11,7 @@ import {
   PUBLISH_META_FILE,
   publishedSnapshotDir,
   readPublishMeta,
+  type SnapshotEnvironment,
 } from '@/lib/publish/snapshot';
 
 const EMPTY_BRAND_KIT = {
@@ -26,10 +27,11 @@ export async function serveLiveFile(
   projectId: string,
   artifactSlug: string,
   relativePath: string,
+  environment: SnapshotEnvironment = 'PRODUCTION',
 ) {
   if (path.basename(relativePath) === PUBLISH_META_FILE) return null;
 
-  const root = publishedSnapshotDir(projectId, artifactSlug);
+  const root = publishedSnapshotDir(projectId, artifactSlug, environment);
   const absolute = path.resolve(root, relativePath);
   if (!absolute.startsWith(path.resolve(root))) throw new Error('Invalid path.');
 
@@ -47,11 +49,11 @@ export async function serveLiveFile(
     content.toString('utf8'),
     projectId,
     artifactSlug,
-    'live',
+    environment === 'STAGING' ? 'staging' : 'live',
   );
   // Use the values frozen at publish time so brand kit/SEO edits stay drafts
   // until the user republishes; older snapshots fall back to the current ones.
-  const meta = await readPublishMeta(projectId, artifactSlug);
+  const meta = await readPublishMeta(projectId, artifactSlug, environment);
   const brandKit =
     meta?.brandKit ??
     (await getProjectBrandKit(projectId).catch(() => null)) ??

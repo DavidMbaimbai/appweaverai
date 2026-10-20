@@ -2,6 +2,7 @@ import {
   resolvePublishedPathForDomain,
   resolvePublishedPathForSubdomain,
 } from '@/lib/domains/custom-domain';
+import { resolveStagingPathForLabel } from '@/lib/hosting/staging';
 
 /**
  * Internal lookup used by middleware.ts to map a verified custom domain's
@@ -13,6 +14,13 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const domain = url.searchParams.get('domain');
   const subdomain = url.searchParams.get('subdomain');
+  const stagingSubdomain = url.searchParams.get('stagingSubdomain');
+
+  if (stagingSubdomain) {
+    return Response.json({
+      path: await resolveStagingPathForLabel(stagingSubdomain),
+    });
+  }
 
   if (subdomain) {
     return Response.json({

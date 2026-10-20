@@ -31,7 +31,7 @@ This is an early-stage MVP intended to validate the core product experience. Exp
 - Investor Hub: daily follow-up digest cron (`/api/cron/investor-reminders`), manual call logging, and consent-gated Twilio SMS (dry-run until `TWILIO_*` is set; inbound STOP via `/api/investor-hub/sms`). Calls are never auto-dialled.
 - Reviews: per-project CSV export (`/api/projects/<id>/reviews/export`) and a delete-all-data control on the Reviews page.
 - Deleting a project permanently also removes its marketing campaigns/posts and Investor Hub data (plus social connections when no campaigns remain).
-- Staging: there is no separate staging/preview deployment; deployments are LIVE with PUBLIC, WORKSPACE_ONLY or PRIVATE visibility only.
+- Staging: each project has one live STAGING and one live PRODUCTION deployment (`Deployment.environment`; a DB partial unique index enforces it). Staging is served at `<slug>--staging.<APP_ROOT_DOMAIN>` (needs the same wildcard DNS/cert as project subdomains; `--staging` labels are reserved) with a path fallback at `/p/<workspace>/<project>/staging`. It always sends `X-Robots-Tag: noindex`, and is protected by a random share token (`?token=` sets a cookie) unless the owner opens it. "Promote" copies the exact staged files to production (new version, `promotedFromVersion`), with no rebuild. Rollback is per environment. `isCurrent` keeps meaning "current production"; the live staging row is the STAGING row with status LIVE.
 
 ## Getting Started
 
@@ -103,6 +103,15 @@ for billing emails to go out.
 
 You can start editing the app by modifying files under `app/` and `components/`. Pages auto-update as you edit.
 
+### Unified inbox
+
+`lib/messaging` is a common messaging layer (web chat, email, WhatsApp, SMS, Messenger, Instagram) with one adapter per
+channel, idempotent inbound handling, consent and 24h-window checks before every outbound message, and an autonomous
+response pipeline (`respond.ts`) that routes through the agent policy (`decide()`): Assist drafts, Approval queues,
+Autonomous sends only owner-allowed low-risk categories with a verified answer. Reviews and sensitive topics (refund, legal,
+security, payment, account changes, commitments) are never auto-sent. Owner UI: project → Inbox; admin UI: `/admin/inbox`
+(`inbox:read` / `inbox:write`). Env names and webhook URLs are in `.env.example`.
+
 ## Learn More
 
 To learn more about the underlying framework, take a look at:
@@ -119,5 +128,6 @@ The easiest way to deploy this app is on the [Vercel Platform](https://vercel.co
 - **Managed subdomains** (`<name>.APP_ROOT_DOMAIN`, default `appweaverai.com`) are routed by `proxy.ts`. You must add a wildcard DNS record (`*.appweaverai.com`) and a wildcard domain on the Vercel project (wildcards on Vercel require using Vercel's nameservers for the domain). Reserved names (www, app, api, admin, mail, …) are blocked.
 - **Custom domains** are verified with a DNS TXT record. SSL certificates are issued automatically by Vercel once the domain is attached to the Vercel project. If `VERCEL_API_TOKEN` and `VERCEL_PROJECT_ID` (and `VERCEL_TEAM_ID` for teams) are set, the app attaches the domain through the Vercel Domains API when the user verifies it; otherwise the operator must add the domain under Vercel → Project → Settings → Domains manually. The editor says so explicitly.
 - Plan limits live in `lib/hosting/limits.ts` (custom domains, deployments retained, environment variables). Deployment files for rollback are stored on local disk under `.published-versions`, like the live `.published` snapshots.
-- There is no staging deployment: only Development and Production variables exist, and health checks run on demand (no continuous monitoring).
+- Environment variables exist per environment (Development, Staging, Production); staging deployments use the Staging set. Health checks run on demand (no continuous monitoring).
+- Launch readiness (`lib/launch-readiness/*`, page `/app/projects/<ws>/<project>/launch`): checks report PASS/WARN/FAIL/NOT_VERIFIED with evidence, stored as `LaunchReport`. It never claims a site is production-ready, only "no blocking issues found in verified checks". Payment integrations are always NOT_VERIFIED (test the flow in the provider's test mode). Publishing to production is blocked only on FAIL (missing index.html, secrets in files, forms without a privacy page, confirmed HTTPS/smoke failures); warnings are surfaced. Owners approve launch (warnings need explicit acknowledgement). Privacy/terms drafts are AI-generated, written to editable files, and are not legal advice.
 

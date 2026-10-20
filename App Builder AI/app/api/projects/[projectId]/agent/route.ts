@@ -19,6 +19,7 @@ import {
 import { getUserBillingFields } from '@/lib/queries/billing';
 import { prisma } from '@/lib/prisma';
 import { limitOrResponse } from '@/lib/rate-limit';
+import { withCredits } from '@/lib/credits/with-credits';
 
 const bodySchema = z.object({
   content: z.string().trim().min(1).max(8000).optional(),
@@ -143,23 +144,34 @@ export async function POST(
           return;
         }
 
-        const result = await (async () => {
-          startAgentRun(projectId, {
-            userId,
-            name: session.user.name || session.user.email || 'Someone',
-          });
-          try {
-            return await runAgentLoop({
-              conversationId,
-              projectId,
-              artifactId: artifact.id,
-              limits: agentLimits,
-              onEvent: send,
+        const outcome = await withCredits(
+          userId,
+          'agent_run',
+          async () => {
+            startAgentRun(projectId, {
+              userId,
+              name: session.user.name || session.user.email || 'Someone',
             });
-          } finally {
-            endAgentRun(projectId, userId);
-          }
-        })();
+            try {
+              return await runAgentLoop({
+                conversationId,
+                projectId,
+                artifactId: artifact.id,
+                limits: agentLimits,
+                onEvent: send,
+              });
+            } finally {
+              endAgentRun(projectId, userId);
+            }
+          },
+          { refType: 'Project', refId: projectId },
+        );
+        if (!outcome.ok) {
+          send({ type: 'error', message: outcome.error });
+          controller.close();
+          return;
+        }
+        const result = outcome.value;
 
         const metadata: AgentMessageMetadata = {
           steps: result.steps,

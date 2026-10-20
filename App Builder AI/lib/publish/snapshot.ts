@@ -17,10 +17,14 @@ export type PublishMeta = { brandKit: BrandKitValues; seo: SeoValues };
 export async function readPublishMeta(
   projectId: string,
   artifactSlug: string,
+  environment: SnapshotEnvironment = 'PRODUCTION',
 ): Promise<PublishMeta | null> {
   try {
     const raw = await readFile(
-      path.join(publishedSnapshotDir(projectId, artifactSlug), PUBLISH_META_FILE),
+      path.join(
+        publishedSnapshotDir(projectId, artifactSlug, environment),
+        PUBLISH_META_FILE,
+      ),
       'utf8',
     );
     return JSON.parse(raw) as PublishMeta;
@@ -31,8 +35,26 @@ export async function readPublishMeta(
 
 const PUBLISHED_ROOT = path.join(process.cwd(), '.published');
 
-export function publishedSnapshotDir(projectId: string, artifactSlug: string) {
-  return path.join(PUBLISHED_ROOT, projectId, artifactSlug);
+const STAGING_ROOT = path.join(process.cwd(), '.published-staging');
+
+export type SnapshotEnvironment = 'STAGING' | 'PRODUCTION';
+
+export function snapshotRoot(
+  projectId: string,
+  environment: SnapshotEnvironment = 'PRODUCTION',
+) {
+  return path.join(
+    environment === 'STAGING' ? STAGING_ROOT : PUBLISHED_ROOT,
+    projectId,
+  );
+}
+
+export function publishedSnapshotDir(
+  projectId: string,
+  artifactSlug: string,
+  environment: SnapshotEnvironment = 'PRODUCTION',
+) {
+  return path.join(snapshotRoot(projectId, environment), artifactSlug);
 }
 
 /**
@@ -42,9 +64,10 @@ export function publishedSnapshotDir(projectId: string, artifactSlug: string) {
 export async function snapshotArtifactForPublish(
   projectId: string,
   artifactSlug: string,
+  environment: SnapshotEnvironment = 'PRODUCTION',
 ) {
   const source = artifactWorkspaceDir(projectId, artifactSlug);
-  const target = publishedSnapshotDir(projectId, artifactSlug);
+  const target = publishedSnapshotDir(projectId, artifactSlug, environment);
 
   await rm(target, { recursive: true, force: true });
   await mkdir(target, { recursive: true });

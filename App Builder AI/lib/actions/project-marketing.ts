@@ -22,6 +22,7 @@ import { PAGE_CHOICE_COOKIE, unpackPageChoices } from '@/lib/project-marketing/p
 import { encryptSecret } from '@/lib/crypto/secret-box';
 import { cookies } from 'next/headers';
 import { rateLimit } from '@/lib/rate-limit';
+import { withMarketingCredits } from '@/lib/marketing-credits/run';
 
 type Result = { ok: true; message?: string } | { ok: false; error: string };
 
@@ -74,38 +75,51 @@ export async function generateCampaignAction(
   const limit = await rateLimit(`project-campaign:${userId}`, 6, 60 * 60 * 1000);
   if (!limit.ok) return { ok: false, error: `Hourly limit reached. Try again in ${limit.retryAfter}s.` };
 
-  try {
-    const url = await projectUrl(project.id);
-    const result = await generateCampaignPosts(
-      { name: project.name, description: project.description, url, brandKit: project.brandKit },
-      text,
-      timeZone,
-    );
-    if (!result) return { ok: false, error: 'Could not produce a safe campaign. Add more detail and try again.' };
+  const charged = await withMarketingCredits(
+    {
+      userId,
+      projectId: project.id,
+      operation: 'campaign_draft',
+      refType: 'Project',
+      refId: project.id,
+      isFailure: (r: Result) => !r.ok,
+    },
+    async (): Promise<Result> => {
+      try {
+        const url = await projectUrl(project.id);
+        const result = await generateCampaignPosts(
+          { name: project.name, description: project.description, url, brandKit: project.brandKit },
+          text,
+          timeZone,
+        );
+        if (!result) return { ok: false, error: 'Could not produce a safe campaign. Add more detail and try again.' };
 
-    await prisma.projectCampaign.create({
-      data: {
-        projectId: project.id,
-        userId,
-        name: result.name,
-        brief: text,
-        posts: {
-          create: result.posts.map((p) => ({
-            platform: p.platform,
-            text: p.text,
-            hashtags: p.hashtags,
-            scheduledAt: p.scheduledAt,
-            timeZone,
-          })),
-        },
-      },
-    });
-    revalidatePath('/app/projects');
-    return { ok: true, message: 'Campaign drafted. Review, edit and approve each post.' };
-  } catch (error) {
-    console.error('[project-marketing] generate failed:', error);
-    return { ok: false, error: 'Generation failed. Please try again.' };
-  }
+        await prisma.projectCampaign.create({
+          data: {
+            projectId: project.id,
+            userId,
+            name: result.name,
+            brief: text,
+            posts: {
+              create: result.posts.map((p) => ({
+                platform: p.platform,
+                text: p.text,
+                hashtags: p.hashtags,
+                scheduledAt: p.scheduledAt,
+                timeZone,
+              })),
+            },
+          },
+        });
+        revalidatePath('/app/projects');
+        return { ok: true, message: 'Campaign drafted. Review, edit and approve each post.' };
+      } catch (error) {
+        console.error('[project-marketing] generate failed:', error);
+        return { ok: false, error: 'Generation failed. Please try again.' };
+      }
+    },
+  );
+  return charged.ok ? charged.value : { ok: false, error: charged.error };
 }
 
 /** Editing text always withdraws approval, so approved copy is exactly what was reviewed. */

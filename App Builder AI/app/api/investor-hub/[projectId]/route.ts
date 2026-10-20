@@ -23,6 +23,18 @@ import {
 } from '@/lib/investor-hub/outreach';
 import { recordReply } from '@/lib/investor-hub/replies';
 import {
+  approveCampaign,
+  createCampaign,
+  generateCampaignTemplate,
+  listCampaigns,
+  pauseCampaign,
+  previewCampaign,
+  resumeCampaign,
+  stopCampaign,
+  updateCampaign,
+} from '@/lib/investor-hub/campaigns';
+import { getVoice, recordConsent, revokeConsent, startAiCall } from '@/lib/investor-hub/voice';
+import {
   addInvestor,
   addNote,
   deleteInvestor,
@@ -77,6 +89,25 @@ const investorSchema = z.object({
   ticketMax: money.nullable().optional(),
   portfolio: z.array(text(100)).max(15).optional(),
   tags: z.array(text(40)).max(10).optional(),
+});
+
+const variantSchema = z.object({ subject: text(150).min(1), body: text(3000).min(1) });
+const campaignSchema = z.object({
+  name: text(120).min(1),
+  templateSubject: text(150).min(1),
+  templateBody: text(3000).min(1),
+  variants: z.array(variantSchema).max(2).optional(),
+  followUpBody: text(2000).optional(),
+  settings: z
+    .object({
+      dailyLimit: z.number().int().min(1).max(50).optional(),
+      sendWindowStart: z.number().int().min(0).max(23).optional(),
+      sendWindowEnd: z.number().int().min(1).max(24).optional(),
+      timezone: text(60).optional(),
+      maxFollowUps: z.number().int().min(0).max(2).optional(),
+      followUpDays: z.array(z.number().int().min(2).max(30)).max(2).optional(),
+    })
+    .optional(),
 });
 
 const actionSchema = z.discriminatedUnion('action', [
@@ -142,9 +173,25 @@ const actionSchema = z.discriminatedUnion('action', [
   }),
   z.object({ action: z.literal('sendSms'), id: z.string().min(1), body: text(500).min(1) }),
   z.object({ action: z.literal('optOut'), id: z.string().min(1) }),
+  z.object({ action: z.literal('createCampaign'), investorIds: z.array(z.string().min(1)).min(1).max(500), campaign: campaignSchema }),
+  z.object({ action: z.literal('updateCampaign'), campaignId: z.string().min(1), investorIds: z.array(z.string().min(1)).max(500).optional(), campaign: campaignSchema }),
+  z.object({ action: z.literal('generateCampaignTemplate') }),
+  z.object({ action: z.literal('approveCampaign'), campaignId: z.string().min(1), acknowledged: z.boolean() }),
+  z.object({ action: z.literal('pauseCampaign'), campaignId: z.string().min(1) }),
+  z.object({ action: z.literal('resumeCampaign'), campaignId: z.string().min(1) }),
+  z.object({ action: z.literal('stopCampaign'), campaignId: z.string().min(1) }),
+  z.object({
+    action: z.literal('recordConsent'),
+    id: z.string().min(1),
+    type: z.enum(['AI_CALL', 'CALL_RECORDING']),
+    evidence: text(1000).min(1),
+    obtainedAt: z.string().datetime(),
+  }),
+  z.object({ action: z.literal('revokeConsent'), id: z.string().min(1), type: z.enum(['AI_CALL', 'CALL_RECORDING']) }),
+  z.object({ action: z.literal('startAiCall'), id: z.string().min(1), confirmed: z.boolean(), transferNumber: text(30).nullable().optional() }),
 ]);
 
-const HEAVY = new Set(['discover', 'research', 'generate', 'recordReply', 'sendSms']);
+const HEAVY = new Set(['discover', 'research', 'generate', 'recordReply', 'sendSms', 'generateCampaignTemplate', 'startAiCall']);
 
 async function guard(projectId: string, heavy: boolean): Promise<{ ctx: Ctx } | { error: Response }> {
   const access = await requireProjectAccess(projectId);
@@ -228,6 +275,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ proj
         });
       case 'analytics':
         return NextResponse.json({ analytics: await getAnalytics(ctx) });
+      case 'campaigns':
+        return NextResponse.json(await listCampaigns(ctx));
+      case 'campaign':
+        return NextResponse.json(await previewCampaign(ctx, url.searchParams.get('id') ?? ''));
+      case 'voice':
+        return NextResponse.json(await getVoice(ctx, url.searchParams.get('id') ?? ''));
       case 'export':
         return url.searchParams.get('kind') === 'analytics'
           ? csvResponse(await exportAnalyticsCsv(ctx), 'investor-analytics.csv')
@@ -332,6 +385,31 @@ export async function POST(request: Request, { params }: { params: Promise<{ pro
       case 'optOut':
         await optOutInvestor(ctx, input.id, 'Investor Hub: marked do-not-contact by owner');
         return NextResponse.json({ ok: true });
+      case 'createCampaign':
+        return NextResponse.json(await createCampaign(ctx, { ...input.campaign, investorIds: input.investorIds }), { status: 201 });
+      case 'updateCampaign':
+        return NextResponse.json(await updateCampaign(ctx, input.campaignId, { ...input.campaign, investorIds: input.investorIds }));
+      case 'generateCampaignTemplate':
+        return NextResponse.json(await generateCampaignTemplate(ctx));
+      case 'approveCampaign':
+        await approveCampaign(ctx, input.campaignId, input.acknowledged);
+        return NextResponse.json({ ok: true });
+      case 'pauseCampaign':
+        await pauseCampaign(ctx, input.campaignId);
+        return NextResponse.json({ ok: true });
+      case 'resumeCampaign':
+        await resumeCampaign(ctx, input.campaignId);
+        return NextResponse.json({ ok: true });
+      case 'stopCampaign':
+        await stopCampaign(ctx, input.campaignId);
+        return NextResponse.json({ ok: true });
+      case 'recordConsent':
+        return NextResponse.json({ consent: await recordConsent(ctx, input.id, { type: input.type, evidence: input.evidence, obtainedAt: new Date(input.obtainedAt) }) });
+      case 'revokeConsent':
+        await revokeConsent(ctx, input.id, input.type);
+        return NextResponse.json({ ok: true });
+      case 'startAiCall':
+        return NextResponse.json(await startAiCall(ctx, input.id, { confirmed: input.confirmed, transferNumber: input.transferNumber }));
     }
   } catch (error) {
     return fail(error);

@@ -10,6 +10,7 @@ import {
   publishUpgradeMessage,
 } from "@/lib/billing/entitlements";
 import { getHostingLimits } from "@/lib/hosting/limits";
+import { rollbackStagingAction } from "@/lib/actions/staging";
 import { getAccessibleProject } from "@/lib/projects/access";
 import { prisma } from "@/lib/prisma";
 import { getUserBillingFields } from "@/lib/queries/billing";
@@ -31,6 +32,8 @@ export type DeploymentHistoryItem = {
   status: string;
   visibility: PublishVisibility;
   isCurrent: boolean;
+  environment: "STAGING" | "PRODUCTION";
+  promotedFromVersion: number | null;
   createdAt: string;
   canRollback: boolean;
 };
@@ -54,6 +57,8 @@ export async function getDeploymentHistoryAction(projectId: string) {
         status: true,
         visibility: true,
         isCurrent: true,
+        environment: true,
+        promotedFromVersion: true,
         createdAt: true,
       },
     }),
@@ -61,17 +66,25 @@ export async function getDeploymentHistoryAction(projectId: string) {
   ]);
 
   const items: DeploymentHistoryItem[] = await Promise.all(
-    deployments.map(async (deployment) => ({
-      id: deployment.id,
-      version: deployment.version,
-      status: deployment.status,
-      visibility: fromDeploymentVisibility(deployment.visibility),
-      isCurrent: deployment.isCurrent,
-      createdAt: deployment.createdAt.toISOString(),
-      canRollback:
-        !deployment.isCurrent &&
-        (await hasVersionSnapshot(projectId, deployment.version)),
-    })),
+    deployments.map(async (deployment) => {
+      // Staging rows are never isCurrent; their live row is status LIVE.
+      const isLive =
+        deployment.environment === "STAGING"
+          ? deployment.status === "LIVE"
+          : deployment.isCurrent;
+      return {
+        id: deployment.id,
+        version: deployment.version,
+        status: deployment.status,
+        visibility: fromDeploymentVisibility(deployment.visibility),
+        isCurrent: isLive,
+        environment: deployment.environment,
+        promotedFromVersion: deployment.promotedFromVersion,
+        createdAt: deployment.createdAt.toISOString(),
+        canRollback:
+          !isLive && (await hasVersionSnapshot(projectId, deployment.version)),
+      };
+    }),
   );
 
   return {
@@ -102,9 +115,12 @@ export async function rollbackDeploymentAction(
 
   const target = await prisma.deployment.findFirst({
     where: { id: deploymentId, projectId },
-    select: { version: true, visibility: true, isCurrent: true },
+    select: { version: true, visibility: true, isCurrent: true, environment: true },
   });
   if (!target) return { error: "Deployment not found." };
+  if (target.environment === "STAGING") {
+    return rollbackStagingAction(projectId, deploymentId);
+  }
   if (target.isCurrent) return { error: "This version is already live." };
 
   const user = await getUserBillingFields(userId);
@@ -136,13 +152,14 @@ export async function rollbackDeploymentAction(
 
   await prisma.$transaction(async (tx) => {
     await tx.deployment.updateMany({
-      where: { projectId, isCurrent: true },
+      where: { projectId, environment: "PRODUCTION", isCurrent: true },
       data: { isCurrent: false, status: "SUPERSEDED" },
     });
     await tx.deployment.create({
       data: {
         projectId,
         version: nextVersion,
+        environment: "PRODUCTION",
         status: "LIVE",
         visibility: target.visibility,
         domain: urlPath,

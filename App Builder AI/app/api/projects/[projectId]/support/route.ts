@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { prisma } from '@/lib/prisma';
+import { withScopeMarketing } from '@/lib/marketing-credits/system';
 import { findPublicProject, json, limited, CORS_HEADERS } from '@/lib/project-reviews/public-api';
 import {
   answerFromKnowledge,
@@ -68,7 +69,12 @@ export async function POST(request: Request, { params }: Ctx) {
 
   let answer: string | null = null;
   try {
-    answer = await answerFromKnowledge(projectId, question, docs);
+    const metered = await withScopeMarketing(
+      { scope: { type: 'PROJECT', projectId }, operation: 'engagement_reply', refType: 'support_chat', refId: projectId, isFailure: (a: string | null) => !a },
+      () => answerFromKnowledge(projectId, question, docs),
+    );
+    // Out of marketing credits: no AI call, the visitor is offered a ticket instead.
+    answer = metered.ok ? metered.value : null;
   } catch (error) {
     console.error('Support assistant failed:', error);
   }

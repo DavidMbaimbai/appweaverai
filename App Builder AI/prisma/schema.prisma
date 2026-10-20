@@ -423,6 +423,7 @@ model Project {
   customDomain      ProjectCustomDomain?
   secrets           ProjectSecret[]
   deployments       Deployment[]
+  launchReports     LaunchReport[]
   checkpoints       ProjectCheckpoint[]
   conversations     AgentConversation[]
   agentToolCalls    AgentToolCall[]
@@ -431,6 +432,9 @@ model Project {
   pageViews         ProjectPageView[]
   brandKit          ProjectBrandKit?
   formSubmissions   ProjectFormSubmission[]
+  leads             Lead[]
+  leadSlots         LeadAvailabilitySlot[]
+  growthExperiments GrowthExperiment[]
   remixedFrom       Project?                  @relation("ProjectRemixes", fields: [remixedFromProjectId], references: [id], onDelete: SetNull)
   remixes           Project[]                 @relation("ProjectRemixes")
 
@@ -556,6 +560,7 @@ model Artifact {
 
 enum ResourceEnvironment {
   DEVELOPMENT
+  STAGING
   PRODUCTION
 }
 
@@ -935,26 +940,36 @@ enum DeploymentStatus {
 }
 
 model Deployment {
-  id             String               @id @default(cuid())
-  projectId      String               @map("project_id")
-  version        Int
-  status         DeploymentStatus     @default(PENDING)
-  deploymentType DeploymentType       @default(AUTOSCALE) @map("deployment_type")
-  visibility     DeploymentVisibility @default(PUBLIC)
+  id                  String                @id @default(cuid())
+  projectId           String                @map("project_id")
+  version             Int
+  status              DeploymentStatus      @default(PENDING)
+  deploymentType      DeploymentType        @default(AUTOSCALE) @map("deployment_type")
+  visibility          DeploymentVisibility  @default(PUBLIC)
   /// Default subdomain, e.g. my-app.appweaverai.app
-  domain         String
-  customDomain   String?              @map("custom_domain")
-  isCurrent      Boolean              @default(false) @map("is_current")
-  createdById    String               @map("created_by_id")
-  publishedAt    DateTime?            @map("published_at")
-  createdAt      DateTime             @default(now()) @map("created_at")
-  updatedAt      DateTime             @updatedAt @map("updated_at")
+  domain              String
+  customDomain        String?               @map("custom_domain")
+  /// `isCurrent` marks the live PRODUCTION deployment only (staging rows never
+  /// set it, so existing production queries stay correct). The live STAGING
+  /// deployment is the one STAGING row with status LIVE; the migration enforces
+  /// at most one current row per environment with partial unique indexes.
+  isCurrent           Boolean               @default(false) @map("is_current")
+  environment         DeploymentEnvironment @default(PRODUCTION)
+  /// Random share token gating a STAGING deployment (null = open link).
+  accessToken         String?               @map("access_token")
+  /// Set on a PRODUCTION deployment created by promoting a staging version.
+  promotedFromVersion Int?                  @map("promoted_from_version")
+  createdById         String                @map("created_by_id")
+  publishedAt         DateTime?             @map("published_at")
+  createdAt           DateTime              @default(now()) @map("created_at")
+  updatedAt           DateTime              @updatedAt @map("updated_at")
 
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   createdBy User    @relation("DeploymentCreator", fields: [createdById], references: [id], onDelete: Restrict)
 
   @@unique([projectId, version])
   @@index([projectId, isCurrent])
+  @@index([projectId, environment, status])
   @@index([domain])
   @@map("deployments")
 }
@@ -970,6 +985,8 @@ model ProjectPageView {
   projectId String   @map("project_id")
   path      String
   referrer  String?
+  /// UTM parameters of the landing URL (source/medium/campaign/content), when present.
+  utm       Json?
   visitorId String   @map("visitor_id")
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -2142,22 +2159,22 @@ model ProjectIssue {
 
 /// Phone, time zone and the founder's recorded SMS consent for one investor.
 model HubInvestorContact {
-  id              String    @id @default(cuid())
-  userId          String    @map("user_id")
-  projectId       String    @map("project_id")
-  investorId      String    @unique @map("investor_id")
+  id             String    @id @default(cuid())
+  userId         String    @map("user_id")
+  projectId      String    @map("project_id")
+  investorId     String    @unique @map("investor_id")
   /// E.164, e.g. +14155550123.
-  phone           String?
+  phone          String?
   /// IANA zone used for quiet hours (08:00-20:00 investor-local).
-  timezone        String?
-  smsConsent      Boolean   @default(false) @map("sms_consent")
-  smsConsentAt    DateTime? @map("sms_consent_at")
+  timezone       String?
+  smsConsent     Boolean   @default(false) @map("sms_consent")
+  smsConsentAt   DateTime? @map("sms_consent_at")
   /// How and when the investor agreed to be texted (required to enable SMS).
-  smsConsentNote  String?   @map("sms_consent_note")
-  smsOptedOut     Boolean   @default(false) @map("sms_opted_out")
-  smsOptedOutAt   DateTime? @map("sms_opted_out_at")
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
+  smsConsentNote String?   @map("sms_consent_note")
+  smsOptedOut    Boolean   @default(false) @map("sms_opted_out")
+  smsOptedOutAt  DateTime? @map("sms_opted_out_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
 
   @@index([phone])
   @@index([userId, projectId])
@@ -2224,47 +2241,1020 @@ enum VideoReleaseStatus {
 }
 
 model VideoRelease {
-  id                 String               @id @default(cuid())
-  userId             String               @map("user_id")
-  videoProjectId     String?              @map("video_project_id")
-  sceneId            String?              @map("scene_id")
-  jobId              String               @map("job_id")
-  platform           VideoReleasePlatform
-  language           String               @default("en")
-  title              String
-  caption            String               @default("") @db.Text
-  hashtags           String[]
-  thumbnailKey       String?              @map("thumbnail_key")
+  id                String               @id @default(cuid())
+  userId            String               @map("user_id")
+  videoProjectId    String?              @map("video_project_id")
+  sceneId           String?              @map("scene_id")
+  jobId             String               @map("job_id")
+  platform          VideoReleasePlatform
+  language          String               @default("en")
+  title             String
+  caption           String               @default("") @db.Text
+  hashtags          String[]
+  thumbnailKey      String?              @map("thumbnail_key")
   /// UTC instant; the owner's wall-clock choice is converted with timeZone.
-  scheduledAt        DateTime             @map("scheduled_at")
-  timeZone           String               @default("UTC") @map("time_zone")
-  status             VideoReleaseStatus   @default(SCHEDULED)
-  approvedBy         String?              @map("approved_by")
-  approvedAt         DateTime?            @map("approved_at")
-  idempotencyKey     String               @unique @map("idempotency_key")
-  externalId         String?              @map("external_id")
-  postUrl            String?              @map("post_url")
-  attempts           Int                  @default(0)
-  nextAttemptAt      DateTime?            @map("next_attempt_at")
-  error              String?              @db.Text
+  scheduledAt       DateTime             @map("scheduled_at")
+  timeZone          String               @default("UTC") @map("time_zone")
+  status            VideoReleaseStatus   @default(SCHEDULED)
+  approvedBy        String?              @map("approved_by")
+  approvedAt        DateTime?            @map("approved_at")
+  idempotencyKey    String               @unique @map("idempotency_key")
+  externalId        String?              @map("external_id")
+  postUrl           String?              @map("post_url")
+  attempts          Int                  @default(0)
+  nextAttemptAt     DateTime?            @map("next_attempt_at")
+  error             String?              @db.Text
   /// Honest platform caveat shown to the owner (e.g. TikTok private-only posts).
-  note               String?              @db.Text
-  publishedAt        DateTime?            @map("published_at")
-  season             Int?
-  episode            Int?
+  note              String?              @db.Text
+  publishedAt       DateTime?            @map("published_at")
+  season            Int?
+  episode           Int?
   /// Groups the releases created by one series operation.
-  seriesKey          String?              @map("series_key")
+  seriesKey         String?              @map("series_key")
   /// Platform-returned metrics only (YouTube views); null when unavailable.
-  metrics            Json?
-  metricsAt          DateTime?            @map("metrics_at")
-  reminderSentAt     DateTime?            @map("reminder_sent_at")
-  outcomeNotifiedAt  DateTime?            @map("outcome_notified_at")
-  createdAt          DateTime             @default(now()) @map("created_at")
-  updatedAt          DateTime             @updatedAt @map("updated_at")
+  metrics           Json?
+  metricsAt         DateTime?            @map("metrics_at")
+  reminderSentAt    DateTime?            @map("reminder_sent_at")
+  outcomeNotifiedAt DateTime?            @map("outcome_notified_at")
+  createdAt         DateTime             @default(now()) @map("created_at")
+  updatedAt         DateTime             @updatedAt @map("updated_at")
 
   @@index([status, scheduledAt])
   @@index([userId, scheduledAt])
   @@index([userId, seriesKey])
   @@index([jobId])
   @@map("video_releases")
+}
+
+/// Append-only record of every credit balance change (charges, refunds, grants, admin adjustments).
+model CreditLedger {
+  id             String   @id @default(cuid())
+  userId         String   @map("user_id")
+  /// Negative = spend, positive = grant/refund.
+  delta          Int
+  reason         String   @db.Text
+  /// Pricing operation key (e.g. agent_run) or GRANT / REFUND / ADJUSTMENT.
+  operation      String
+  refType        String?  @map("ref_type")
+  refId          String?  @map("ref_id")
+  balanceAfter   Int      @map("balance_after")
+  idempotencyKey String   @unique @map("idempotency_key")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@index([userId, createdAt])
+  @@map("credit_ledger")
+}
+
+/// Customer-acquisition CRM: one row per prospect of a published project (deduped by email).
+model Lead {
+  id               String    @id @default(cuid())
+  projectId        String    @map("project_id")
+  name             String
+  email            String?
+  phone            String?
+  source           String    @default("manual")
+  utm              Json?
+  /// NEW | CONTACTED | QUALIFIED | DEMO_BOOKED | WON | LOST
+  status           String    @default("NEW")
+  score            Int?
+  scoreReasons     Json?     @map("score_reasons")
+  scoredAt         DateTime? @map("scored_at")
+  notes            String    @default("") @db.Text
+  consent          Boolean   @default(false)
+  consentText      String?   @map("consent_text") @db.Text
+  consentAt        DateTime? @map("consent_at")
+  optedOut         Boolean   @default(false) @map("opted_out")
+  formSubmissionId String?   @unique @map("form_submission_id")
+  suggestedAction  String?   @map("suggested_action") @db.Text
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  project    Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  activities LeadActivity[]
+  followUps  LeadFollowUp[]
+  drafts     LeadEmailDraft[]
+  bookings   LeadBooking[]
+
+  @@unique([projectId, email])
+  @@index([projectId, status])
+  @@index([projectId, createdAt])
+  @@map("leads")
+}
+
+model LeadActivity {
+  id        String   @id @default(cuid())
+  leadId    String   @map("lead_id")
+  type      String
+  detail    String   @default("") @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([leadId, createdAt])
+  @@map("lead_activities")
+}
+
+/// Owner reminder: surfaces in the daily digest until marked done.
+model LeadFollowUp {
+  id        String    @id @default(cuid())
+  leadId    String    @map("lead_id")
+  dueAt     DateTime  @map("due_at")
+  note      String    @default("") @db.Text
+  doneAt    DateTime? @map("done_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([doneAt, dueAt])
+  @@index([leadId])
+  @@map("lead_follow_ups")
+}
+
+/// AI-drafted follow-up email; only sent after explicit owner approval.
+model LeadEmailDraft {
+  id           String    @id @default(cuid())
+  leadId       String    @map("lead_id")
+  subject      String
+  body         String    @db.Text
+  /// DRAFT | SENT | CANCELLED
+  status       String    @default("DRAFT")
+  approvedById String?   @map("approved_by_id")
+  sentAt       DateTime? @map("sent_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([leadId, status])
+  @@map("lead_email_drafts")
+}
+
+model LeadAvailabilitySlot {
+  id          String   @id @default(cuid())
+  projectId   String   @map("project_id")
+  startsAt    DateTime @map("starts_at")
+  durationMin Int      @default(30) @map("duration_min")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  project Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  booking LeadBooking?
+
+  @@index([projectId, startsAt])
+  @@map("lead_availability_slots")
+}
+
+model LeadBooking {
+  id        String   @id @default(cuid())
+  slotId    String   @unique @map("slot_id")
+  leadId    String   @map("lead_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  slot LeadAvailabilitySlot @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  lead Lead                 @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([leadId])
+  @@map("lead_bookings")
+}
+
+/// Growth agent experiment. Executes only safe, existing, owner-approved actions; never spends money.
+model GrowthExperiment {
+  id                 String    @id @default(cuid())
+  projectId          String    @map("project_id")
+  hypothesis         String    @db.Text
+  bottleneck         String    @db.Text
+  /// { type, title, brief, citedMetrics[], metricKey, priority }
+  proposedAction     Json      @map("proposed_action")
+  /// Informational estimate only; nothing is ever charged automatically.
+  estimatedCostCents Int?      @map("estimated_cost_cents")
+  /// PROPOSED | APPROVED | RUNNING | MEASURED | REJECTED
+  status             String    @default("PROPOSED")
+  metricBefore       Json?     @map("metric_before")
+  metricAfter        Json?     @map("metric_after")
+  resultNote         String?   @map("result_note") @db.Text
+  /// Ids/links of what the safe action created (campaign draft, issue, prompt).
+  executionResult    Json?     @map("execution_result")
+  windowDays         Int       @default(14) @map("window_days")
+  approvedById       String?   @map("approved_by_id")
+  startedAt          DateTime? @map("started_at")
+  measuredAt         DateTime? @map("measured_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, status])
+  @@map("growth_experiments")
+}
+
+// -----------------------------------------------------------------------------
+// Investor Hub automation: per-campaign approval auto-send and the AI voice agent.
+// Plain indexed columns for investor ids (no FK) so HubInvestor stays untouched.
+// -----------------------------------------------------------------------------
+enum InvestorCampaignStatus {
+  DRAFT
+  APPROVED
+  RUNNING
+  PAUSED
+  STOPPED
+  DONE
+}
+
+model InvestorCampaign {
+  id              String                 @id @default(cuid())
+  projectId       String                 @map("project_id")
+  userId          String                 @map("user_id")
+  name            String
+  status          InvestorCampaignStatus @default(DRAFT)
+  templateSubject String                 @default("") @map("template_subject")
+  templateBody    String                 @default("") @map("template_body") @db.Text
+  /// Extra first-email variants: [{ subject, body }]. Each target gets one deterministically.
+  variants        Json                   @default("[]")
+  followUpBody    String                 @default("") @map("follow_up_body") @db.Text
+  dailyLimit      Int                    @default(20) @map("daily_limit")
+  sendWindowStart Int                    @default(9) @map("send_window_start")
+  sendWindowEnd   Int                    @default(17) @map("send_window_end")
+  timezone        String                 @default("UTC")
+  followUpDays    Int[]                  @map("follow_up_days")
+  maxFollowUps    Int                    @default(2) @map("max_follow_ups")
+  approvedAt      DateTime?              @map("approved_at")
+  approvedBy      String?                @map("approved_by")
+  acknowledgedAt  DateTime?              @map("acknowledged_at")
+  pausedReason    String?                @map("paused_reason")
+  createdAt       DateTime               @default(now()) @map("created_at")
+  updatedAt       DateTime               @updatedAt @map("updated_at")
+
+  targets InvestorCampaignTarget[]
+
+  @@index([status, updatedAt])
+  @@index([userId, projectId, createdAt])
+  @@map("investor_campaigns")
+}
+
+model InvestorCampaignTarget {
+  id         String    @id @default(cuid())
+  campaignId String    @map("campaign_id")
+  investorId String    @map("investor_id")
+  email      String
+  sourceUrl  String    @map("source_url")
+  /// ACTIVE | COMPLETED | STOPPED_REPLY | STOPPED_BOUNCE | STOPPED_OPTOUT | STOPPED_MANUAL | SKIPPED
+  status     String    @default("ACTIVE")
+  stopReason String?   @map("stop_reason")
+  stepsSent  Int       @default(0) @map("steps_sent")
+  nextSendAt DateTime? @map("next_send_at")
+  lastSentAt DateTime? @map("last_sent_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  campaign InvestorCampaign       @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  sends    InvestorCampaignSend[]
+
+  @@unique([campaignId, investorId])
+  @@index([email])
+  @@index([campaignId, status, nextSendAt])
+  @@map("investor_campaign_targets")
+}
+
+model InvestorCampaignSend {
+  id         String   @id @default(cuid())
+  campaignId String   @map("campaign_id")
+  targetId   String   @map("target_id")
+  /// 0 = first email, 1.. = follow-ups.
+  step       Int
+  /// SENDING (claimed) | SENT | BOUNCED
+  status     String   @default("SENDING")
+  subject    String
+  body       String   @db.Text
+  error      String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  target InvestorCampaignTarget @relation(fields: [targetId], references: [id], onDelete: Cascade)
+
+  /// Idempotency: one email per target per step, ever.
+  @@unique([targetId, step])
+  @@index([campaignId, createdAt])
+  @@map("investor_campaign_sends")
+}
+
+/// Recorded evidence that an investor agreed to an AI call (and optionally to recording).
+model InvestorConsent {
+  id         String    @id @default(cuid())
+  userId     String    @map("user_id")
+  projectId  String    @map("project_id")
+  investorId String    @map("investor_id")
+  /// AI_CALL | CALL_RECORDING
+  type       String
+  evidence   String    @db.Text
+  /// Phone the consent was given for; consent lapses if the number changes.
+  phone      String?
+  obtainedAt DateTime  @map("obtained_at")
+  revokedAt  DateTime? @map("revoked_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@index([investorId, type, createdAt])
+  @@index([userId, projectId])
+  @@map("investor_consents")
+}
+
+model InvestorVoiceCall {
+  id             String    @id @default(cuid())
+  userId         String    @map("user_id")
+  projectId      String    @map("project_id")
+  investorId     String    @map("investor_id")
+  /// QUEUED | IN_PROGRESS | COMPLETED | NO_ANSWER | FAILED | CANCELLED
+  status         String    @default("QUEUED")
+  toNumber       String    @map("to_number")
+  fromNumber     String    @map("from_number")
+  transferNumber String?   @map("transfer_number")
+  providerSid    String?   @map("provider_sid")
+  recording      Boolean   @default(false)
+  turns          Int       @default(0)
+  /// [{ role: "ai" | "investor", text }]
+  transcript     Json      @default("[]")
+  summary        String?   @db.Text
+  /// CALL_OUTCOMES value from the CRM call log.
+  outcome        String?
+  transferred    Boolean   @default(false)
+  error          String?
+  startedAt      DateTime? @map("started_at")
+  endedAt        DateTime? @map("ended_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  @@index([investorId, createdAt])
+  @@index([userId, projectId, createdAt])
+  @@map("investor_voice_calls")
+}
+
+model InvestorMeetingRequest {
+  id         String   @id @default(cuid())
+  userId     String   @map("user_id")
+  projectId  String   @map("project_id")
+  investorId String   @map("investor_id")
+  callId     String?  @map("call_id")
+  note       String   @db.Text
+  /// OPEN | DONE
+  status     String   @default("OPEN")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([userId, projectId, status])
+  @@index([investorId])
+  @@map("investor_meeting_requests")
+}
+
+enum DeploymentEnvironment {
+  STAGING
+  PRODUCTION
+}
+
+/// A launch-readiness run for a project. `results` holds the per-check
+/// PASS/WARN/FAIL/NOT_VERIFIED outcomes with evidence. Approval records the
+/// owner's decision, including whether warnings were explicitly acknowledged.
+model LaunchReport {
+  id                   String                @id @default(cuid())
+  projectId            String                @map("project_id")
+  environment          DeploymentEnvironment @default(PRODUCTION)
+  results              Json                  @default("[]")
+  failCount            Int                   @default(0) @map("fail_count")
+  warnCount            Int                   @default(0) @map("warn_count")
+  deploymentVersion    Int?                  @map("deployment_version")
+  approvedAt           DateTime?             @map("approved_at")
+  approvedById         String?               @map("approved_by_id")
+  acknowledgedWarnings Boolean               @default(false) @map("acknowledged_warnings")
+  createdAt            DateTime              @default(now()) @map("created_at")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, environment, createdAt])
+  @@map("launch_reports")
+}
+
+enum AgentScopeType {
+  PLATFORM
+  PROJECT
+}
+
+enum OrchestratorAgent {
+  MARKETING_DIRECTOR
+  CONTENT
+  SOCIAL_MANAGER
+  CUSTOMER_ENGAGEMENT
+  INVESTOR
+  VOICE_MESSAGING
+  GROWTH_ANALYST
+}
+
+enum AgentMode {
+  ASSIST
+  APPROVAL
+  AUTONOMOUS
+}
+
+enum AgentActivityStatus {
+  PLANNED
+  AWAITING_APPROVAL
+  RUNNING
+  DONE
+  FAILED
+  BLOCKED
+}
+
+/// Per-scope agent configuration. scopeId is "PLATFORM" for the platform scope, else the project id.
+model AgentSetting {
+  id               String            @id @default(cuid())
+  scopeType        AgentScopeType    @map("scope_type")
+  scopeId          String            @map("scope_id")
+  agent            OrchestratorAgent
+  mode             AgentMode         @default(ASSIST)
+  enabled          Boolean           @default(false)
+  paused           Boolean           @default(false)
+  /// Categories allowed to run autonomously, e.g. ["social_post"].
+  categories       Json              @default("[]")
+  dailyActionLimit Int               @default(20) @map("daily_action_limit")
+  dailyBudgetCents Int               @default(0) @map("daily_budget_cents")
+  authorisedBy     String?           @map("authorised_by")
+  authorisedAt     DateTime?         @map("authorised_at")
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+
+  @@unique([scopeType, scopeId, agent])
+  @@map("agent_settings")
+}
+
+/// Audit trail and approval queue for every agent action. Summaries are redacted before storage.
+model AgentActivity {
+  id             String              @id @default(cuid())
+  scopeType      AgentScopeType      @map("scope_type")
+  scopeId        String              @map("scope_id")
+  agent          OrchestratorAgent
+  action         String
+  category       String              @default("general")
+  risk           String              @default("LOW")
+  status         AgentActivityStatus @default(PLANNED)
+  sources        Json?
+  tool           String?
+  inputSummary   String?             @map("input_summary") @db.Text
+  /// Redacted, non-secret data an executor needs to run the action after approval.
+  payload        Json?
+  resultSummary  String?             @map("result_summary") @db.Text
+  decisionReason String?             @map("decision_reason")
+  costCents      Int                 @default(0) @map("cost_cents")
+  creditsCharged Int?                @map("credits_charged")
+  error          String?             @db.Text
+  retryOf        String?             @map("retry_of")
+  idempotencyKey String?             @unique @map("idempotency_key")
+  decidedBy      String?             @map("decided_by")
+  decidedAt      DateTime?           @map("decided_at")
+  createdAt      DateTime            @default(now()) @map("created_at")
+  updatedAt      DateTime            @updatedAt @map("updated_at")
+
+  @@index([scopeType, scopeId, createdAt])
+  @@index([status, createdAt])
+  @@index([agent, createdAt])
+  @@map("agent_activities")
+}
+
+/// Kill switch rows: scope "GLOBAL" pauses every agent and automation, "PLATFORM" only platform automations.
+model AgentKillSwitch {
+  scope     String   @id
+  paused    Boolean  @default(false)
+  reason    String?
+  updatedBy String?  @map("updated_by")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@map("agent_kill_switches")
+}
+
+// ---------------------------------------------------------------------------
+// Marketing credits (separate from build credits) and internal marketing cost
+// ---------------------------------------------------------------------------
+
+enum CampaignBilling {
+  APPWEAVER_INTERNAL
+  CUSTOMER_MARKETING
+}
+
+enum MarketingCreditSource {
+  PURCHASED
+  PROMO
+  SUBSCRIPTION
+  REFUND
+}
+
+enum MarketingLedgerKind {
+  PURCHASE
+  GRANT
+  RESERVE
+  SETTLE
+  RELEASE
+  REFUND
+  EXPIRY
+  ADJUSTMENT
+}
+
+enum MarketingReservationStatus {
+  RESERVED
+  SETTLED
+  RELEASED
+  REFUNDED
+}
+
+/// One wallet per billing owner (the workspace owner). `available` excludes `reserved`.
+model MarketingWallet {
+  userId                String    @id @map("user_id")
+  available             Int       @default(0)
+  reserved              Int       @default(0)
+  /// Admin-configured facility: how far below zero `available` may go. 0 = never negative.
+  overdraftLimit        Int       @default(0) @map("overdraft_limit")
+  lowBalanceThreshold   Int?      @map("low_balance_threshold")
+  lowBalanceAlertSentAt DateTime? @map("low_balance_alert_sent_at")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  @@map("marketing_wallets")
+}
+
+/// Tracks the unspent part of each grant so promo credits can expire.
+model MarketingCreditLot {
+  id        String                @id @default(cuid())
+  userId    String                @map("user_id")
+  source    MarketingCreditSource
+  amount    Int
+  remaining Int
+  expiresAt DateTime?             @map("expires_at")
+  refId     String?               @map("ref_id")
+  createdAt DateTime              @default(now()) @map("created_at")
+
+  @@index([userId, remaining, expiresAt])
+  @@index([expiresAt])
+  @@map("marketing_credit_lots")
+}
+
+/// Append-only (a database trigger rejects UPDATE and DELETE). `delta` changes the
+/// total balance (available + reserved); `reservedDelta` moves credits into/out of reservation.
+model MarketingLedger {
+  id             String                 @id @default(cuid())
+  userId         String                 @map("user_id")
+  /// Organisation (workspace id, or `user:<id>` when no workspace applies) for reporting.
+  orgId          String?                @map("org_id")
+  projectId      String?                @map("project_id")
+  kind           MarketingLedgerKind
+  delta          Int
+  reservedDelta  Int                    @default(0) @map("reserved_delta")
+  operation      String?
+  reservationId  String?                @map("reservation_id")
+  refType        String?                @map("ref_type")
+  refId          String?                @map("ref_id")
+  source         MarketingCreditSource?
+  costCents      Int?                   @map("cost_cents")
+  balanceAfter   Int                    @map("balance_after")
+  note           String?                @db.Text
+  idempotencyKey String                 @unique @map("idempotency_key")
+  createdAt      DateTime               @default(now()) @map("created_at")
+
+  @@index([userId, createdAt])
+  @@index([orgId, createdAt])
+  @@index([projectId, createdAt])
+  @@index([kind, createdAt])
+  @@map("marketing_ledger")
+}
+
+model MarketingReservation {
+  id             String                     @id @default(cuid())
+  userId         String                     @map("user_id")
+  orgId          String?                    @map("org_id")
+  projectId      String?                    @map("project_id")
+  operation      String
+  billing        CampaignBilling            @default(CUSTOMER_MARKETING)
+  maxCredits     Int                        @map("max_credits")
+  settledCredits Int?                       @map("settled_credits")
+  status         MarketingReservationStatus @default(RESERVED)
+  idempotencyKey String                     @unique @map("idempotency_key")
+  refType        String?                    @map("ref_type")
+  refId          String?                    @map("ref_id")
+  expiresAt      DateTime                   @map("expires_at")
+  createdAt      DateTime                   @default(now()) @map("created_at")
+  updatedAt      DateTime                   @updatedAt @map("updated_at")
+
+  @@index([status, expiresAt])
+  @@index([userId, status])
+  @@index([projectId, createdAt])
+  @@map("marketing_reservations")
+}
+
+/// What AppWeaver itself spends on its own marketing. Never touches customer wallets.
+model InternalMarketingCost {
+  id                 String          @id @default(cuid())
+  billing            CampaignBilling @default(APPWEAVER_INTERNAL)
+  operation          String
+  provider           String
+  estimatedCostCents Int             @map("estimated_cost_cents")
+  actualCostCents    Int?            @map("actual_cost_cents")
+  refType            String?         @map("ref_type")
+  refId              String?         @map("ref_id")
+  adminId            String?         @map("admin_id")
+  createdAt          DateTime        @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@index([operation, createdAt])
+  @@map("internal_marketing_costs")
+}
+
+/// Versioned, admin-managed price list. A change inserts a new version; old rows are preserved.
+model MarketingPriceItem {
+  id               String   @id @default(cuid())
+  operation        String
+  version          Int
+  name             String
+  description      String   @default("") @db.Text
+  creditCost       Int      @map("credit_cost")
+  /// e.g. {"type":"per_unit","unit":"second"} - creditCost is then the price per unit.
+  rule             Json?
+  provider         String?
+  model            String?
+  /// Estimated provider cost in cents per priced unit, when known (margin reporting).
+  costCents        Float?   @map("cost_cents")
+  /// Max charge = ceil(estimate * maxFactor); passthrough items use a factor above 1.
+  maxFactor        Float    @default(1) @map("max_factor")
+  planRestrictions String[] @map("plan_restrictions")
+  billable         Boolean  @default(true)
+  maxPerPeriod     Int?     @map("max_per_period")
+  effectiveFrom    DateTime @default(now()) @map("effective_from")
+  createdById      String?  @map("created_by_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  @@unique([operation, version])
+  @@index([operation, effectiveFrom])
+  @@map("marketing_price_items")
+}
+
+model MarketingPackage {
+  id         String   @id @default(cuid())
+  name       String
+  credits    Int
+  priceCents Int      @map("price_cents")
+  currency   String   @default("usd")
+  active     Boolean  @default(true)
+  sortOrder  Int      @default(0) @map("sort_order")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("marketing_packages")
+}
+
+model MarketingPurchase {
+  id              String   @id @default(cuid())
+  userId          String   @map("user_id")
+  packageId       String?  @map("package_id")
+  packageName     String   @map("package_name")
+  credits         Int
+  amountCents     Int      @map("amount_cents")
+  currency        String
+  stripeSessionId String   @unique @map("stripe_session_id")
+  paymentIntentId String?  @unique @map("payment_intent_id")
+  stripeEventId   String?  @map("stripe_event_id")
+  receiptUrl      String?  @map("receipt_url")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([userId, createdAt])
+  @@map("marketing_purchases")
+}
+
+/// Per-project spend limits for recurring/scheduled marketing jobs.
+model MarketingProjectBudget {
+  projectId    String    @id @map("project_id")
+  dayLimit     Int?      @map("day_limit")
+  weekLimit    Int?      @map("week_limit")
+  monthLimit   Int?      @map("month_limit")
+  pausedAt     DateTime? @map("paused_at")
+  pausedReason String?   @map("paused_reason")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  @@map("marketing_project_budgets")
+}
+
+/// Admin controls per organisation (workspace id, or `user:<id>`).
+model MarketingOrgControl {
+  orgId           String    @id @map("org_id")
+  suspendedAt     DateTime? @map("suspended_at")
+  suspendedReason String?   @map("suspended_reason")
+  /// Max credits the org may consume per calendar month; null = unlimited.
+  monthlyLimit    Int?      @map("monthly_limit")
+  updatedById     String?   @map("updated_by_id")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@map("marketing_org_controls")
+}
+
+// -----------------------------------------------------------------------------
+// Configurable daily content pipeline (platform house content + per-project)
+// -----------------------------------------------------------------------------
+
+enum ContentRunStatus {
+  RUNNING
+  WAITING
+  SUCCEEDED
+  PARTIAL
+  FAILED
+}
+
+model ContentPipeline {
+  id                    String         @id @default(cuid())
+  scope                 AgentScopeType
+  /// "PLATFORM" or the project id; unique so each scope has one pipeline.
+  scopeKey              String         @unique @map("scope_key")
+  projectId             String?        @map("project_id")
+  /// User whose wallet/video quota is used; for PLATFORM it must be an admin (internal billing).
+  ownerUserId           String         @map("owner_user_id")
+  enabled               Boolean        @default(false)
+  paused                Boolean        @default(false)
+  /// Local wall-clock "HH:MM" in timeZone at which the daily run starts.
+  timeOfDay             String         @default("09:00") @map("time_of_day")
+  timeZone              String         @default("UTC") @map("time_zone")
+  postsPerDay           Int            @default(1) @map("posts_per_day")
+  platforms             String[]
+  languages             String[]
+  /// Subset of post, image, video.
+  contentTypes          String[]       @map("content_types")
+  /// Local "HH:MM" slots used to schedule the generated posts.
+  preferredPostTimes    String[]       @map("preferred_post_times")
+  /// Agent categories (e.g. social_post) allowed to be auto-approved by this pipeline.
+  autoPublishCategories String[]       @map("auto_publish_categories")
+  objective             String         @default("") @db.Text
+  lastRunAt             DateTime?      @map("last_run_at")
+  /// Daily spend ceiling in marketing credits (customer scope); 0 = no extra cap.
+  maxDailyCredits       Int            @default(0) @map("max_daily_credits")
+  createdAt             DateTime       @default(now()) @map("created_at")
+  updatedAt             DateTime       @updatedAt @map("updated_at")
+
+  runs ContentRun[]
+
+  @@index([enabled, scope])
+  @@map("content_pipelines")
+}
+
+model ContentRun {
+  id          String           @id @default(cuid())
+  pipelineId  String           @map("pipeline_id")
+  /// Local calendar day (YYYY-MM-DD) in the pipeline time zone: one run per pipeline per day.
+  runDate     String           @map("run_date")
+  status      ContentRunStatus @default(RUNNING)
+  /// Per-step state and results keyed by step name.
+  steps       Json             @default("{}")
+  errors      Json             @default("[]")
+  lockedUntil DateTime?        @map("locked_until")
+  trigger     String           @default("cron")
+  startedAt   DateTime         @default(now()) @map("started_at")
+  finishedAt  DateTime?        @map("finished_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+
+  pipeline ContentPipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+
+  @@unique([pipelineId, runDate])
+  @@index([status, updatedAt])
+  @@map("content_runs")
+}
+
+// ---------------------------------------------------------------------------
+// Unified inbox (webchat, email, WhatsApp, SMS, Messenger, Instagram DMs)
+// ---------------------------------------------------------------------------
+
+enum MessageChannel {
+  WEBCHAT
+  EMAIL
+  WHATSAPP
+  SMS
+  FACEBOOK
+  INSTAGRAM
+}
+
+enum ConversationStatus {
+  OPEN
+  ESCALATED
+  RESOLVED
+}
+
+enum MessageDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum MessageDeliveryStatus {
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+/// One thread with one contact on one channel. Scope PLATFORM = AppWeaver itself, PROJECT = a customer project.
+model Conversation {
+  id               String             @id @default(cuid())
+  scopeType        AgentScopeType     @map("scope_type")
+  scopeId          String             @map("scope_id")
+  channel          MessageChannel
+  externalThreadId String             @map("external_thread_id")
+  /// Channel address of the contact: E.164 phone, email, or page-scoped id. Treated as personal data.
+  contactRef       String             @map("contact_ref")
+  contactName      String?            @map("contact_name")
+  leadId           String?            @map("lead_id")
+  status           ConversationStatus @default(OPEN)
+  assignedTo       String?            @map("assigned_to")
+  /// When true the AI never answers this conversation.
+  humanTakeover    Boolean            @default(false) @map("human_takeover")
+  isReview         Boolean            @default(false) @map("is_review")
+  language         String?
+  category         String?
+  summary          String?            @db.Text
+  lastMessageAt    DateTime           @default(now()) @map("last_message_at")
+  /// Last message from the contact; drives the 24h customer-service window on WhatsApp, Messenger and Instagram.
+  lastInboundAt    DateTime?          @map("last_inbound_at")
+  createdAt        DateTime           @default(now()) @map("created_at")
+  updatedAt        DateTime           @updatedAt @map("updated_at")
+
+  messages InboxMessage[]
+
+  @@unique([scopeType, scopeId, channel, externalThreadId], map: "conversations_thread_key")
+  @@index([scopeType, scopeId, status, lastMessageAt])
+  @@map("conversations")
+}
+
+model InboxMessage {
+  id                String                 @id @default(cuid())
+  conversationId    String                 @map("conversation_id")
+  channel           MessageChannel
+  direction         MessageDirection
+  body              String                 @db.Text
+  attachments       Json?
+  /// Provider id (wamid, Twilio SID, Meta mid, email Message-ID). Unique per channel so retried webhooks are no-ops.
+  providerMessageId String?                @map("provider_message_id")
+  deliveryStatus    MessageDeliveryStatus? @map("delivery_status")
+  aiGenerated       Boolean                @default(false) @map("ai_generated")
+  /// Unsent AI or human draft waiting in the inbox.
+  isDraft           Boolean                @default(false) @map("is_draft")
+  category          String?
+  /// Knowledge entries the draft was built from.
+  sources           Json?
+  agentActivityId   String?                @map("agent_activity_id")
+  error             String?
+  createdAt         DateTime               @default(now()) @map("created_at")
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@unique([channel, providerMessageId])
+  @@index([conversationId, createdAt])
+  @@map("inbox_messages")
+}
+
+/// Credentials for one channel of one scope. `config` is AES-GCM encrypted JSON (lib/crypto/secret-box).
+model ChannelConnection {
+  id          String         @id @default(cuid())
+  scopeType   AgentScopeType @map("scope_type")
+  scopeId     String         @map("scope_id")
+  channel     MessageChannel
+  /// Non-secret provider account id used to route webhooks (phone number id, page id, Twilio number).
+  accountId   String?        @map("account_id")
+  config      String         @db.Text
+  status      String         @default("ACTIVE")
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+
+  @@unique([scopeType, scopeId, channel])
+  @@index([channel, accountId])
+  @@map("channel_connections")
+}
+
+/// Per contact+channel opt-in/opt-out; checked before every outbound message.
+model ContactConsent {
+  id        String         @id @default(cuid())
+  scopeType AgentScopeType @map("scope_type")
+  scopeId   String         @map("scope_id")
+  channel   MessageChannel
+  contact   String
+  optIn     Boolean        @default(false) @map("opt_in")
+  optOut    Boolean        @default(false) @map("opt_out")
+  source    String
+  createdAt DateTime       @default(now()) @map("created_at")
+  updatedAt DateTime       @updatedAt @map("updated_at")
+
+  @@unique([scopeType, scopeId, channel, contact])
+  @@map("contact_consents")
+}
+
+/// AppWeaver's own product facts for the platform-scope inbox; never mixed with ProjectKnowledge.
+model PlatformKnowledge {
+  id        String   @id @default(cuid())
+  title     String
+  content   String   @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("platform_knowledge")
+}
+
+enum MediaKind {
+  IMAGE
+  VIDEO
+}
+
+enum MediaVisibility {
+  PRIVATE
+  PUBLIC
+}
+
+enum MediaAssetStatus {
+  READY
+  FAILED
+}
+
+/// An uploaded marketing image or video. Posts reference it as `media://<id>`; the URL is resolved (and re-signed) at publish time.
+model MediaAsset {
+  id           String           @id @default(cuid())
+  /// "PLATFORM" or the project id; every object key is scoped by it.
+  scopeKey     String           @map("scope_key")
+  projectId    String?          @map("project_id")
+  ownerUserId  String?          @map("owner_user_id")
+  kind         MediaKind
+  visibility   MediaVisibility  @default(PRIVATE)
+  status       MediaAssetStatus @default(READY)
+  key          String           @unique
+  contentType  String           @map("content_type")
+  sizeBytes    Int              @map("size_bytes")
+  sha256       String
+  error        String?          @db.Text
+  contentRunId String?          @map("content_run_id")
+  videoJobId   String?          @map("video_job_id")
+  linkedType   String?          @map("linked_type")
+  linkedId     String?          @map("linked_id")
+  createdAt    DateTime         @default(now()) @map("created_at")
+  updatedAt    DateTime         @updatedAt @map("updated_at")
+
+  @@index([scopeKey, createdAt])
+  @@index([contentRunId])
+  @@index([videoJobId])
+  @@index([linkedType, linkedId])
+  @@map("media_assets")
+}
+
+/// Every provider delivery event processed once; the unique event id makes retried status webhooks no-ops.
+model MessageStatusEvent {
+  id                String         @id @default(cuid())
+  channel           MessageChannel
+  /// Provider event id, e.g. "<MessageSid>:delivered" (Twilio) or "<wamid>:read" (WhatsApp).
+  eventId           String         @map("event_id")
+  providerMessageId String         @map("provider_message_id")
+  /// QUEUED | SENT | DELIVERED | READ | FAILED
+  status            String
+  errorCode         String?        @map("error_code")
+  errorMessage      String?        @map("error_message")
+  createdAt         DateTime       @default(now()) @map("created_at")
+
+  @@unique([channel, eventId])
+  @@index([channel, providerMessageId])
+  @@map("message_status_events")
+}
+
+/// Suppression list: nothing is sent to a suppressed contact on that channel until they opt back in.
+model MessagingSuppression {
+  id        String         @id @default(cuid())
+  scopeType AgentScopeType @map("scope_type")
+  scopeId   String         @map("scope_id")
+  channel   MessageChannel
+  contact   String
+  /// STOP | UNSUBSCRIBE | MANUAL ... (the keyword or reason that caused it)
+  reason    String
+  source    String
+  createdAt DateTime       @default(now()) @map("created_at")
+
+  @@unique([scopeType, scopeId, channel, contact])
+  @@map("messaging_suppressions")
+}
+
+/// Evidence behind a marketing / lead opt-in: where, when and what the contact agreed to.
+model ConsentProof {
+  id         String         @id @default(cuid())
+  scopeType  AgentScopeType @map("scope_type")
+  scopeId    String         @map("scope_id")
+  channel    MessageChannel
+  contact    String
+  source     String
+  proof      String         @db.Text
+  capturedAt DateTime       @map("captured_at")
+  createdAt  DateTime       @default(now()) @map("created_at")
+
+  @@index([scopeType, scopeId, channel, contact])
+  @@map("consent_proofs")
+}
+
+/// Result of the last live provider check; a channel is AVAILABLE only while this is VERIFIED for the current credentials.
+model ChannelVerification {
+  id          String         @id @default(cuid())
+  scopeType   AgentScopeType @map("scope_type")
+  scopeId     String         @map("scope_id")
+  channel     MessageChannel
+  /// VERIFIED | FAILED
+  status      String
+  /// Hash of the credentials that were checked, so changing them invalidates the verification.
+  fingerprint String
+  detail      String?
+  errorCode   String?        @map("error_code")
+  checkedAt   DateTime       @default(now()) @map("checked_at")
+
+  @@unique([scopeType, scopeId, channel])
+  @@map("channel_verifications")
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { sendAlert } from '@/lib/alerts';
+import { isAgentPaused } from '@/lib/agents/pause';
 import { hasBearerSecret } from '@/lib/rate-limit';
 import { processSocialReplies } from '@/lib/social/replies/process';
 
@@ -23,6 +24,9 @@ export async function GET(request: Request) {
   }
 
   try {
+    if (await isAgentPaused('CUSTOMER_ENGAGEMENT')) {
+      return NextResponse.json({ success: true, paused: true });
+    }
     return NextResponse.json({ success: true, ...(await processSocialReplies()) });
   } catch (error) {
     console.error('[cron/social-replies] failed:', error);

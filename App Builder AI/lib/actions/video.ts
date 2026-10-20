@@ -1,7 +1,10 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { randomUUID } from 'node:crypto';
 
+import { videoChargeKey } from '@/lib/credits/keys';
+import { getMarketingHint, withMarketingCredits } from '@/lib/marketing-credits/run';
 import { requireUserId } from '@/lib/auth/require-user';
 import { prisma } from '@/lib/prisma';
 import { rateLimit } from '@/lib/rate-limit';
@@ -160,6 +163,10 @@ export type SceneQuote = {
   providerLabel: string;
   mode: 'TEXT' | 'IMAGE';
   remainingThisMonth: number;
+  /** Marketing credits charged for this scene (0 for internal/platform runs). */
+  credits: number;
+  maxCredits: number;
+  creditBalance: number;
 };
 
 function sceneRequest(scene: { prompt: string; seconds: number; referenceImageKey: string | null }) {
@@ -180,6 +187,7 @@ export async function quoteSceneAction(sceneId: string): Promise<Ok<{ quote: Sce
   const request = sceneRequest(scene);
   const planned = await planVideo({ userId, ...request });
   if (!planned.ok) return planned;
+  const hint = await getMarketingHint(userId, 'video_per_second', { seconds: request.seconds });
   return {
     ok: true,
     quote: {
@@ -188,6 +196,9 @@ export async function quoteSceneAction(sceneId: string): Promise<Ok<{ quote: Sce
       providerLabel: planned.plan.providerLabel,
       mode: request.mode,
       remainingThisMonth: planned.remainingThisMonth,
+      credits: hint.quote.credits,
+      maxCredits: hint.quote.maxCredits,
+      creditBalance: hint.available,
     },
   };
 }
@@ -217,15 +228,32 @@ export async function generateSceneAction(
     }
   }
 
-  const result = await createVideoJob({
-    userId,
-    ...sceneRequest(scene),
-    prompt: scene.prompt,
-    inputImageKey: scene.referenceImageKey,
-    sceneId: scene.id,
-    videoProjectId: scene.videoProjectId,
-    confirmedCostCents,
-  });
+  const idempotencyKey = randomUUID();
+  const request = sceneRequest(scene);
+  const charged = await withMarketingCredits(
+    {
+      userId,
+      operation: 'video_per_second',
+      params: { seconds: request.seconds },
+      refType: 'VideoScene',
+      refId: scene.id,
+      idempotencyKey: videoChargeKey(idempotencyKey),
+      isFailure: (r: Awaited<ReturnType<typeof createVideoJob>>) => !r.ok,
+    },
+    () =>
+      createVideoJob({
+        userId,
+        ...request,
+        prompt: scene.prompt,
+        inputImageKey: scene.referenceImageKey,
+        sceneId: scene.id,
+        videoProjectId: scene.videoProjectId,
+        confirmedCostCents,
+        idempotencyKey,
+      }),
+  );
+  if (!charged.ok) return { ok: false, error: charged.error };
+  const result = charged.value;
   if (!result.ok) return result;
   revalidatePath(PAGE);
   return { ok: true, jobId: result.jobId };

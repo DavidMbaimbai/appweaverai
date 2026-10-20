@@ -3,7 +3,11 @@ import path from 'node:path';
 
 import { prisma } from '@/lib/prisma';
 
-import { publishedSnapshotDir } from './snapshot';
+import {
+  publishedSnapshotDir,
+  snapshotRoot,
+  type SnapshotEnvironment,
+} from './snapshot';
 
 const VERSIONS_ROOT = path.join(process.cwd(), '.published-versions');
 
@@ -16,13 +20,14 @@ export async function saveVersionSnapshot(
   projectId: string,
   version: number,
   artifactSlugs: string[],
+  environment: SnapshotEnvironment = 'PRODUCTION',
 ) {
   const target = versionDir(projectId, version);
   await rm(target, { recursive: true, force: true });
   await mkdir(target, { recursive: true });
 
   for (const slug of artifactSlugs) {
-    await cp(publishedSnapshotDir(projectId, slug), path.join(target, slug), {
+    await cp(publishedSnapshotDir(projectId, slug, environment), path.join(target, slug), {
       recursive: true,
     }).catch((error: NodeJS.ErrnoException) => {
       if (error.code !== 'ENOENT') throw error;
@@ -42,10 +47,11 @@ export async function hasVersionSnapshot(projectId: string, version: number) {
 export async function restoreVersionSnapshot(
   projectId: string,
   version: number,
+  environment: SnapshotEnvironment = 'PRODUCTION',
 ) {
   const source = versionDir(projectId, version);
   const slugs = await readdir(source);
-  const liveRoot = path.dirname(publishedSnapshotDir(projectId, 'x'));
+  const liveRoot = snapshotRoot(projectId, environment);
 
   await rm(liveRoot, { recursive: true, force: true });
   await mkdir(liveRoot, { recursive: true });
@@ -67,13 +73,15 @@ export async function enforceDeploymentRetention(
   const deployments = await prisma.deployment.findMany({
     where: { projectId },
     orderBy: { version: 'desc' },
-    select: { id: true, version: true, isCurrent: true },
+    select: { id: true, version: true, isCurrent: true, environment: true, status: true },
   });
 
   const retained = new Set(
     deployments.slice(0, Math.max(1, keep)).map((d) => d.id),
   );
-  const expired = deployments.filter((d) => !retained.has(d.id) && !d.isCurrent);
+  const isLive = (d: (typeof deployments)[number]) =>
+    d.isCurrent || (d.environment === 'STAGING' && d.status === 'LIVE');
+  const expired = deployments.filter((d) => !retained.has(d.id) && !isLive(d));
   if (expired.length === 0) return 0;
 
   await prisma.deployment.deleteMany({

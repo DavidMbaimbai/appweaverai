@@ -38,6 +38,11 @@ export const ADMIN_NAV_ITEMS: AdminNavItem[] = [
   { label: 'Outreach', href: '/admin/outreach', permission: 'outreach:read' },
   { label: 'Video', href: '/admin/video', permission: 'video:read' },
   { label: 'Observatory', href: '/admin/observatory', permission: 'observatory:read' },
+  { label: 'Command Centre', href: '/admin/command-centre', permission: 'commandcentre:read' },
+  { label: 'Inbox', href: '/admin/inbox', permission: 'inbox:read' },
+  { label: 'Content Pipeline', href: '/admin/content-pipeline', permission: 'contentpipeline:read' },
+  { label: 'Marketing Pricing', href: '/admin/marketing-pricing', permission: 'marketing-pricing:write' },
+  { label: 'Marketing Reports', href: '/admin/marketing-reports', permission: 'marketing-reports:read' },
   { label: 'Settings', href: '/admin/settings', permission: 'settings:read' },
 ];
 

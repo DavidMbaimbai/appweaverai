@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { sendAlert } from '@/lib/alerts';
+import { isAgentPaused } from '@/lib/agents/pause';
 import { hasBearerSecret } from '@/lib/rate-limit';
 import { ensureAdvertQueue } from '@/lib/social/adverts';
 import { publishNextDueSocialPost } from '@/lib/social/publish';
@@ -27,6 +28,9 @@ export async function GET(request: Request) {
   }
 
   try {
+    if (await isAgentPaused('SOCIAL_MANAGER')) {
+      return NextResponse.json({ success: true, paused: true });
+    }
     const adverts = await ensureAdvertQueue();
     return NextResponse.json({
       success: true,

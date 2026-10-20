@@ -43,8 +43,41 @@ describe('hasPermission', () => {
       const expected =
         permission.endsWith(':read') &&
         permission !== 'outreach:read' &&
-        permission !== 'observatory:read';
+        permission !== 'observatory:read' &&
+        permission !== 'commandcentre:read' &&
+        permission !== 'marketing-reports:read' &&
+        permission !== 'contentpipeline:read' &&
+        permission !== 'inbox:read';
       expect(hasPermission('ANALYTICS_VIEWER', permission)).toBe(expected);
+    }
+  });
+
+  it('gives the unified inbox to support and admin roles only', () => {
+    for (const role of ['SUPER_ADMIN', 'ADMIN', 'SUPPORT_ADMIN'] as const) {
+      expect(hasPermission(role, 'inbox:read')).toBe(true);
+      expect(hasPermission(role, 'inbox:write')).toBe(true);
+    }
+    for (const role of ['FINANCE_ADMIN', 'SECURITY_ADMIN', 'ANALYTICS_VIEWER'] as const) {
+      expect(hasPermission(role, 'inbox:read')).toBe(false);
+      expect(hasPermission(role, 'inbox:write')).toBe(false);
+    }
+  });
+
+  it('limits the command centre to ADMIN and SUPER_ADMIN', () => {
+    expect(hasPermission('ADMIN', 'commandcentre:write')).toBe(true);
+    expect(hasPermission('SUPER_ADMIN', 'commandcentre:read')).toBe(true);
+    for (const role of ['SUPPORT_ADMIN', 'FINANCE_ADMIN', 'SECURITY_ADMIN', 'ANALYTICS_VIEWER'] as const) {
+      expect(hasPermission(role, 'commandcentre:read')).toBe(false);
+      expect(hasPermission(role, 'commandcentre:write')).toBe(false);
+    }
+  });
+
+  it('limits the content pipeline to ADMIN and SUPER_ADMIN', () => {
+    expect(hasPermission('ADMIN', 'contentpipeline:write')).toBe(true);
+    expect(hasPermission('SUPER_ADMIN', 'contentpipeline:read')).toBe(true);
+    for (const role of ['SUPPORT_ADMIN', 'FINANCE_ADMIN', 'SECURITY_ADMIN', 'ANALYTICS_VIEWER'] as const) {
+      expect(hasPermission(role, 'contentpipeline:read')).toBe(false);
+      expect(hasPermission(role, 'contentpipeline:write')).toBe(false);
     }
   });
 
@@ -62,6 +95,26 @@ describe('hasPermission', () => {
     expect(hasPermission('ANALYTICS_VIEWER', 'video:write')).toBe(false);
     expect(hasPermission('SUPPORT_ADMIN', 'video:write')).toBe(false);
     expect(hasPermission('FINANCE_ADMIN', 'video:write')).toBe(false);
+  });
+
+  it('lets finance, support and admin roles adjust credits but not security or analytics roles', () => {
+    expect(hasPermission('SUPER_ADMIN', 'credits:write')).toBe(true);
+    expect(hasPermission('ADMIN', 'credits:write')).toBe(true);
+    expect(hasPermission('FINANCE_ADMIN', 'credits:write')).toBe(true);
+    expect(hasPermission('SUPPORT_ADMIN', 'credits:write')).toBe(true);
+    expect(hasPermission('SECURITY_ADMIN', 'credits:write')).toBe(false);
+    expect(hasPermission('ANALYTICS_VIEWER', 'credits:write')).toBe(false);
+  });
+
+  it('limits marketing pricing edits to super admin and admin; reports to finance too', () => {
+    expect(hasPermission('SUPER_ADMIN', 'marketing-pricing:write')).toBe(true);
+    expect(hasPermission('ADMIN', 'marketing-pricing:write')).toBe(true);
+    for (const role of ['FINANCE_ADMIN', 'SUPPORT_ADMIN', 'SECURITY_ADMIN', 'ANALYTICS_VIEWER'] as const) {
+      expect(hasPermission(role, 'marketing-pricing:write')).toBe(false);
+    }
+    expect(hasPermission('FINANCE_ADMIN', 'marketing-reports:read')).toBe(true);
+    expect(hasPermission('ANALYTICS_VIEWER', 'marketing-reports:read')).toBe(false);
+    expect(hasPermission('SUPPORT_ADMIN', 'marketing-reports:read')).toBe(false);
   });
 
   it('lets SECURITY_ADMIN ban users and manage security, but not payments', () => {

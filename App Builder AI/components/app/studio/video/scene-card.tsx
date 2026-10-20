@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
 import { useToast } from '@/components/ui/toast';
 import {
@@ -313,6 +314,21 @@ export function SceneCard({
             You have {quote.remainingThisMonth} video{quote.remainingThisMonth === 1 ? '' : 's'} left this
             month.
           </p>
+          {quote.credits > 0 ? (
+            <p>
+              This costs <strong>{quote.credits} marketing credits</strong>
+              {quote.maxCredits > quote.credits ? ` (max ${quote.maxCredits})` : ''}. Your balance: {quote.creditBalance}.
+              {quote.creditBalance < quote.maxCredits ? (
+                <>
+                  {' '}
+                  <Link href="/app/marketing-credits" className="font-medium text-appweaver-orange underline">
+                    Top up marketing credits
+                  </Link>
+                  .
+                </>
+              ) : null}
+            </p>
+          ) : null}
           <div className="flex gap-2">
             <button type="button" disabled={pending} onClick={confirm}
               className="rounded-lg bg-appweaver-orange px-4 py-1.5 text-sm font-medium text-white disabled:opacity-50">

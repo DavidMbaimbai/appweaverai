@@ -4,6 +4,7 @@ import type Stripe from 'stripe';
 import { prisma } from '@/lib/prisma';
 import { syncUserSubscription } from '@/lib/billing/stripe-subscription';
 import { grantPlanCredits } from '@/lib/billing/credits';
+import { grantPurchase } from '@/lib/marketing-credits/purchase';
 import {
   PAID_PLAN_LABELS,
   sendPaymentReceiptEmail,
@@ -84,6 +85,29 @@ export async function POST(request: Request) {
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session;
+        if (session.metadata?.kind === 'marketing_credits') {
+          const credits = Number(session.metadata.credits);
+          if (
+            session.metadata.userId &&
+            session.payment_status === 'paid' &&
+            Number.isInteger(credits) &&
+            credits > 0
+          ) {
+            await grantPurchase({
+              userId: session.metadata.userId,
+              packageId: session.metadata.packageId,
+              packageName: session.metadata.packageName ?? 'Marketing credits',
+              credits,
+              amountCents: session.amount_total ?? 0,
+              currency: session.currency ?? 'usd',
+              stripeSessionId: session.id,
+              paymentIntentId:
+                typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id,
+              stripeEventId: event.id,
+            });
+          }
+          break;
+        }
         const userId = session.metadata?.userId;
         const customerId =
           typeof session.customer === 'string'

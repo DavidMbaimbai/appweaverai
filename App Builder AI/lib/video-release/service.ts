@@ -2,6 +2,7 @@ import type { Prisma } from '@/lib/generated/prisma/client';
 import { zonedTimeToUtc } from '@/lib/ads/schedule';
 import { prisma } from '@/lib/prisma';
 import { normalizeHashtags } from '@/lib/project-marketing/logic';
+import { withMarketingCredits } from '@/lib/marketing-credits/run';
 import { getVideoObjectSize, getVideoStorageConfig } from '@/lib/video/storage';
 
 import {
@@ -107,7 +108,19 @@ export async function scheduleReleases(userId: string, input: ScheduleInput): Pr
   if (others.length > 0) {
     let localized: VariantCopy[];
     try {
-      localized = await localizeCopy(copy, others);
+      const paid = await withMarketingCredits(
+        {
+          userId,
+          projectId: null,
+          operation: 'translation',
+          params: { units: others.length },
+          refType: 'VideoRelease',
+          isFailure: (v: VariantCopy[]) => others.some((l) => !v.some((x) => x.language === l)),
+        },
+        () => localizeCopy(copy, others),
+      );
+      if (!paid.ok) return fail(paid.error);
+      localized = paid.value;
     } catch (error) {
       console.error('[video-release] localization failed:', error);
       return fail('Localization is unavailable right now. Try again or remove the extra languages.');

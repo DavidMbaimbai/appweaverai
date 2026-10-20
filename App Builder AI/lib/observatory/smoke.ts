@@ -95,8 +95,20 @@ async function assertPublicHost(url: URL) {
   }
 }
 
+export type GuardedResponse = {
+  status: number;
+  contentType: string;
+  body: string;
+  finalUrl: string;
+  /** Lower-cased response headers. */
+  headers?: Record<string, string>;
+};
+
 /** SSRF-safe: exact host allow-list, https, public DNS, manual same-host redirects, byte cap. */
-export async function guardedFetch(rawUrl: string, allowedHosts: string[]) {
+export async function guardedFetch(
+  rawUrl: string,
+  allowedHosts: string[],
+): Promise<GuardedResponse> {
   let current = rawUrl;
   for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
     const url = new URL(current);
@@ -137,7 +149,15 @@ export async function guardedFetch(rawUrl: string, allowedHosts: string[]) {
     } else {
       await response.body?.cancel().catch(() => null);
     }
-    return { status: response.status, contentType: type, body, finalUrl: url.toString() };
+    return {
+      status: response.status,
+      contentType: type,
+      body,
+      finalUrl: url.toString(),
+      headers: Object.fromEntries(
+        [...response.headers.entries()].map(([k, v]) => [k.toLowerCase(), v]),
+      ),
+    };
   }
   throw new Error('Too many redirects.');
 }

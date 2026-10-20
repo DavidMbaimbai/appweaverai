@@ -19,6 +19,9 @@ vi.mock('@/lib/prisma', () => ({
   },
 }));
 vi.mock('@/lib/email', () => ({ sendEmail: m.sendEmail }));
+vi.mock('@/lib/marketing-credits/system', () => ({
+  withScopeMarketing: async (_o: unknown, fn: () => Promise<unknown>) => ({ ok: true, value: await fn(), charged: 0 }),
+}));
 vi.mock('./ai', () => ({ analyzeReview: m.analyze }));
 
 import { processNewReview } from './service';

@@ -1,4 +1,5 @@
 import { sendAlert } from '@/lib/alerts';
+import { recordInternalOperation } from '@/lib/marketing-credits/internal-cost';
 import { prisma } from '@/lib/prisma';
 import { rateLimit } from '@/lib/rate-limit';
 import { generateSocialReply } from '@/lib/social/replies/generate';
@@ -158,6 +159,8 @@ export async function processSocialReplies(): Promise<RepliesResult> {
         authorName: item.authorName,
         text: item.text,
       });
+      // House account: no customer wallet, only the internal cost ledger.
+      await recordInternalOperation('engagement_reply', { refType: 'social_interaction', refId: item.id });
       const decision = decideReply({
         audience: draft.audience,
         confidence: draft.confidence,

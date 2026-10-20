@@ -12,6 +12,7 @@ import {
 } from '@/lib/ads/meta';
 import { adsToPause, MAX_ACTIVE_ADS, type AdStats } from '@/lib/ads/optimize';
 import { prisma } from '@/lib/prisma';
+import { recordInternalOperation } from '@/lib/marketing-credits/internal-cost';
 
 const SITE = 'https://appweaverai.com';
 
@@ -99,8 +100,10 @@ async function launchNewCreative(adSetId: string) {
   if (!copy) throw new Error('Ad copy failed validation.');
 
   const row = await prisma.adCreative.create({ data: { ...copy } });
+  await recordInternalOperation('ad_pack', { refType: 'AdCreative', refId: row.id });
   try {
     const hash = await uploadImage(await generateAdImage(copy.imagePrompt));
+    await recordInternalOperation('image', { refType: 'AdCreative', refId: row.id });
     const link = `${SITE}/?utm_source=facebook&utm_medium=paid&utm_campaign=aw_auto&utm_content=${row.id}`;
     const metaAdId = await createAd({
       name: `AW ${row.id}`,

@@ -12,6 +12,7 @@ import {
 } from './capabilities';
 import { notifyOwner } from './notify';
 import { loadVideoFacts, releaseProblems } from './service';
+import { finishScheduledSlot, holdScheduledSlot } from '@/lib/marketing-credits/run';
 import { afterFailure, claimForPublish, planDue, type Dueable } from './status';
 import { usableToken } from './tokens';
 
@@ -254,8 +255,25 @@ export async function runVideoReleases(now = new Date()): Promise<RunSummary> {
   }
 
   for (const row of plan.due.slice(0, MAX_PER_RUN)) {
-    if (!(await claimForPublish(prisma.videoRelease, row.id, row.attempts))) continue;
+    const slot = await holdScheduledSlot({
+      userId: row.userId,
+      projectId: null,
+      operation: 'publish_post',
+      slot: row.scheduledAt.toISOString(),
+      jobId: `vrelease:${row.id}`,
+    });
+    if (!slot.ok) {
+      if (slot.reason !== 'duplicate') summary.blocked++;
+      if (slot.reason !== 'duplicate') break;
+      continue;
+    }
+    if (!(await claimForPublish(prisma.videoRelease, row.id, row.attempts))) {
+      await finishScheduledSlot(slot.key, 'publish_post', false);
+      continue;
+    }
     await publishOne(row, summary);
+    const after = await prisma.videoRelease.findUnique({ where: { id: row.id }, select: { status: true } });
+    await finishScheduledSlot(slot.key, 'publish_post', after?.status === 'PUBLISHED').catch(() => undefined);
   }
 
   await refreshMetrics(now, summary);

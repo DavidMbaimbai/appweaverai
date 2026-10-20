@@ -32,6 +32,7 @@ export function UserActionsPanel({
   canWrite,
   canBan,
   canSetRole,
+  canAdjustCredits,
 }: {
   userId: string;
   accountStatus: AccountStatus;
@@ -39,6 +40,7 @@ export function UserActionsPanel({
   canWrite: boolean;
   canBan: boolean;
   canSetRole: boolean;
+  canAdjustCredits: boolean;
 }) {
   return (
     <div className="space-y-4">
@@ -84,7 +86,7 @@ export function UserActionsPanel({
         </div>
       </div>
 
-      {canWrite ? (
+      {canAdjustCredits ? (
         <CreditsForm userId={userId} />
       ) : null}
 

@@ -77,6 +77,34 @@ export function parseVariants(text: string): Array<{ subject: string | null; bod
   }
 }
 
+/** The only company facts any generator (email or voice) may use: what the founder entered in the profile. */
+export function buildFounderFacts(profile: {
+  companyName: string;
+  website: string;
+  description: string;
+  sector: string;
+  stage: string;
+  amountSought: number | null;
+  currency: string;
+  geography: string;
+  traction: string;
+  useOfFunds: string;
+}) {
+  return [
+    `Company: ${profile.companyName}`,
+    profile.website && `Website: ${profile.website}`,
+    `Description: ${profile.description}`,
+    profile.sector && `Sector: ${profile.sector}`,
+    profile.stage && `Stage: ${profile.stage}`,
+    profile.amountSought != null && `Seeking: ${profile.amountSought} ${profile.currency}`,
+    profile.geography && `Geography: ${profile.geography}`,
+    profile.traction && `Traction (founder-provided): ${profile.traction}`,
+    profile.useOfFunds && `Use of funds: ${profile.useOfFunds}`,
+  ]
+    .filter(Boolean)
+    .join('\n');
+}
+
 export async function generateOutreach(ctx: Ctx, investorId: string, kind: OutreachKind, variants = 2) {
   const investor = await requireInvestor(ctx, investorId);
   const profile = await getProfile(ctx);
@@ -99,19 +127,7 @@ export async function generateOutreach(ctx: Ctx, investorId: string, kind: Outre
     if (reason) throw new HubError(reason, 409);
   }
 
-  const facts = [
-    `Company: ${profile.companyName}`,
-    profile.website && `Website: ${profile.website}`,
-    `Description: ${profile.description}`,
-    profile.sector && `Sector: ${profile.sector}`,
-    profile.stage && `Stage: ${profile.stage}`,
-    profile.amountSought != null && `Seeking: ${profile.amountSought} ${profile.currency}`,
-    profile.geography && `Geography: ${profile.geography}`,
-    profile.traction && `Traction (founder-provided): ${profile.traction}`,
-    profile.useOfFunds && `Use of funds: ${profile.useOfFunds}`,
-  ]
-    .filter(Boolean)
-    .join('\n');
+  const facts = buildFounderFacts(profile);
 
   const response = await getAnthropicClient().messages.create({
     model: HUB_MODEL,

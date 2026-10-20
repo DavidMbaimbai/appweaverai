@@ -2,6 +2,9 @@ import { randomUUID } from 'node:crypto';
 
 import type { VideoJob, VideoJobMode } from '@/lib/generated/prisma/client';
 import { prisma } from '@/lib/prisma';
+import { videoChargeKey } from '@/lib/credits/keys';
+import { refundCharge } from '@/lib/credits/ledger';
+import { refundReservation } from '@/lib/marketing-credits/wallet';
 
 import { getVideoProvider, listVideoProviders } from './providers/registry';
 import {
@@ -288,7 +291,15 @@ async function failJob(id: string, error: string) {
   });
   if (update.count !== 1) return;
   const job = await prisma.videoJob.findUnique({ where: { id } });
-  if (job) await recordUsage(job, 'FAILURE');
+  if (job) {
+    await recordUsage(job, 'FAILURE');
+    await refundCharge(videoChargeKey(job.idempotencyKey), 'Refund: video generation failed').catch((err) =>
+      console.error('[video] credit refund failed:', err),
+    );
+    await refundReservation(videoChargeKey(job.idempotencyKey), 'Refund: video generation failed').catch((err) =>
+      console.error('[video] marketing credit refund failed:', err),
+    );
+  }
 }
 
 async function recordUsage(job: VideoJob, status: 'SUCCESS' | 'FAILURE') {
@@ -503,6 +514,14 @@ export async function cancelVideoJob(
     data: { status: 'CANCELLED', actualCostCents: billed ? job.estimatedCostCents : 0 },
   });
   if (update.count !== 1) return { ok: false, error: 'This video is already finished.' };
+  if (!billed) {
+    await refundCharge(videoChargeKey(job.idempotencyKey), 'Refund: video cancelled before generation').catch((err) =>
+      console.error('[video] credit refund failed:', err),
+    );
+    await refundReservation(videoChargeKey(job.idempotencyKey), 'Refund: video cancelled before generation').catch(
+      (err) => console.error('[video] marketing credit refund failed:', err),
+    );
+  }
 
   return {
     ok: true,

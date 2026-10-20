@@ -2,6 +2,8 @@ import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
 
 import { sendEmail } from '@/lib/email';
+import { handleCampaignInbound } from '@/lib/investor-hub/campaign-inbound';
+import { mirrorInboundEmail, mirrorOutboundEmail } from '@/lib/messaging/email-mirror';
 import { suppress } from '@/lib/outreach/process';
 import { rateLimit } from '@/lib/rate-limit';
 import { shouldAutoReply, REVIEW_NOTE } from '@/lib/support-inbox/filters';
@@ -80,6 +82,14 @@ export async function processSupportInbox(): Promise<InboxResult> {
         const parsed = await simpleParser(message.source);
         const sender = parsed.from?.value[0];
 
+        // Replies/bounces for investor campaigns are logged for the owner and never auto-answered.
+        const campaign = await handleCampaignInbound({ from: sender?.address, subject: parsed.subject, body: parsed.text });
+        if (campaign.handled) {
+          await client.messageFlagsAdd(String(uid), campaign.needsHuman ? ['\\Seen', '\\Flagged'] : ['\\Seen'], { uid: true });
+          result.held += 1;
+          continue;
+        }
+
         const decision = shouldAutoReply({
           fromAddress: sender?.address,
           ownAddresses,
@@ -87,6 +97,12 @@ export async function processSupportInbox(): Promise<InboxResult> {
           subject: parsed.subject,
           body: parsed.text,
         });
+
+        // Mirror into the unified inbox (record only; this mailbox keeps its own reply engine).
+        await mirrorInboundEmail(
+          { messageId: parsed.messageId, fromAddress: sender?.address, fromName: sender?.name, subject: parsed.subject, text: parsed.text },
+          decision.reason === REVIEW_NOTE,
+        );
 
         if (!decision.reply || !sender?.address) {
           // Reviews are never AI-answered; flag them so a human sees them.
@@ -150,6 +166,7 @@ export async function processSupportInbox(): Promise<InboxResult> {
           references,
           headers: { 'Auto-Submitted': 'auto-replied' },
         });
+        await mirrorOutboundEmail(sender.address, reply, /^re:/i.test(subject) ? subject : `Re: ${subject}`, true);
 
         const flags = escalate
           ? ['\\Seen', '\\Answered', '\\Flagged']

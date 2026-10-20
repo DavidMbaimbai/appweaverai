@@ -8,11 +8,18 @@ import {
   type DeploymentHistoryItem,
 } from '@/lib/actions/deployments';
 import { AppModalBackdrop } from '@/components/ui/app-modal';
+import {
+  getEnvironmentsOverviewAction,
+  promoteStagingToProductionAction,
+  publishToStagingAction,
+  setStagingProtectionAction,
+  type EnvironmentsOverview,
+} from '@/lib/actions/staging';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/toast';
 
-type Tab = 'deployments' | 'subdomain' | 'environment';
+type Tab = 'environments' | 'deployments' | 'subdomain' | 'environment';
 
 type HealthSummary = {
   last: {
@@ -34,9 +41,11 @@ type HostingPanelProps = {
   onClose: () => void;
   projectId: string;
   onRolledBack?: () => void;
+  launchHref?: string;
 };
 
 const TABS: { id: Tab; label: string }[] = [
+  { id: 'environments', label: 'Staging & production' },
   { id: 'deployments', label: 'Deployments' },
   { id: 'subdomain', label: 'Subdomain' },
   { id: 'environment', label: 'Environment' },
@@ -174,7 +183,11 @@ function DeploymentsTab({
                 <div className="text-xs text-app-text-secondary">
                   <p className="text-sm font-medium text-app-text">
                     v{item.version}
+                    {item.environment === 'STAGING' ? ' · staging' : ''}
                     {item.isCurrent ? ' · live' : ''}
+                    {item.promotedFromVersion
+                      ? ` · promoted from staging v${item.promotedFromVersion}`
+                      : ''}
                   </p>
                   <p>
                     {item.status.toLowerCase()} · {item.visibility} ·{' '}
@@ -196,6 +209,175 @@ function DeploymentsTab({
           </ul>
         )}
       </div>
+    </div>
+  );
+}
+
+function EnvironmentsTab({
+  projectId,
+  launchHref,
+  onChanged,
+}: {
+  projectId: string;
+  launchHref?: string;
+  onChanged?: () => void;
+}) {
+  const { success, error: toastError } = useToast();
+  const [overview, setOverview] = useState<EnvironmentsOverview | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [isPending, startTransition] = useTransition();
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const data = await getEnvironmentsOverviewAction(projectId);
+      if (cancelled) return;
+      if ('error' in data) toastError(data.error);
+      else setOverview(data);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId, reloadKey, toastError]);
+
+  const refresh = () => setReloadKey((key) => key + 1);
+
+  function run(task: () => Promise<{ error?: string } | object>, done: string) {
+    startTransition(async () => {
+      const result = (await task()) as { error?: string };
+      if (result.error) {
+        toastError(result.error);
+        return;
+      }
+      success(done);
+      onChanged?.();
+      refresh();
+    });
+  }
+
+  async function copy(url: string) {
+    try {
+      await navigator.clipboard.writeText(url);
+      success('Link copied.');
+    } catch {
+      toastError('Could not copy the link.');
+    }
+  }
+
+  if (!overview) {
+    return <p className="py-4 text-center text-sm text-app-text-muted">Loading…</p>;
+  }
+  const { staging, production } = overview;
+  const shareUrl = staging?.hostUrl ?? staging?.pathUrl ?? null;
+
+  return (
+    <div className="space-y-4">
+      <section className="space-y-2 rounded-xl border border-app-border-subtle px-4 py-3 text-xs text-app-text-secondary">
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-medium text-app-text">Staging</p>
+          <Button
+            type="button"
+            theme="app"
+            variant="secondary"
+            disabled={isPending}
+            onClick={() => run(() => publishToStagingAction(projectId), 'Published to staging.')}>
+            {staging ? 'Update staging' : 'Publish to staging'}
+          </Button>
+        </div>
+        {staging ? (
+          <>
+            <p>
+              v{staging.version}
+              {staging.publishedAt ? ` · ${new Date(staging.publishedAt).toLocaleString()}` : ''} ·{' '}
+              {staging.protected ? 'share link required' : 'open to anyone with the link'} · not
+              indexed by search engines
+            </p>
+            {shareUrl ? <p className="break-all font-mono text-app-text-muted">{shareUrl}</p> : null}
+            <div className="flex flex-wrap gap-2">
+              {shareUrl ? (
+                <Button type="button" theme="app" variant="secondary" onClick={() => copy(shareUrl)}>
+                  Copy link
+                </Button>
+              ) : null}
+              <Button
+                type="button"
+                theme="app"
+                variant="secondary"
+                disabled={isPending}
+                onClick={() =>
+                  run(
+                    () => setStagingProtectionAction(projectId, 'regenerate'),
+                    'New share link created. Old links no longer work.',
+                  )
+                }>
+                {staging.protected ? 'Regenerate link' : 'Protect with link'}
+              </Button>
+              {staging.protected ? (
+                <Button
+                  type="button"
+                  theme="app"
+                  variant="secondary"
+                  disabled={isPending}
+                  onClick={() =>
+                    run(() => setStagingProtectionAction(projectId, 'open'), 'Staging is now open.')
+                  }>
+                  Remove protection
+                </Button>
+              ) : null}
+            </div>
+            <p className="text-app-text-muted">
+              Staging uses the Staging variables from the Environment tab.
+            </p>
+          </>
+        ) : (
+          <p className="text-app-text-muted">
+            Nothing on staging yet. Staging is a private copy for checking changes before they go
+            live.
+          </p>
+        )}
+      </section>
+
+      <section className="space-y-2 rounded-xl border border-app-border-subtle px-4 py-3 text-xs text-app-text-secondary">
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-medium text-app-text">Production</p>
+          <Button
+            type="button"
+            theme="app"
+            disabled={isPending || !staging}
+            onClick={() =>
+              run(
+                () =>
+                  promoteStagingToProductionAction(
+                    projectId,
+                    production?.visibility ?? 'public',
+                  ),
+                'Staging promoted to production.',
+              )
+            }>
+            Promote staging
+          </Button>
+        </div>
+        {production ? (
+          <p>
+            v{production.version} · {production.visibility}
+            {production.promotedFromVersion
+              ? ` · promoted from staging v${production.promotedFromVersion}`
+              : ''}
+            {production.publishedAt ? ` · ${new Date(production.publishedAt).toLocaleString()}` : ''}
+          </p>
+        ) : (
+          <p className="text-app-text-muted">Not published yet.</p>
+        )}
+        <p className="text-app-text-muted">
+          Promoting copies the exact staged files to production; nothing is rebuilt. Roll back
+          either environment from the Deployments tab.
+        </p>
+        {launchHref ? (
+          <a href={launchHref} className="inline-block text-appweaver-orange hover:underline">
+            Open launch checklist
+          </a>
+        ) : null}
+      </section>
     </div>
   );
 }
@@ -294,7 +476,9 @@ function SubdomainTab({ projectId }: { projectId: string }) {
 
 function EnvironmentTab({ projectId }: { projectId: string }) {
   const { success, error: toastError } = useToast();
-  const [environment, setEnvironment] = useState<'PRODUCTION' | 'DEVELOPMENT'>('PRODUCTION');
+  const [environment, setEnvironment] = useState<'PRODUCTION' | 'STAGING' | 'DEVELOPMENT'>(
+    'PRODUCTION',
+  );
   const [vars, setVars] = useState<EnvVar[] | null>(null);
   const [limit, setLimit] = useState<number | null>(null);
   const [name, setName] = useState('');
@@ -350,7 +534,7 @@ function EnvironmentTab({ projectId }: { projectId: string }) {
   return (
     <div className="space-y-3">
       <div className="flex gap-2">
-        {(['PRODUCTION', 'DEVELOPMENT'] as const).map((env) => (
+        {(['PRODUCTION', 'STAGING', 'DEVELOPMENT'] as const).map((env) => (
           <button
             key={env}
             type="button"
@@ -363,14 +547,14 @@ function EnvironmentTab({ projectId }: { projectId: string }) {
                 ? 'rounded-full bg-app-surface-hover px-3 py-1 text-xs font-medium text-app-text'
                 : 'rounded-full px-3 py-1 text-xs text-app-text-muted hover:text-app-text'
             }>
-            {env === 'PRODUCTION' ? 'Production' : 'Development'}
+            {env === 'PRODUCTION' ? 'Production' : env === 'STAGING' ? 'Staging' : 'Development'}
           </button>
         ))}
       </div>
       <p className="text-xs text-app-text-muted">
         Values are encrypted and never shown again after saving; only names are
-        listed. There is no separate staging environment: Development is for
-        the editor, Production is for your published app.
+        listed. Development is for the editor, Staging is for your staging copy,
+        and Production is for your published app.
         {limit !== null ? ` Limit: ${limit} variables per environment.` : ''}
       </p>
 
@@ -432,8 +616,14 @@ function EnvironmentTab({ projectId }: { projectId: string }) {
   );
 }
 
-export function HostingPanel({ open, onClose, projectId, onRolledBack }: HostingPanelProps) {
-  const [tab, setTab] = useState<Tab>('deployments');
+export function HostingPanel({
+  open,
+  onClose,
+  projectId,
+  onRolledBack,
+  launchHref,
+}: HostingPanelProps) {
+  const [tab, setTab] = useState<Tab>('environments');
 
   return (
     <AppModalBackdrop
@@ -468,6 +658,9 @@ export function HostingPanel({ open, onClose, projectId, onRolledBack }: Hosting
           </button>
         </div>
         <div className="flex-1 overflow-y-auto px-5 py-4">
+          {open && tab === 'environments' ? (
+            <EnvironmentsTab projectId={projectId} launchHref={launchHref} onChanged={onRolledBack} />
+          ) : null}
           {open && tab === 'deployments' ? (
             <DeploymentsTab projectId={projectId} onRolledBack={onRolledBack} />
           ) : null}

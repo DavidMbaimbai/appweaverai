@@ -99,11 +99,11 @@ export function AppPromptInput({
   const hasAttachments = attachments.length > 0;
   const canSubmit = hasValue || hasAttachments;
 
-  useEffect(() => {
-    if (openAttachmentDialogSignal === undefined) return;
-    if (openAttachmentDialogSignal === 0) return;
-    setAttachmentDialogOpen(true);
-  }, [openAttachmentDialogSignal]);
+  const [handledSignal, setHandledSignal] = useState(openAttachmentDialogSignal);
+  if (openAttachmentDialogSignal !== handledSignal) {
+    setHandledSignal(openAttachmentDialogSignal);
+    if (openAttachmentDialogSignal) setAttachmentDialogOpen(true);
+  }
 
   const { isListening, isSupported, toggleListening, stopListening } =
     useSpeechRecognition({

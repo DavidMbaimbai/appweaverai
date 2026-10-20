@@ -5,6 +5,8 @@ import { getAnthropicClient } from '@/lib/anthropic';
 import { prisma } from '@/lib/prisma';
 import { requireUserId } from '@/lib/auth/require-user';
 import { rateLimit } from '@/lib/rate-limit';
+import { withCredits } from '@/lib/credits/with-credits';
+import { withMarketingCredits } from '@/lib/marketing-credits/run';
 import {
   isStudioToolId,
   MAX_BRIEF_LENGTH,
@@ -41,18 +43,37 @@ export async function runStudioAction(
     return { ok: false, error: `Hourly limit reached. Try again in ${limit.retryAfter}s.` };
   }
 
-  try {
-    if (toolId === 'image') {
-      return { ok: true, kind: 'image', imageBase64: await generateAdImage(text) };
+  const run = async (): Promise<StudioResult> => {
+    try {
+      if (toolId === 'image') {
+        return { ok: true, kind: 'image', imageBase64: await generateAdImage(text) };
+      }
+      const tool = STUDIO_TOOLS.find((t) => t.id === toolId);
+      const out = await generateText(tool?.task ?? '', text);
+      if (!out) return { ok: false, error: 'No result. Please try again.' };
+      return { ok: true, kind: 'text', text: out };
+    } catch (error) {
+      console.error('[studio] failed:', error);
+      return { ok: false, error: 'Generation failed. Please try again.' };
     }
-    const tool = STUDIO_TOOLS.find((t) => t.id === toolId);
-    const out = await generateText(tool?.task ?? '', text);
-    if (!out) return { ok: false, error: 'No result. Please try again.' };
-    return { ok: true, kind: 'text', text: out };
-  } catch (error) {
-    console.error('[studio] failed:', error);
-    return { ok: false, error: 'Generation failed. Please try again.' };
+  };
+  const isFailure = (r: StudioResult) => !r.ok;
+
+  // Images are marketing assets (marketing credits); text tools stay on build credits.
+  if (toolId === 'image') {
+    const paid = await withMarketingCredits(
+      { userId: auth.userId, operation: 'image', refType: 'StudioTool', refId: toolId, isFailure },
+      run,
+    );
+    return paid.ok ? paid.value : { ok: false, error: paid.error };
   }
+
+  const charged = await withCredits(auth.userId, 'studio_text', run, {
+    refType: 'StudioTool',
+    refId: toolId,
+    isFailure,
+  });
+  return charged.ok ? charged.value : { ok: false, error: charged.error };
 }
 
 async function generateText(task: string, brief: string) {
@@ -88,22 +109,30 @@ export async function generateLaunchKitAction(brief: unknown): Promise<LaunchKit
   }
 
   const task = (id: string) => STUDIO_TOOLS.find((t) => t.id === id)?.task ?? '';
-  try {
-    const brand = await generateText(task('brand-kit'), text);
-    const [adPack, plan, buildPrompt] = await Promise.all([
-      generateText(task('ad-pack'), `${text}\n\nBrand kit:\n${brand}`),
-      generateText(task('launch-plan'), `${text}\n\nBrand kit:\n${brand}`),
-      generateText(BUILD_PROMPT_TASK, `${text}\n\nBrand kit:\n${brand}`),
-    ]);
-    if (!brand || !adPack || !plan || !buildPrompt) {
-      return { ok: false, error: 'No result. Please try again.' };
-    }
-    await prisma.launchKit.create({
-      data: { userId: auth.userId, brief: text, brand, adPack, plan, buildPrompt: buildPrompt.slice(0, 1800) },
-    });
-    return { ok: true, brand, adPack, plan, buildPrompt: buildPrompt.slice(0, 1800) };
-  } catch (error) {
-    console.error('[studio] launch kit failed:', error);
-    return { ok: false, error: 'Generation failed. Please try again.' };
-  }
+  const charged = await withCredits(
+    auth.userId,
+    'launch_kit',
+    async (): Promise<LaunchKitResult> => {
+      try {
+        const brand = await generateText(task('brand-kit'), text);
+        const [adPack, plan, buildPrompt] = await Promise.all([
+          generateText(task('ad-pack'), `${text}\n\nBrand kit:\n${brand}`),
+          generateText(task('launch-plan'), `${text}\n\nBrand kit:\n${brand}`),
+          generateText(BUILD_PROMPT_TASK, `${text}\n\nBrand kit:\n${brand}`),
+        ]);
+        if (!brand || !adPack || !plan || !buildPrompt) {
+          return { ok: false, error: 'No result. Please try again.' };
+        }
+        await prisma.launchKit.create({
+          data: { userId: auth.userId, brief: text, brand, adPack, plan, buildPrompt: buildPrompt.slice(0, 1800) },
+        });
+        return { ok: true, brand, adPack, plan, buildPrompt: buildPrompt.slice(0, 1800) };
+      } catch (error) {
+        console.error('[studio] launch kit failed:', error);
+        return { ok: false, error: 'Generation failed. Please try again.' };
+      }
+    },
+    { refType: 'LaunchKit', isFailure: (r) => !r.ok },
+  );
+  return charged.ok ? charged.value : { ok: false, error: charged.error };
 }

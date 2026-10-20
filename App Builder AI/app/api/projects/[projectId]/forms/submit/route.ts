@@ -7,6 +7,7 @@ import {
   FormSubmissionError,
 } from '@/lib/forms/project-form-submissions';
 import { notifyFormSubmission } from '@/lib/forms/notify-submission';
+import { captureFromSubmission } from '@/lib/leads/service';
 import { clientIp, limitOrResponse } from '@/lib/rate-limit';
 
 const submitSchema = z.object({
@@ -69,6 +70,12 @@ export async function POST(
       formName: parsed.data.formName ?? 'contact',
       data: parsed.data.data,
     });
+    await captureFromSubmission(
+      projectId,
+      submission.id,
+      parsed.data.formName ?? 'contact',
+      parsed.data.data,
+    );
     return Response.json({ success: true, id: submission.id });
   } catch (error) {
     if (error instanceof FormSubmissionError) {

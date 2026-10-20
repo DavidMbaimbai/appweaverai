@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation';
 import { getCachedSession } from '../auth/cached';
 import { rateLimit } from '../rate-limit';
+import { withCredits } from '../credits/with-credits';
 import { fetchFigmaDesign } from '../design-import/figma';
 import { fetchWebsiteDesign } from '../design-import/url';
 import { designSpecToPrompt, screenshotPrompt } from '../design-import/to-prompt';
@@ -44,6 +45,21 @@ export async function importDesignAction(
   const notes = String(formData.get('notes') ?? '').slice(0, 2000);
   const planMode = formData.get('planMode') === 'true';
 
+  const charged = await withCredits(
+    gate.userId,
+    'design_import',
+    () => runImport(formData, kind, notes, planMode),
+    { refType: 'DesignImport', isFailure: (r) => Boolean(r?.error) },
+  );
+  return charged.ok ? charged.value : { error: charged.error };
+}
+
+async function runImport(
+  formData: FormData,
+  kind: string,
+  notes: string,
+  planMode: boolean,
+): Promise<DesignImportResult | undefined> {
   try {
     if (kind === 'figma') {
       const url = String(formData.get('figmaUrl') ?? '');

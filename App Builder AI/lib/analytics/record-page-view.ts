@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 
 import { prisma } from '@/lib/prisma';
+import type { Attribution } from '@/lib/ads/attribution-cookie';
 
 /**
  * Records one anonymous visit to a published project's public URL. Fires
@@ -22,12 +23,14 @@ export async function recordPageView({
   projectId,
   path,
   referrer,
+  utm,
   ip,
   userAgent,
 }: {
   projectId: string;
   path: string;
   referrer: string | null;
+  utm?: Attribution | null;
   ip: string | null;
   userAgent: string | null;
 }) {
@@ -43,6 +46,7 @@ export async function recordPageView({
         projectId,
         path: path.slice(0, 500),
         referrer: referrer ? referrer.slice(0, 500) : null,
+        ...(utm ? { utm } : {}),
         visitorId,
       },
     });

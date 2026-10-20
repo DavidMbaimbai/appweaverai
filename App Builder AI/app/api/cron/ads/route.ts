@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 
 import { runAdsCycle } from '@/lib/ads/run';
 import { sendAlert } from '@/lib/alerts';
+import { isAgentPaused } from '@/lib/agents/pause';
 import { hasBearerSecret } from '@/lib/rate-limit';
 
 export const maxDuration = 300;
@@ -20,6 +21,9 @@ export async function GET(request: Request) {
   }
 
   try {
+    if (await isAgentPaused('MARKETING_DIRECTOR')) {
+      return NextResponse.json({ success: true, paused: true });
+    }
     return NextResponse.json({ success: true, ...(await runAdsCycle()) });
   } catch (error) {
     console.error('[cron/ads] failed:', error);

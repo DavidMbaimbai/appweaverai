@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { encryptSecret } from '@/lib/crypto/secret-box';
 import { prisma } from '@/lib/prisma';
 
-export const ENV_ENVIRONMENTS = ['DEVELOPMENT', 'PRODUCTION'] as const;
+export const ENV_ENVIRONMENTS = ['DEVELOPMENT', 'STAGING', 'PRODUCTION'] as const;
 export type EnvEnvironment = (typeof ENV_ENVIRONMENTS)[number];
 
 /** Keys written by the platform (e.g. managed database); not editable here. */

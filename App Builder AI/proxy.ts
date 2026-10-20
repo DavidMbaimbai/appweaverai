@@ -6,6 +6,7 @@ import {
   attributionFromSearch,
 } from '@/lib/ads/attribution-cookie';
 import {
+  extractStagingLabel,
   extractSubdomainLabel,
   getAppRootDomain,
 } from '@/lib/domains/subdomain';
@@ -39,10 +40,12 @@ export async function proxy(request: NextRequest) {
   const hostHeader = request.headers.get('host') ?? '';
   const host = hostHeader.split(':')[0]?.toLowerCase() ?? '';
 
-  const subdomainLabel = extractSubdomainLabel(host);
+  const stagingLabel = extractStagingLabel(host);
+  const subdomainLabel = stagingLabel ? null : extractSubdomainLabel(host);
 
   if (
     !subdomainLabel &&
+    !stagingLabel &&
     (!host ||
       host === 'localhost' ||
       host === '127.0.0.1' ||
@@ -66,7 +69,9 @@ export async function proxy(request: NextRequest) {
 
   try {
     const lookupUrl = new URL('/api/domains/resolve', request.url);
-    if (subdomainLabel) {
+    if (stagingLabel) {
+      lookupUrl.searchParams.set('stagingSubdomain', stagingLabel);
+    } else if (subdomainLabel) {
       lookupUrl.searchParams.set('subdomain', subdomainLabel);
     } else {
       lookupUrl.searchParams.set('domain', host);
@@ -83,7 +88,11 @@ export async function proxy(request: NextRequest) {
         const suffix =
           request.nextUrl.pathname === '/' ? '' : request.nextUrl.pathname;
         rewritten.pathname = `${data.path}${suffix}`;
-        return NextResponse.rewrite(rewritten);
+        const rewrittenResponse = NextResponse.rewrite(rewritten);
+        if (stagingLabel) {
+          rewrittenResponse.headers.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
+        }
+        return rewrittenResponse;
       }
     }
   } catch {

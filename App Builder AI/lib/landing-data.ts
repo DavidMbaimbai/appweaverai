@@ -392,11 +392,22 @@ export const proSeatTiers = [
 
 export const footerColumns: NavGroup[] = [
   {
-    title: "Handy Links",
+    title: "Platform",
+    links: [
+      { label: "AI app builder", href: "/" },
+      { label: "Studio: brand and ads", href: "/app/studio" },
+      { label: "Video and scheduling", href: "/app/studio/video" },
+      { label: "Investor Hub", href: "/app/investors" },
+      { label: "Import a design or repo", href: "/import" },
+    ],
+  },
+  {
+    title: "Learn",
     links: [
       { label: "Vibe Coding 101", href: "/vibe-coding" },
-      { label: "How to guides", href: "/guides" },
-      { label: "Import from GitHub", href: "/import" },
+      { label: "How-to guides", href: "/guides" },
+      { label: "Race to Revenue", href: "/race-to-revenue" },
+      { label: "Resources", href: "/resources" },
       { label: "Help", href: "/help" },
       { label: "Status", href: "/status" },
     ],
@@ -405,24 +416,22 @@ export const footerColumns: NavGroup[] = [
     title: "Company",
     links: [
       { label: "About us", href: "/about" },
-      { label: "Brand", href: "/brand" },
-      { label: "Certifications", href: "/certifications" },
-      { label: "Careers", href: "/careers" },
-      { label: "Partnerships", href: "/partnerships" },
-      { label: "Education", href: "/education" },
       { label: "Startups", href: "/startups" },
-      { label: "Race to Revenue", href: "/race-to-revenue" },
-      { label: "Additional resources", href: "/resources" },
+      { label: "Education", href: "/education" },
+      { label: "Partnerships", href: "/partnerships" },
+      { label: "Careers", href: "/careers" },
+      { label: "Brand", href: "/brand" },
     ],
   },
   {
     title: "Legal",
     links: [
       { label: "Terms of service", href: "/terms" },
-      { label: "Commercial agreement", href: "/commercial" },
       { label: "Privacy", href: "/privacy" },
+      { label: "Commercial agreement", href: "/commercial" },
       { label: "Subprocessors", href: "/subprocessors" },
       { label: "DPA", href: "/dpa" },
+      { label: "Certifications", href: "/certifications" },
       { label: "Report abuse", href: "/report" },
     ],
   },

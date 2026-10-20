@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache';
 import { generateCustomerAdCopy } from '@/lib/ads/copy';
 import { listAssets } from '@/lib/ads/customer-oauth';
 import { generateAdImage } from '@/lib/ads/image';
+import { withMarketingCredits } from '@/lib/marketing-credits/run';
 import {
   createAd,
   createAdSet,
@@ -180,59 +181,65 @@ export async function launchCustomerAdAction(input: {
     };
   }
 
-  const copy = await generateCustomerAdCopy(brief).catch(() => null);
-  if (!copy) return { ok: false, error: 'Could not write a compliant ad. Try rewording your offer.' };
+  const charged = await withMarketingCredits(
+    { userId, operation: 'customer_ad', refType: 'CustomerAd', isFailure: (r: Result) => !r.ok },
+    async (): Promise<Result> => {
+      const copy = await generateCustomerAdCopy(brief).catch(() => null);
+      if (!copy) return { ok: false, error: 'Could not write a compliant ad. Try rewording your offer.' };
 
-  const row = await prisma.customerAd.create({
-    data: {
-      userId,
-      headline: copy.headline,
-      primaryText: copy.primaryText,
-      link: input.link,
-      dailyCents: daily,
-      startsAt,
-      endsAt,
-      status: 'DRAFT',
+      const row = await prisma.customerAd.create({
+        data: {
+          userId,
+          headline: copy.headline,
+          primaryText: copy.primaryText,
+          link: input.link,
+          dailyCents: daily,
+          startsAt,
+          endsAt,
+          status: 'DRAFT',
+        },
+      });
+
+      const ctx = ctxFor(loaded);
+      const scheduled = startsAt.getTime() > now.getTime();
+      try {
+        const hash = await uploadImage(await generateAdImage(copy.imagePrompt), ctx);
+        const campaignId = await createCampaign(`AppWeaver ad ${row.id}`, ctx);
+        const adSetId = await createAdSet(campaignId, `AppWeaver ad set ${row.id}`, ctx, {
+          dailyBudgetCents: daily,
+          startTime: scheduled ? startsAt.toISOString() : undefined,
+          endTime: endsAt.toISOString(),
+        });
+        const metaAdId = await createAd(
+          {
+            name: `AppWeaver ad ${row.id}`,
+            adSetId,
+            imageHash: hash,
+            headline: copy.headline,
+            primaryText: copy.primaryText,
+            link: input.link,
+          },
+          ctx,
+        );
+        await prisma.customerAd.update({
+          where: { id: row.id },
+          data: { status: scheduled ? 'SCHEDULED' : 'ACTIVE', metaAdId, metaCampaign: campaignId },
+        });
+        revalidatePath('/app/studio');
+        return {
+          ok: true,
+          message: scheduled
+            ? `Your ad "${copy.headline}" is scheduled for ${startsAt.toUTCString()}.`
+            : `Your ad is live: "${copy.headline}". Meta may still review it.`,
+        };
+      } catch (error) {
+        console.error('[meta-ads] launch failed:', error);
+        await prisma.customerAd.update({ where: { id: row.id }, data: { status: 'FAILED' } });
+        return { ok: false, error: 'Meta rejected the launch. Nothing was spent.' };
+      }
     },
-  });
-
-  const ctx = ctxFor(loaded);
-  const scheduled = startsAt.getTime() > now.getTime();
-  try {
-    const hash = await uploadImage(await generateAdImage(copy.imagePrompt), ctx);
-    const campaignId = await createCampaign(`AppWeaver ad ${row.id}`, ctx);
-    const adSetId = await createAdSet(campaignId, `AppWeaver ad set ${row.id}`, ctx, {
-      dailyBudgetCents: daily,
-      startTime: scheduled ? startsAt.toISOString() : undefined,
-      endTime: endsAt.toISOString(),
-    });
-    const metaAdId = await createAd(
-      {
-        name: `AppWeaver ad ${row.id}`,
-        adSetId,
-        imageHash: hash,
-        headline: copy.headline,
-        primaryText: copy.primaryText,
-        link: input.link,
-      },
-      ctx,
-    );
-    await prisma.customerAd.update({
-      where: { id: row.id },
-      data: { status: scheduled ? 'SCHEDULED' : 'ACTIVE', metaAdId, metaCampaign: campaignId },
-    });
-    revalidatePath('/app/studio');
-    return {
-      ok: true,
-      message: scheduled
-        ? `Your ad "${copy.headline}" is scheduled for ${startsAt.toUTCString()}.`
-        : `Your ad is live: "${copy.headline}". Meta may still review it.`,
-    };
-  } catch (error) {
-    console.error('[meta-ads] launch failed:', error);
-    await prisma.customerAd.update({ where: { id: row.id }, data: { status: 'FAILED' } });
-    return { ok: false, error: 'Meta rejected the launch. Nothing was spent.' };
-  }
+  );
+  return charged.ok ? charged.value : { ok: false, error: charged.error };
 }
 
 export async function pauseCustomerAdAction(adId: string): Promise<Result> {

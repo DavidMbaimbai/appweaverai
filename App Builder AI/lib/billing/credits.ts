@@ -1,4 +1,4 @@
-import { prisma } from '@/lib/prisma';
+import { resetCreditBalance } from '@/lib/credits/ledger';
 import type { PaidPlanId } from '@/lib/stripe';
 
 /**
@@ -35,28 +35,6 @@ export async function grantPlanCredits(
   const amount = PLAN_MONTHLY_CREDITS[planId];
   if (!amount) return;
 
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    select: { creditBalance: true },
-  });
-  if (!user) return;
-
-  const delta = amount - user.creditBalance;
-  if (delta === 0) return;
-
-  await prisma.$transaction([
-    prisma.user.update({
-      where: { id: userId },
-      data: { creditBalance: amount, lowCreditsAlertSentAt: null },
-    }),
-    prisma.creditAdjustment.create({
-      data: {
-        userId,
-        amount: delta,
-        reason,
-        // Automated system grants aren't attributed to a support admin.
-        adminId: 'system',
-      },
-    }),
-  ]);
+  // Automated system grants aren't attributed to a support admin.
+  await resetCreditBalance(userId, amount, reason, 'system');
 }
