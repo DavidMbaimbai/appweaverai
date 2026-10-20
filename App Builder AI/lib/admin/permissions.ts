@@ -47,6 +47,9 @@ export const ADMIN_PERMISSIONS = [
   'contentpipeline:write',
   'inbox:read',
   'inbox:write',
+  'meetings:read',
+  'meetings:write',
+  'meetings:notes',
 ] as const;
 
 export type AdminPermission = (typeof ADMIN_PERMISSIONS)[number];
@@ -62,7 +65,8 @@ const READ_ONLY_PERMISSIONS = new Set<AdminPermission>(
       permission !== 'commandcentre:read' &&
       permission !== 'marketing-reports:read' &&
       permission !== 'contentpipeline:read' &&
-      permission !== 'inbox:read',
+      permission !== 'inbox:read' &&
+      permission !== 'meetings:read',
   ),
 );
 
@@ -105,6 +109,9 @@ const ROLE_PERMISSIONS: Record<AdminRole, Set<AdminPermission>> = {
     'contentpipeline:write',
     'inbox:read',
     'inbox:write',
+    'meetings:read',
+    'meetings:write',
+    'meetings:notes',
   ]),
   FINANCE_ADMIN: new Set<AdminPermission>([
     'dashboard:read',
@@ -133,6 +140,8 @@ const ROLE_PERMISSIONS: Record<AdminRole, Set<AdminPermission>> = {
     'feedback:write',
     'inbox:read',
     'inbox:write',
+    'meetings:read',
+    'meetings:write',
   ]),
   ANALYTICS_VIEWER: READ_ONLY_PERMISSIONS,
   SECURITY_ADMIN: new Set<AdminPermission>([

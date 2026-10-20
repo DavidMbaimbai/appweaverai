@@ -58,9 +58,14 @@ vi.mock('@/lib/prisma', () => {
         rows().push(row);
         return row;
       },
-      createMany: async ({ data }: { data: Row[] }) => {
-        for (const d of data) await t.create({ data: d });
-        return { count: data.length };
+      createMany: async ({ data, skipDuplicates }: { data: Row[]; skipDuplicates?: boolean }) => {
+        let count = 0;
+        for (const d of data) {
+          if (skipDuplicates && uniqueHit(d)) continue;
+          await t.create({ data: d });
+          count += 1;
+        }
+        return { count };
       },
       update: async ({ where, data }: { where: Row; data: Row }) => {
         const row = rows().find((r) => matches(r, where));

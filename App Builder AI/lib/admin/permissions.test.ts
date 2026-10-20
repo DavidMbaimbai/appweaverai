@@ -47,8 +47,19 @@ describe('hasPermission', () => {
         permission !== 'commandcentre:read' &&
         permission !== 'marketing-reports:read' &&
         permission !== 'contentpipeline:read' &&
-        permission !== 'inbox:read';
+        permission !== 'inbox:read' &&
+        permission !== 'meetings:read';
       expect(hasPermission('ANALYTICS_VIEWER', permission)).toBe(expected);
+    }
+  });
+
+  it('gives meetings to admin roles, private notes only to ADMIN and above', () => {
+    expect(hasPermission('SUPPORT_ADMIN', 'meetings:write')).toBe(true);
+    expect(hasPermission('SUPPORT_ADMIN', 'meetings:notes')).toBe(false);
+    expect(hasPermission('ADMIN', 'meetings:notes')).toBe(true);
+    for (const role of ['FINANCE_ADMIN', 'SECURITY_ADMIN', 'ANALYTICS_VIEWER'] as const) {
+      expect(hasPermission(role, 'meetings:read')).toBe(false);
+      expect(hasPermission(role, 'meetings:notes')).toBe(false);
     }
   });
 
