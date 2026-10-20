@@ -32,6 +32,8 @@ export const ADMIN_PERMISSIONS = [
   'feedback:write',
   'sso:read',
   'sso:write',
+  'outreach:read',
+  'outreach:write',
 ] as const;
 
 export type AdminPermission = (typeof ADMIN_PERMISSIONS)[number];
@@ -39,7 +41,9 @@ export type AdminPermission = (typeof ADMIN_PERMISSIONS)[number];
 const ALL_PERMISSIONS = new Set<AdminPermission>(ADMIN_PERMISSIONS);
 
 const READ_ONLY_PERMISSIONS = new Set<AdminPermission>(
-  ADMIN_PERMISSIONS.filter((permission) => permission.endsWith(':read')),
+  ADMIN_PERMISSIONS.filter(
+    (permission) => permission.endsWith(':read') && permission !== 'outreach:read',
+  ),
 );
 
 const ROLE_PERMISSIONS: Record<AdminRole, Set<AdminPermission>> = {
@@ -66,6 +70,8 @@ const ROLE_PERMISSIONS: Record<AdminRole, Set<AdminPermission>> = {
     'feedback:write',
     'sso:read',
     'sso:write',
+    'outreach:read',
+    'outreach:write',
   ]),
   FINANCE_ADMIN: new Set<AdminPermission>([
     'dashboard:read',

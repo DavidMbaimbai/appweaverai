@@ -39,7 +39,8 @@ describe('hasPermission', () => {
 
   it('restricts ANALYTICS_VIEWER to read-only permissions', () => {
     for (const permission of ADMIN_PERMISSIONS) {
-      const expected = permission.endsWith(':read');
+      // outreach:read exposes investor data, so analytics viewers don't get it.
+      const expected = permission.endsWith(':read') && permission !== 'outreach:read';
       expect(hasPermission('ANALYTICS_VIEWER', permission)).toBe(expected);
     }
   });

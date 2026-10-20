@@ -2,8 +2,9 @@ import { ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
 
 import { sendEmail } from '@/lib/email';
+import { suppress } from '@/lib/outreach/process';
 import { rateLimit } from '@/lib/rate-limit';
-import { shouldAutoReply } from '@/lib/support-inbox/filters';
+import { shouldAutoReply, REVIEW_NOTE } from '@/lib/support-inbox/filters';
 import { generateSupportReply } from '@/lib/support-inbox/reply';
 
 const MAX_PER_RUN = 20;
@@ -88,7 +89,19 @@ export async function processSupportInbox(): Promise<InboxResult> {
         });
 
         if (!decision.reply || !sender?.address) {
+          // Reviews are never AI-answered; flag them so a human sees them.
+          if (decision.reason === REVIEW_NOTE) {
+            result.held += 1;
+            await client.messageFlagsAdd(String(uid), ['\\Seen', '\\Flagged'], { uid: true });
+            continue;
+          }
           result.skipped += 1;
+          // Someone telling us to stop must also never get investor outreach.
+          if (decision.reason === 'stop request' && sender?.address) {
+            await suppress(sender.address, 'replied with a stop request').catch((error) =>
+              console.error('[support-inbox] failed to record suppression:', error),
+            );
+          }
           await client.messageFlagsAdd(String(uid), ['\\Seen'], { uid: true });
           continue;
         }

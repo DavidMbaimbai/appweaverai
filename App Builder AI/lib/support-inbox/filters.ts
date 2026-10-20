@@ -10,6 +10,18 @@ export function isStopRequest(subject: string | undefined, body: string | undefi
   return STOP_PATTERN.test(subject ?? '') || STOP_PATTERN.test(firstLine);
 }
 
+// Reviews/ratings/testimonials about the product must only ever be answered by a
+// human. The match is deliberately broad: a false positive just leaves a message
+// for a person, while a miss would let the AI answer a review.
+const REVIEW_PATTERN =
+  /\b(reviews?|reviewed|ratings?|rated|testimonials?|trustpilot|capterra|g2(\.com)?|product ?hunt|app ?store|play ?store|stars?|[1-5](\.\d)?\s*(\/|out of)\s*5|would (highly )?recommend)\b/i;
+
+export const REVIEW_NOTE = 'user review: left for a human';
+
+export function looksLikeReview(...parts: (string | undefined | null)[]) {
+  return REVIEW_PATTERN.test(parts.filter(Boolean).join('\n'));
+}
+
 export type InboundHeaders = {
   get(name: string): unknown;
 };
@@ -36,6 +48,8 @@ export function shouldAutoReply({
   if (!from || !from.includes('@')) return { reply: false, reason: 'no sender' };
 
   if (isStopRequest(subject, body)) return { reply: false, reason: 'stop request' };
+
+  if (looksLikeReview(subject, body)) return { reply: false, reason: REVIEW_NOTE };
 
   if (ownAddresses.some((a) => a.trim().toLowerCase() === from)) {
     return { reply: false, reason: 'own address' };

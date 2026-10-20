@@ -53,8 +53,8 @@ model User {
   /// Timestamps used to avoid re-sending the same billing alert email
   /// repeatedly. Cleared automatically once the underlying condition
   /// resolves (credits topped up / subscription renews into a new period).
-  lowCreditsAlertSentAt      DateTime? @map("low_credits_alert_sent_at")
-  renewalReminderSentForEnd  DateTime? @map("renewal_reminder_sent_for_end")
+  lowCreditsAlertSentAt     DateTime? @map("low_credits_alert_sent_at")
+  renewalReminderSentForEnd DateTime? @map("renewal_reminder_sent_for_end")
 
   /// Admin Console: null means the user has no administrative access.
   adminRole AdminRole? @map("admin_role")
@@ -72,23 +72,23 @@ model User {
   accounts Account[]
   sessions Session[]
 
-  ownedWorkspaces      Workspace[]             @relation("WorkspaceOwner")
-  workspaceMemberships WorkspaceMember[]
-  createdProjects      Project[]               @relation("ProjectCreator")
-  projectMemberships   ProjectMember[]
-  projectPreferences   UserProjectPreference[]
-  workspaceInvitesSent WorkspaceInvitation[]   @relation("WorkspaceInviter")
-  projectInvitesSent   ProjectInvitation[]     @relation("ProjectInviter")
-  agentConversations   AgentConversation[]
-  deploymentsCreated   Deployment[]            @relation("DeploymentCreator")
-  projectCheckpointsCreated ProjectCheckpoint[] @relation("ProjectCheckpointCreator")
-  projectGithubLinksConnected ProjectGithubLink[] @relation("ProjectGithubLinkConnector")
-  githubConnection     UserGithubConnection?
-  settings             UserSettings?
+  ownedWorkspaces             Workspace[]             @relation("WorkspaceOwner")
+  workspaceMemberships        WorkspaceMember[]
+  createdProjects             Project[]               @relation("ProjectCreator")
+  projectMemberships          ProjectMember[]
+  projectPreferences          UserProjectPreference[]
+  workspaceInvitesSent        WorkspaceInvitation[]   @relation("WorkspaceInviter")
+  projectInvitesSent          ProjectInvitation[]     @relation("ProjectInviter")
+  agentConversations          AgentConversation[]
+  deploymentsCreated          Deployment[]            @relation("DeploymentCreator")
+  projectCheckpointsCreated   ProjectCheckpoint[]     @relation("ProjectCheckpointCreator")
+  projectGithubLinksConnected ProjectGithubLink[]     @relation("ProjectGithubLinkConnector")
+  githubConnection            UserGithubConnection?
+  settings                    UserSettings?
 
-  aiUsageEvents     AiUsageEvent[]
-  creditAdjustments CreditAdjustment[] @relation("CreditAdjustmentTarget")
-  flags             UserFlag[]         @relation("FlaggedUser")
+  aiUsageEvents          AiUsageEvent[]
+  creditAdjustments      CreditAdjustment[] @relation("CreditAdjustmentTarget")
+  flags                  UserFlag[]         @relation("FlaggedUser")
   ssoProvidersRegistered SsoProvider[]
 
   cliDeviceAuthorizations CliDeviceAuthorization[]
@@ -277,15 +277,15 @@ enum AuthReminderKind {
 /// finish within 30 minutes. Resolved automatically once the user
 /// verifies their email / resets their password / signs in successfully.
 model PendingAuthReminder {
-  id          String           @id @default(cuid())
-  email       String
-  kind        AuthReminderKind
-  createdAt   DateTime         @default(now()) @map("created_at")
+  id             String           @id @default(cuid())
+  email          String
+  kind           AuthReminderKind
+  createdAt      DateTime         @default(now()) @map("created_at")
   /// When the reminder email should go out (createdAt + 30 minutes),
   /// refreshed each time the user re-requests a code for the same flow.
-  remindAfter DateTime         @map("remind_after")
-  reminderSentAt DateTime?     @map("reminder_sent_at")
-  resolvedAt  DateTime?        @map("resolved_at")
+  remindAfter    DateTime         @map("remind_after")
+  reminderSentAt DateTime?        @map("reminder_sent_at")
+  resolvedAt     DateTime?        @map("resolved_at")
 
   @@index([kind, remindAfter, reminderSentAt, resolvedAt])
   @@index([email, kind])
@@ -398,37 +398,37 @@ model Project {
   /// SEO metadata surfaced for the published site: <title>/<meta
   /// description>, the Open Graph/Twitter share image, and a custom
   /// favicon. All optional — falls back to the project name when unset.
-  seoTitle       String? @map("seo_title")
-  seoDescription String? @map("seo_description") @db.Text
-  seoImageUrl    String? @map("seo_image_url")
-  faviconUrl     String? @map("favicon_url")
+  seoTitle          String? @map("seo_title")
+  seoDescription    String? @map("seo_description") @db.Text
+  seoImageUrl       String? @map("seo_image_url")
+  faviconUrl        String? @map("favicon_url")
   /// Where form-submission emails go; falls back to the project owner.
   notificationEmail String? @map("notification_email")
 
-  workspace     Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  createdBy     User                    @relation("ProjectCreator", fields: [createdById], references: [id], onDelete: Restrict)
-  members       ProjectMember[]
-  invitations   ProjectInvitation[]
-  preferences   UserProjectPreference[]
-  artifacts     Artifact[]
-  files         ProjectFile[]
-  databases     ProjectDatabase[]
-  storage       ProjectStorage?
-  githubLink    ProjectGithubLink?
+  workspace         Workspace                 @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy         User                      @relation("ProjectCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  members           ProjectMember[]
+  invitations       ProjectInvitation[]
+  preferences       UserProjectPreference[]
+  artifacts         Artifact[]
+  files             ProjectFile[]
+  databases         ProjectDatabase[]
+  storage           ProjectStorage?
+  githubLink        ProjectGithubLink?
   githubSyncedFiles ProjectGithubSyncedFile[]
-  customDomain  ProjectCustomDomain?
-  secrets       ProjectSecret[]
-  deployments   Deployment[]
-  checkpoints   ProjectCheckpoint[]
-  conversations AgentConversation[]
-  agentToolCalls AgentToolCall[]
-  aiUsageEvents AiUsageEvent[]
-  flags         ProjectFlag[]
-  pageViews     ProjectPageView[]
-  brandKit      ProjectBrandKit?
-  formSubmissions ProjectFormSubmission[]
-  remixedFrom   Project?                @relation("ProjectRemixes", fields: [remixedFromProjectId], references: [id], onDelete: SetNull)
-  remixes       Project[]               @relation("ProjectRemixes")
+  customDomain      ProjectCustomDomain?
+  secrets           ProjectSecret[]
+  deployments       Deployment[]
+  checkpoints       ProjectCheckpoint[]
+  conversations     AgentConversation[]
+  agentToolCalls    AgentToolCall[]
+  aiUsageEvents     AiUsageEvent[]
+  flags             ProjectFlag[]
+  pageViews         ProjectPageView[]
+  brandKit          ProjectBrandKit?
+  formSubmissions   ProjectFormSubmission[]
+  remixedFrom       Project?                  @relation("ProjectRemixes", fields: [remixedFromProjectId], references: [id], onDelete: SetNull)
+  remixes           Project[]                 @relation("ProjectRemixes")
 
   @@unique([workspaceId, slug])
   @@index([remixedFromProjectId])
@@ -603,25 +603,25 @@ model ProjectStorage {
 /// Tracks a project's linked GitHub repository for export/sync (ADM-parity with
 /// Lovable/Replit "Export to GitHub"). One project links to at most one repo.
 model ProjectGithubLink {
-  id             String    @id @default(cuid())
-  projectId      String    @unique @map("project_id")
-  repoOwner      String    @map("repo_owner")
-  repoName       String    @map("repo_name")
-  repoFullName   String    @map("repo_full_name")
-  defaultBranch  String    @default("main") @map("default_branch")
-  htmlUrl        String    @map("html_url")
-  private        Boolean   @default(true)
-  connectedById  String    @map("connected_by_id")
+  id                  String    @id @default(cuid())
+  projectId           String    @unique @map("project_id")
+  repoOwner           String    @map("repo_owner")
+  repoName            String    @map("repo_name")
+  repoFullName        String    @map("repo_full_name")
+  defaultBranch       String    @default("main") @map("default_branch")
+  htmlUrl             String    @map("html_url")
+  private             Boolean   @default(true)
+  connectedById       String    @map("connected_by_id")
   /// Git commit SHA of the last successful import or push, used to detect
   /// whether the remote branch has moved since (fast-forward safety check).
   lastSyncedCommitSha String?   @map("last_synced_commit_sha")
-  lastSyncedAt   DateTime? @map("last_synced_at")
-  lastSyncedById String?   @map("last_synced_by_id")
-  createdAt      DateTime  @default(now()) @map("created_at")
-  updatedAt      DateTime  @updatedAt @map("updated_at")
+  lastSyncedAt        DateTime? @map("last_synced_at")
+  lastSyncedById      String?   @map("last_synced_by_id")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
 
-  project      Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  connectedBy  User    @relation("ProjectGithubLinkConnector", fields: [connectedById], references: [id], onDelete: Restrict)
+  project     Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  connectedBy User    @relation("ProjectGithubLinkConnector", fields: [connectedById], references: [id], onDelete: Restrict)
 
   @@map("project_github_links")
 }
@@ -777,8 +777,9 @@ model WebsiteTemplate {
   createdAt       DateTime       @default(now()) @map("created_at")
   updatedAt       DateTime       @updatedAt @map("updated_at")
 
-  files WebsiteTemplateFile[]
+  files     WebsiteTemplateFile[]
   favorites UserTemplateFavorite[]
+
   @@index([kind, market, sortOrder])
   @@index([isPublished])
   @@map("website_templates")
@@ -992,9 +993,9 @@ model AgentConversation {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  project  Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  messages AgentMessage[]
+  project   Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  AgentMessage[]
   toolCalls AgentToolCall[]
 
   @@index([projectId, updatedAt])
@@ -1178,10 +1179,10 @@ model FeedbackMessage {
   language           String?        @map("language")
   /// Auto-translated English version of `message`, shown to admins when
   /// `language` isn't English.
-  translatedMessage  String?        @db.Text @map("translated_message")
+  translatedMessage  String?        @map("translated_message") @db.Text
   /// Auto-translated version of `response` in the user's original
   /// `language`, shown/emailed back to the user instead of the English reply.
-  translatedResponse String?        @db.Text @map("translated_response")
+  translatedResponse String?        @map("translated_response") @db.Text
   createdAt          DateTime       @default(now()) @map("created_at")
 
   @@index([createdAt])
@@ -1330,4 +1331,110 @@ model SocialPost {
 
   @@index([status, scheduledFor])
   @@map("social_posts")
+}
+
+// -----------------------------------------------------------------------------
+// Social media — inbound comments/mentions/DMs from users and investors that the
+// system classifies and answers (users auto-sent, investors held for approval)
+// -----------------------------------------------------------------------------
+
+enum SocialInteractionStatus {
+  /// Ingested, waiting for the cron to classify and draft a reply.
+  RECEIVED
+  /// Claimed by a worker (drafting or sending); prevents double handling.
+  PROCESSING
+  /// Draft reply waiting for a human to approve, edit or reject it.
+  PENDING_APPROVAL
+  SENT
+  SKIPPED
+  FAILED
+}
+
+enum SocialAudience {
+  USER
+  INVESTOR
+  /// Spam, abuse, bots or messages that need no reply.
+  IGNORE
+}
+
+model SocialInteraction {
+  id           String                  @id @default(cuid())
+  /// X, LINKEDIN, FACEBOOK, INSTAGRAM, REDDIT, YOUTUBE or OTHER (generic webhook).
+  platform     String
+  /// Platform's own id for the message; unique per platform so retries are idempotent.
+  externalId   String                  @map("external_id")
+  /// Where to reply (parent post/comment/thread id), when the platform needs it.
+  replyToId    String?                 @map("reply_to_id")
+  authorHandle String                  @map("author_handle")
+  authorName   String?                 @map("author_name")
+  text         String
+  status       SocialInteractionStatus @default(RECEIVED)
+  audience     SocialAudience?
+  /// Model's confidence (0-1) that the draft is correct and complete.
+  confidence   Float?
+  escalate     Boolean                 @default(false)
+  reply        String?
+  /// Why it was held, skipped or failed.
+  note         String?
+  attempts     Int                     @default(0)
+  /// Outcome of the send: { ok, id?, error?, stubbed? }
+  result       Json?
+  repliedAt    DateTime?               @map("replied_at")
+  createdAt    DateTime                @default(now()) @map("created_at")
+  updatedAt    DateTime                @updatedAt @map("updated_at")
+
+  @@unique([platform, externalId])
+  @@index([status, createdAt])
+  @@map("social_interactions")
+}
+
+// -----------------------------------------------------------------------------
+// Investor outreach — leads found via web search, personalised email drafts that
+// a human approves before sending, and a do-not-contact (suppression) list
+// -----------------------------------------------------------------------------
+
+enum InvestorLeadStatus {
+  /// Found; no email draft yet, or no public email (usable as a call/manual list).
+  DISCOVERED
+  /// Email drafted; never sent until a human approves it.
+  PENDING_APPROVAL
+  /// Claimed by a sender; prevents double sends.
+  SENDING
+  SENT
+  REJECTED
+  DO_NOT_CONTACT
+}
+
+model InvestorLead {
+  id            String             @id @default(cuid())
+  name          String
+  firm          String?
+  /// Investment focus as stated on the source page.
+  focus         String?
+  sourceUrl     String             @map("source_url")
+  /// Only addresses/numbers literally published on the source page are stored.
+  email         String?            @unique
+  phone         String?
+  status        InvestorLeadStatus @default(DISCOVERED)
+  subject       String?
+  body          String?
+  /// Short bullet points for a human to use on a call.
+  talkingPoints String?            @map("talking_points")
+  note          String?
+  sentAt        DateTime?          @map("sent_at")
+  createdAt     DateTime           @default(now()) @map("created_at")
+  updatedAt     DateTime           @updatedAt @map("updated_at")
+
+  @@unique([sourceUrl, name])
+  @@index([status, createdAt])
+  @@map("investor_leads")
+}
+
+model OutreachSuppression {
+  /// Lowercased address that must never be emailed again.
+  email     String   @id
+  reason    String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("outreach_suppressions")
 }

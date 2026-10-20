@@ -54,6 +54,8 @@ function getLogoAttachment() {
 
 type SendEmailInput = {
   to: string;
+  /** Overrides the default sender (SMTP_FROM); the SMTP account must be allowed to send as it. */
+  from?: string;
   subject: string;
   html: string;
   text?: string;
@@ -74,6 +76,7 @@ type SendEmailInput = {
  */
 export async function sendEmail({
   to,
+  from,
   subject,
   html,
   text,
@@ -93,7 +96,7 @@ export async function sendEmail({
   const logoAttachment = getLogoAttachment();
 
   await transporter.sendMail({
-    from: process.env.SMTP_FROM ?? process.env.SMTP_USER,
+    from: from ?? process.env.SMTP_FROM ?? process.env.SMTP_USER,
     to,
     subject,
     html,
