@@ -26,6 +26,8 @@ export type EventInput = {
   end: Date;
   conference?: ConferenceKind | null;
   location?: string | null;
+  /** Meetings only: provider-sent invitations are used once a time is confirmed. */
+  attendees?: string[];
 };
 export type EventResult = { eventId: string; conferenceUrl: string | null; start: Date; end: Date; cancelled: boolean };
 
@@ -217,13 +219,16 @@ const googleBody = (input: EventInput) => ({
   start: { dateTime: iso(input.start), timeZone: 'UTC' },
   end: { dateTime: iso(input.end), timeZone: 'UTC' },
   extendedProperties: { private: { appweaver: input.eventId } },
+  ...(input.attendees?.length ? { attendees: input.attendees.map((email) => ({ email })) } : {}),
 });
+const sendUpdates = (input: EventInput) => (input.attendees?.length ? 'all' : 'none');
 const graphBody = (input: EventInput) => ({
   subject: input.title,
   body: { contentType: 'text', content: input.description },
   ...(input.location ? { location: { displayName: input.location } } : {}),
   start: { dateTime: iso(input.start).replace('Z', ''), timeZone: 'UTC' },
   end: { dateTime: iso(input.end).replace('Z', ''), timeZone: 'UTC' },
+  ...(input.attendees?.length ? { attendees: input.attendees.map((address) => ({ emailAddress: { address }, type: 'required' })) } : {}),
 });
 
 /** Idempotent: a retry with the same eventId returns the existing event instead of creating a duplicate. */
@@ -236,7 +241,7 @@ export async function createEvent(provider: CalendarProviderName, token: string,
       ...(meet ? { conferenceData: { createRequest: { requestId: input.eventId, conferenceSolutionKey: { type: 'hangoutsMeet' } } } } : {}),
     };
     const base = `${GOOGLE_API}/calendars/${encodeURIComponent(calendarId)}/events`;
-    const { res, json } = await api(`${base}?sendUpdates=none${meet ? '&conferenceDataVersion=1' : ''}`, token, { method: 'POST', body: JSON.stringify(body) }, [409]);
+    const { res, json } = await api(`${base}?sendUpdates=${sendUpdates(input)}${meet ? '&conferenceDataVersion=1' : ''}`, token, { method: 'POST', body: JSON.stringify(body) }, [409]);
     if (res.status === 409) {
       const existing = await getEvent(provider, token, input.eventId, calendarId);
       if (!existing) throw new CalendarApiError('Event id conflict.', 409);
@@ -265,7 +270,7 @@ export async function createEvent(provider: CalendarProviderName, token: string,
 export async function updateEvent(provider: CalendarProviderName, token: string, input: EventInput, calendarId = 'primary', revive = false): Promise<EventResult> {
   if (provider === 'GOOGLE') {
     const { json } = await api(
-      `${GOOGLE_API}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(input.eventId)}?sendUpdates=none&conferenceDataVersion=1`,
+      `${GOOGLE_API}/calendars/${encodeURIComponent(calendarId)}/events/${encodeURIComponent(input.eventId)}?sendUpdates=${sendUpdates(input)}&conferenceDataVersion=1`,
       token,
       { method: 'PATCH', body: JSON.stringify({ ...googleBody(input), ...(revive ? { status: 'confirmed' } : {}) }) },
     );

@@ -179,16 +179,8 @@ export async function reserveCredits(input: ReserveInput): Promise<ReserveResult
           settledCredits: existing.settledCredits,
         };
       }
-      await ensureWallet(tx, input.userId);
-      const wallet = await tx.marketingWallet.findUnique({ where: { userId: input.userId } });
-      const overdraft = wallet?.overdraftLimit ?? 0;
-      const updated = await tx.marketingWallet.updateMany({
-        where: { userId: input.userId, available: { gte: input.maxCredits - overdraft } },
-        data: { available: { decrement: input.maxCredits }, reserved: { increment: input.maxCredits } },
-      });
-      if (updated.count !== 1) {
-        return { ok: false, code: 'INSUFFICIENT_CREDITS', available: wallet?.available ?? 0 };
-      }
+      // The reservation (idempotency key) is claimed before the wallet row is locked, so a losing duplicate
+      // never holds the wallet lock while waiting on the winner (settle/release take reservation -> wallet).
       const reservation = await tx.marketingReservation.create({
         data: {
           userId: input.userId,
@@ -202,6 +194,17 @@ export async function reserveCredits(input: ReserveInput): Promise<ReserveResult
           expiresAt: new Date(now.getTime() + (input.ttlMs ?? RESERVATION_TTL_MS)),
         },
       });
+      await ensureWallet(tx, input.userId);
+      const wallet = await tx.marketingWallet.findUnique({ where: { userId: input.userId } });
+      const overdraft = wallet?.overdraftLimit ?? 0;
+      const updated = await tx.marketingWallet.updateMany({
+        where: { userId: input.userId, available: { gte: input.maxCredits - overdraft } },
+        data: { available: { decrement: input.maxCredits }, reserved: { increment: input.maxCredits } },
+      });
+      if (updated.count !== 1) {
+        await tx.marketingReservation.deleteMany({ where: { id: reservation.id } });
+        return { ok: false, code: 'INSUFFICIENT_CREDITS', available: wallet?.available ?? 0 };
+      }
       await tx.marketingLedger.create({
         data: {
           userId: input.userId,

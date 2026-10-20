@@ -78,6 +78,13 @@ vi.mock('@/lib/prisma', () => {
         hit.forEach((r) => apply(r, data));
         return { count: hit.length };
       },
+      deleteMany: async ({ where }: { where: Row }) => {
+        const all = rows();
+        const keep = all.filter((r) => !matches(r, where));
+        const count = all.length - keep.length;
+        all.splice(0, all.length, ...keep);
+        return { count };
+      },
       upsert: async ({ where, create, update }: { where: Row; create: Row; update: Row }) => {
         const row = rows().find((r) => matches(r, where));
         if (row) {
