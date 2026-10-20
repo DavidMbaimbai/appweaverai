@@ -1,6 +1,8 @@
 import { z } from 'zod';
 
 import { prisma } from '@/lib/prisma';
+import { listCalendarSlots } from '@/lib/calendar/bookings';
+import { SLOT_PREFIX } from '@/lib/calendar/logic';
 import { sendBookingConfirmation } from '@/lib/leads/email';
 import { isEmail } from '@/lib/leads/logic';
 import { BookingError, bookSlot, listOpenSlots } from '@/lib/leads/service';
@@ -21,14 +23,19 @@ export function OPTIONS() {
   return new Response(null, { status: 204, headers: CORS_HEADERS });
 }
 
-/** Open future slots only; never exposes who booked what. */
+/** Open future slots only; never exposes who booked what or any calendar details. */
 export async function GET(request: Request, { params }: Ctx) {
   const { projectId } = await params;
   const limit = await limited(request, 'bookings-get', projectId, 60, 60_000);
   if (limit) return limit;
   if (!(await findPublicProject(projectId))) return json({ error: 'Project not found.' }, 404);
+  const calendar = await listCalendarSlots(projectId);
+  if (calendar) {
+    const slots = calendar.starts.slice(0, 60).map((d) => ({ id: `${SLOT_PREFIX}${d.toISOString()}`, startsAt: d, durationMin: calendar.durationMin }));
+    return json({ slots, calendar: 'AVAILABLE', confirmation: 'AUTOMATIC' }, 200, { 'cache-control': 'no-store' });
+  }
   const slots = await listOpenSlots(projectId);
-  return json({ slots }, 200, { 'cache-control': 'no-store' });
+  return json({ slots, calendar: 'UNAVAILABLE', confirmation: 'MANUAL' }, 200, { 'cache-control': 'no-store' });
 }
 
 export async function POST(request: Request, { params }: Ctx) {
@@ -45,7 +52,7 @@ export async function POST(request: Request, { params }: Ctx) {
   if (input.website?.trim()) return json({ success: true });
 
   try {
-    const { slot } = await bookSlot(projectId, input.slotId, input);
+    const { slot, status } = await bookSlot(projectId, input.slotId, input);
     const owner = await prisma.project.findUnique({
       where: { id: projectId },
       select: { notificationEmail: true, createdBy: { select: { email: true } } },
@@ -57,8 +64,9 @@ export async function POST(request: Request, { params }: Ctx) {
       startsAt: slot.startsAt,
       durationMin: slot.durationMin,
       ownerEmail: owner?.notificationEmail || owner?.createdBy.email || null,
+      pendingConfirmation: status !== 'CONFIRMED',
     });
-    return json({ success: true, startsAt: slot.startsAt, durationMin: slot.durationMin });
+    return json({ success: true, status, startsAt: slot.startsAt, durationMin: slot.durationMin });
   } catch (error) {
     if (error instanceof BookingError) return json({ error: error.message }, error.status);
     console.error('[bookings] failed:', error);

@@ -28,10 +28,14 @@ export function BookingForm({ projectId, projectName, slots }: { projectId: stri
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ slotId, name, email, phone, consent, website }),
       });
-      const body = (await res.json()) as { error?: string };
+      const body = (await res.json()) as { error?: string; status?: string };
       if (res.ok) {
         setDone(true);
-        setMessage(`Booked! A confirmation email is on its way to ${email}.`);
+        setMessage(
+          body.status === 'CONFIRMED'
+            ? `Booked! A confirmation email is on its way to ${email}.`
+            : `Request received. This time is not confirmed yet; we will email ${email} once it is.`,
+        );
       } else setMessage(body.error ?? 'Could not book.');
     } catch {
       setMessage('Could not book.');

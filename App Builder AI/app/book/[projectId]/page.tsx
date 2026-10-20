@@ -1,6 +1,8 @@
 import { notFound } from 'next/navigation';
 
 import { BookingForm } from '@/components/app/leads/booking-form';
+import { listCalendarSlots } from '@/lib/calendar/bookings';
+import { SLOT_PREFIX } from '@/lib/calendar/logic';
 import { listOpenSlots } from '@/lib/leads/service';
 import { findPublicProject } from '@/lib/project-reviews/public-api';
 
@@ -13,7 +15,10 @@ export default async function BookDemoPage({ params }: Props) {
   if (!process.env.DATABASE_URL) notFound();
   const project = await findPublicProject(projectId);
   if (!project) notFound();
-  const slots = await listOpenSlots(projectId);
+  const calendar = await listCalendarSlots(projectId);
+  const slots = calendar
+    ? calendar.starts.slice(0, 60).map((d) => ({ id: `${SLOT_PREFIX}${d.toISOString()}`, startsAt: d, durationMin: calendar.durationMin }))
+    : await listOpenSlots(projectId);
 
   return (
     <main className="mx-auto max-w-md p-6 text-neutral-900">

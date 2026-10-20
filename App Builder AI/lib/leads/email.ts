@@ -82,13 +82,16 @@ export async function sendBookingConfirmation(input: {
   startsAt: Date;
   durationMin: number;
   ownerEmail: string | null;
+  pendingConfirmation?: boolean;
 }) {
   const when = input.startsAt.toUTCString();
-  const lines = [`Hi ${input.name},`, '', `Your demo with ${input.businessName} is booked for ${when} (${input.durationMin} minutes).`, 'Reply to this email if you need to change the time.'];
+  const lines = input.pendingConfirmation
+    ? [`Hi ${input.name},`, '', `We received your demo request with ${input.businessName} for ${when} (${input.durationMin} minutes).`, 'This time is not confirmed yet: we will confirm it by email shortly.']
+    : [`Hi ${input.name},`, '', `Your demo with ${input.businessName} is booked for ${when} (${input.durationMin} minutes).`, 'Reply to this email if you need to change the time.'];
   try {
     await sendEmail({
       to: input.to,
-      subject: `Your demo with ${input.businessName} is confirmed`,
+      subject: input.pendingConfirmation ? `Your demo request with ${input.businessName}` : `Your demo with ${input.businessName} is confirmed`,
       text: lines.join('\n'),
       html: lines.map((l) => `<p>${escapeHtml(l)}</p>`).join(''),
       headers: input.ownerEmail ? { 'Reply-To': input.ownerEmail } : undefined,
