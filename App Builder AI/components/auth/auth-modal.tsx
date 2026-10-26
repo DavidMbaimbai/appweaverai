@@ -1,6 +1,9 @@
 'use client';
 
 import { authClient } from '@/lib/auth-client';
+import { getOAuthErrorMessage } from '@/lib/auth/oauth-errors';
+import { getPasswordErrorMessage } from '@/lib/auth/password-errors';
+import { clearSignInErrorUrl } from '@/lib/auth/clear-sign-in-error';
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import type { AuthMode, OAuthProvider } from '@/lib/types/account';
 import { cn } from '@/lib/utils';
@@ -280,8 +283,14 @@ export function AuthModal() {
     return DEFAULT_CALLBACK_URL;
   }
 
-  function handleOAuthClick(provider: OAuthProvider) {
+  function beginSignIn() {
     setError(null);
+    const cleanUrl = clearSignInErrorUrl(new URL(window.location.href));
+    window.history.replaceState(window.history.state, '', cleanUrl);
+  }
+
+  function handleOAuthClick(provider: OAuthProvider) {
+    beginSignIn();
     setIsLoading(true);
     void authClient.signIn.social({
       provider,
@@ -289,7 +298,7 @@ export function AuthModal() {
       fetchOptions: {
         onError: (ctx) => {
           setIsLoading(false);
-          setError(ctx.error.message ?? 'sign-in failed. Please try again');
+          setError(getOAuthErrorMessage(ctx.error.code ?? null));
         },
       },
     });
@@ -297,7 +306,7 @@ export function AuthModal() {
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError(null);
+    beginSignIn();
 
     if (mode === 'register' && password !== confirmPassword) {
       setError('Passwords do not match.');
@@ -349,7 +358,7 @@ export function AuthModal() {
         onError: (ctx) => {
           setIsLoading(false);
           resetCaptcha();
-          setError(ctx.error.message ?? 'Invalid email or password.');
+          setError(getPasswordErrorMessage(ctx.error));
         },
       },
     });
