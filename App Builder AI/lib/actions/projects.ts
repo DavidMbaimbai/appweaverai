@@ -82,6 +82,8 @@ export async function createProjectAction(formData: FormData) {
   const prompt = String(formData.get('prompt') ?? '').trim();
   const categoryId = formData.get('categoryId');
   const planMode = formData.get('planMode') === 'true';
+  const referenceContextRaw = formData.get('referenceContext');
+  const referenceContext = referenceContextRaw ? JSON.parse(String(referenceContextRaw)) : null;
 
   const attachmentFiles: File[] = [];
   for (const [key, value] of formData.entries()) {
@@ -204,6 +206,7 @@ export async function createProjectAction(formData: FormData) {
               {
                 role: 'USER' as const,
                 content: agentPrompt,
+                ...(referenceContext ? { metadata: { referenceContext } } : {}),
               },
             ],
           },

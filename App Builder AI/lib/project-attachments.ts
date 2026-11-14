@@ -120,6 +120,53 @@ function truncateText(content: string, maxChars: number) {
   return `${content.slice(0, maxChars)}\n… [truncated]`;
 }
 
+export async function saveReferenceAsset({
+  projectId,
+  artifactId,
+  artifactSlug,
+  filename,
+  content,
+}: {
+  projectId: string;
+  artifactId: string;
+  artifactSlug: string;
+  filename: string;
+  content: Buffer;
+}): Promise<StoredPromptAttachment> {
+  const relativePath = `${PROMPT_ATTACHMENTS_DIR}/${sanitizeFilename(filename)}`;
+  const dbPath = buildDbPath(artifactSlug, relativePath);
+  const absolute = getAbsoluteAttachmentPath(projectId, artifactSlug, relativePath);
+  const mimeType = getMimeType(filename);
+
+  await mkdir(path.dirname(absolute), { recursive: true });
+  await writeFile(absolute, content);
+
+  await prisma.projectFile.upsert({
+    where: {
+      projectId_path: { projectId, path: dbPath },
+    },
+    create: {
+      projectId,
+      artifactId,
+      path: dbPath,
+      storageKey: `workspace/${projectId}/${artifactSlug}/${relativePath}`,
+      mimeType,
+      sizeBytes: content.length,
+    },
+    update: {
+      sizeBytes: content.length,
+      mimeType,
+    },
+  });
+
+  return {
+    name: filename,
+    path: relativePath,
+    mimeType,
+    sizeBytes: content.length,
+  };
+}
+
 export async function savePromptAttachmentsToArtifact({
   projectId,
   artifactId,

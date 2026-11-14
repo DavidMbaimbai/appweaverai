@@ -5,6 +5,8 @@ export type DesignOutlineNode = {
   size?: string;
   text?: string;
   fill?: string;
+  computedStyle?: Record<string, string>;
+  screenshotPath?: string;
   children?: DesignOutlineNode[];
 };
 
@@ -14,6 +16,7 @@ export type DesignFrame = {
   width?: number;
   height?: number;
   outline: DesignOutlineNode;
+  screenshotPath?: string;
 };
 
 export type DesignColor = { hex: string; count: number };
@@ -25,7 +28,23 @@ export type DesignTextStyle = {
   count: number;
 };
 
-export type DesignImage = { nodeId: string; name: string; url: string };
+export type DesignImage = { nodeId: string; name: string; url: string; localPath?: string };
+
+export type ReferenceContext = {
+  designTokens: {
+    colors: string[];
+    fonts: string[];
+    spacing: string[];
+    borderRadius: string[];
+  };
+  sections: {
+    id: string;
+    name: string;
+    outline: DesignOutlineNode;
+    screenshotPath: string;
+  }[];
+  fullPageScreenshotPath?: string;
+};
 
 export type DesignSpec = {
   source: 'figma' | 'url' | 'screenshot';
@@ -39,6 +58,7 @@ export type DesignSpec = {
   fonts: string[];
   images: DesignImage[];
   notes: string[];
+  referenceContext?: ReferenceContext;
 };
 
 export function emptySpec(source: DesignSpec['source'], name: string): DesignSpec {

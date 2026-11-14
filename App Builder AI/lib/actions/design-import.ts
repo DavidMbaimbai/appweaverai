@@ -6,6 +6,7 @@ import { rateLimit } from '../rate-limit';
 import { withCredits } from '../credits/with-credits';
 import { fetchFigmaDesign } from '../design-import/figma';
 import { fetchWebsiteDesign } from '../design-import/url';
+import { captureWebsiteReference } from '../design-import/browser-capture';
 import { designSpecToPrompt, screenshotPrompt } from '../design-import/to-prompt';
 import { createProjectAction } from './projects';
 
@@ -28,10 +29,13 @@ async function requireUser() {
   return { userId, error: null };
 }
 
-function buildForm(prompt: string, planMode: boolean) {
+function buildForm(prompt: string, planMode: boolean, referenceContext?: any) {
   const form = new FormData();
   form.set('prompt', prompt);
   form.set('planMode', planMode ? 'true' : 'false');
+  if (referenceContext) {
+    form.set('referenceContext', JSON.stringify(referenceContext));
+  }
   return form;
 }
 
@@ -75,8 +79,11 @@ async function runImport(
     }
 
     if (kind === 'url') {
-      const spec = await fetchWebsiteDesign(String(formData.get('websiteUrl') ?? ''));
-      const result = await createProjectAction(buildForm(designSpecToPrompt(spec, notes), planMode));
+      const url = String(formData.get('websiteUrl') ?? '');
+      const spec = await captureWebsiteReference(url).catch(() => fetchWebsiteDesign(url));
+      const result = await createProjectAction(
+        buildForm(designSpecToPrompt(spec, notes), planMode, spec.referenceContext),
+      );
       return result ?? undefined;
     }
 

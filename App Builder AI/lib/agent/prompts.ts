@@ -7,8 +7,13 @@ import {
 } from '@/lib/preview/detect-preview-mode';
 import { getCodeLanguage } from '@/lib/code-run/languages';
 
+import {
+  CLONE_MODE_BLOCK as CLONE_MODE_BLOCK_NEW,
+  CLONE_MODE_TOOLS,
+} from './clone-mode';
+
 export const PLAN_MODE_ENABLED_MARKER = 'Plan mode is enabled';
-export const PLAN_MODE_SYSTEM_PROMPT = `${PLAN_MODE_ENABLED_MARKER}. You are in planning phase only — do not write code or files yet. If the project is a clone or based on a design/URL reference: the plan MUST focus on achieving pixel-perfect visual and structural fidelity to the original source. Think step-by-step like an expert software engineer at Replit.`;
+export const PLAN_MODE_SYSTEM_PROMPT = `${PLAN_MODE_ENABLED_MARKER}. You are in planning phase only — do not write code or files yet. If the project is a clone or based on a design/URL reference: the plan MUST focus on achieving pixel-perfect visual and structural fidelity to the original source. In complete_plan, list the specific sections identified in the reference and the design tokens (colors, fonts, spacing) you will use. Think step-by-step like an expert software engineer at Replit.`;
 
 export const PLAN_MODE_BLOCK = [
   'Plan mode workflow:',
@@ -88,8 +93,9 @@ export const PLAN_MODE_TOOLS = [
   ...READ_ONLY_TOOLS,
 ] satisfies Anthropic.Tool[];
 
-export function getAgentTools(planMode: boolean): Anthropic.Tool[] {
-  return planMode ? PLAN_MODE_TOOLS : AGENT_TOOLS;
+export function getAgentTools(planMode: boolean, isClone = false): Anthropic.Tool[] {
+  if (planMode) return PLAN_MODE_TOOLS;
+  return isClone ? [...AGENT_TOOLS, ...CLONE_MODE_TOOLS] : AGENT_TOOLS;
 }
 
 export function isPlanModeMessage(content: string) {
@@ -134,6 +140,8 @@ const EDIT_WORKFLOW = [
   '10. Call complete_build only after files are saved and should preview successfully.',
 ].join('\n');
 
+export const CLONE_MODE_BLOCK = CLONE_MODE_BLOCK_NEW;
+
 export function buildAgentSystemPrompt({
   projectName,
   projectDescription,
@@ -146,6 +154,7 @@ export function buildAgentSystemPrompt({
   hasExistingFiles,
   codingLanguage,
   integrationsContext,
+  referenceContext,
 }: {
   /** Names and env var names of connected integrations only — never credential values. */
   integrationsContext?: string | null;
@@ -161,8 +170,11 @@ export function buildAgentSystemPrompt({
   /** Non-null when this artifact is a plain-code program (e.g. "python", "java") run in a
    * sandboxed container instead of the browser preview — see lib/code-run/languages.ts. */
   codingLanguage?: string | null;
+  referenceContext?: string | null;
 }) {
   const codeLanguage = getCodeLanguage(codingLanguage);
+  const isClone = !!referenceContext;
+
   const stackRules = [
     'Stack selection rules:',
     '- Calculator / simple tools → vanilla static (index.html + script.js), no React.',
@@ -173,51 +185,47 @@ export function buildAgentSystemPrompt({
     STACK_GUIDANCE[projectStack],
   ].join('\n');
 
-  const buildGuidance =
-    artifactType === 'DESIGN'
-      ? 'Build static HTML/CSS wireframes and mockups. No backend or JavaScript unless needed for layout demos.'
-      : artifactType === 'MOBILE_APP'
-        ? [
-            'Build polished, mobile-first web apps that feel native on phones.',
-            'Use a narrow viewport layout (max-width ~420px), touch-friendly tap targets (min 44px), and safe-area padding.',
-            'Prefer vanilla HTML + CSS + JS with index.html unless React is clearly needed.',
-            'Always link assets with relative paths (style.css, script.js).',
-            'Use CSS Grid or Flexbox — never rely on unstyled HTML.',
-            'Wire up real interactivity (click handlers, state, keyboard support).',
-            'Write the full updated file only after reading it.',
-            'Before complete_build, verify layout, styles, and interactivity on a phone-sized screen.',
-            'If the project is a clone or based on a design/URL reference: prioritize visual and structural fidelity to the original. Match spacing, colors, and layout exactly as the first priority.',
-            FULL_STACK_GUIDANCE,
-          ].join(' ')
-        : [
-            'Build polished, fully functional web apps.',
-            stackRules,
-            FULL_STACK_GUIDANCE,
-            hasExistingFiles
-              ? [
-                  'IMPORTANT: This artifact already has files. The user is requesting changes — do NOT rebuild from scratch.',
-                  EDIT_WORKFLOW,
-                ].join('\n')
-              : EDIT_WORKFLOW,
-            'Always link assets with relative paths.',
-            'Use CSS Grid or Flexbox — never rely on unstyled HTML.',
-            'Wire up real interactivity (click handlers, state, keyboard support).',
-            'If the project is a clone or based on a design/URL reference: prioritize visual and structural fidelity to the original. Match spacing, colors, and layout exactly as the first priority.',
-          ].join('\n\n');
-
-  const effectiveBuildGuidance = codeLanguage
+  const buildGuidance = codeLanguage
     ? [
         `This artifact is a PLAIN ${codeLanguage.label.toUpperCase()} PROGRAM — not a web app. It runs in a sandboxed container and its console output (stdout/stderr) IS the live preview; there is no browser/HTML preview for it.`,
         codeLanguage.agentGuidance,
         `Create/edit exactly the entry file \`${codeLanguage.entryFile}\` at the artifact root. Do not create index.html, CSS, or any web/browser files for this artifact.`,
-        hasExistingFiles
+        hasExistingFiles || isClone
           ? [
               'IMPORTANT: This artifact already has files. The user is requesting changes — do NOT rebuild from scratch.',
               EDIT_WORKFLOW,
             ].join('\n')
           : EDIT_WORKFLOW,
       ].join('\n\n')
-    : buildGuidance;
+    : isClone
+      ? [CLONE_MODE_BLOCK, EDIT_WORKFLOW].join('\n\n')
+      : artifactType === 'DESIGN'
+        ? 'Build static HTML/CSS wireframes and mockups. No backend or JavaScript unless needed for layout demos.'
+        : artifactType === 'MOBILE_APP'
+          ? [
+              'Build polished, mobile-first web apps that feel native on phones.',
+              'Use a narrow viewport layout (max-width ~420px), touch-friendly tap targets (min 44px), and safe-area padding.',
+              'Prefer vanilla HTML + CSS + JS with index.html unless React is clearly needed.',
+              'Always link assets with relative paths (style.css, script.js).',
+              'Use CSS Grid or Flexbox — never rely on unstyled HTML.',
+              'Wire up real interactivity (click handlers, state, keyboard support).',
+              'Write the full updated file only after reading it.',
+              'Before complete_build, verify layout, styles, and interactivity on a phone-sized screen.',
+            ].join(' ')
+          : [
+              'Build polished, fully functional web apps.',
+              stackRules,
+              FULL_STACK_GUIDANCE,
+              hasExistingFiles
+                ? [
+                    'IMPORTANT: This artifact already has files. The user is requesting changes — do NOT rebuild from scratch.',
+                    EDIT_WORKFLOW,
+                  ].join('\n')
+                : EDIT_WORKFLOW,
+              'Always link assets with relative paths.',
+              'Use CSS Grid or Flexbox — never rely on unstyled HTML.',
+              'Wire up real interactivity (click handlers, state, keyboard support).',
+            ].join('\n\n');
 
   const parts = [
     `You are AppWeaver AI Agent, a world-class AI software engineer similar to the Replit Agent, working inside a project editor.`,
@@ -227,7 +235,13 @@ export function buildAgentSystemPrompt({
     `Use tools to read and write files, then call complete_build with a concise user-facing summary.`,
     `The complete_build summary MUST use markdown: a short intro paragraph, then **Design:** and **Functionality:** sections with bullet lists.`,
     `Language: detect the human language the user is writing their request in and use that SAME language for all user-facing UI text you generate (labels, buttons, headings, placeholders, messages) as well as for your complete_build summary. Code (variable names, comments, technical identifiers) stays in English as usual — only user-visible copy follows the user's language. If the user explicitly asks for a different UI language than the one they're chatting in, follow their explicit instruction instead.`,
-    effectiveBuildGuidance,
+    buildGuidance,
+    isClone && referenceContext
+      ? [
+          'Reference Context (CAPTURED FROM SOURCE):',
+          referenceContext,
+        ].join('\n\n')
+      : null,
     planMode ? PLAN_MODE_BLOCK : null,
     attachmentContext
       ? [
@@ -242,7 +256,7 @@ export function buildAgentSystemPrompt({
     `Active artifact: ${artifactName} (${artifactType})`,
     codeLanguage ? `Coding language: ${codeLanguage.label}` : `Detected stack: ${projectStack}`,
     `Artifact context:\n${artifactSnapshot}`,
-    `If both a Brand Kit and a design/URL reference are provided: prioritize the colors and typography from the reference for initial cloning. Use the Brand Kit only for elements where the reference is silent or when explicitly asked to apply the brand.`,
+    !isClone ? `If both a Brand Kit and a design/URL reference are provided: prioritize the colors and typography from the reference for initial cloning. Use the Brand Kit only for elements where the reference is silent or when explicitly asked to apply the brand.` : null,
   ].filter(Boolean);
 
   return parts.join('\n\n');

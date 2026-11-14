@@ -23,6 +23,11 @@ import {
   PLAN_MODE_ENABLED_MARKER,
 } from '@/lib/agent/prompts';
 import {
+  handleCloneTool,
+  canCompleteBuild,
+  type CloneSession,
+} from './clone-mode';
+import {
   buildAttachmentContextForAgent,
   isImageAttachmentPath,
   isTextAttachmentPath,
@@ -148,6 +153,7 @@ type ToolContext = {
   onEvent?: (event: AgentStreamEvent) => void;
   usage: { inputTokens: number; outputTokens: number };
   memoryGuard?: RegressionGuard;
+  cloneSession?: CloneSession;
 };
 
 type StreamingToolBlock = {
@@ -260,7 +266,10 @@ async function executeTool(
   name: string,
   input: Record<string, unknown>,
   ctx: ToolContext,
-): Promise<{ result: string; stopForQuestion?: boolean }> {
+): Promise<{
+  result: string | Anthropic.ToolResultBlockParam['content'];
+  stopForQuestion?: boolean;
+}> {
   switch (name) {
     case 'ask_plan_question': {
       const question = String(input.question ?? '').trim();
@@ -310,6 +319,25 @@ async function executeTool(
           .map((file) => file.path.replace(`${ctx.artifactSlug}/`, ''))
           .join('\n'),
       };
+    }
+
+    case 'fetch_reference_section':
+    case 'compare_to_reference': {
+      if (!ctx.cloneSession) {
+        return { result: 'No reference context found for this project.' };
+      }
+      const content = await handleCloneTool(name, input, {
+        session: ctx.cloneSession,
+        getPreviewUrl: async () =>
+          `https://preview.app.weaver/${ctx.projectId}/${ctx.artifactSlug}`,
+      });
+      emitAction(
+        ctx,
+        name === 'fetch_reference_section'
+          ? `Fetched reference section ${input.index}`
+          : 'Compared to reference',
+      );
+      return { result: content };
     }
 
     case 'read_file': {
@@ -542,6 +570,13 @@ async function executeTool(
         };
       }
 
+      if (ctx.cloneSession) {
+        const gate = canCompleteBuild(ctx.cloneSession);
+        if (!gate.ok) {
+          return { result: gate.reason! };
+        }
+      }
+
       const summary = String(input.summary ?? '').trim();
       emitAction(ctx, 'Validating preview');
 
@@ -576,7 +611,10 @@ async function runToolWithApprovalGate(
   name: string,
   input: Record<string, unknown>,
   ctx: ToolContext,
-): Promise<{ result: string; stopForQuestion?: boolean }> {
+): Promise<{
+  result: string | Anthropic.ToolResultBlockParam['content'];
+  stopForQuestion?: boolean;
+}> {
   const riskLevel = getToolRiskLevel(name);
 
   if (riskLevel !== 'DESTRUCTIVE') {
@@ -590,7 +628,7 @@ async function runToolWithApprovalGate(
     }).then((toolCall) =>
       markToolCallResult(toolCall.id, {
         status: 'EXECUTED',
-        result: executed.result,
+        result: typeof executed.result === 'string' ? executed.result : 'Visual comparison report',
       }),
     );
     return executed;
@@ -638,7 +676,7 @@ async function runToolWithApprovalGate(
   const executed = await executeTool(name, input, ctx);
   await markToolCallResult(toolCall.id, {
     status: 'EXECUTED',
-    result: executed.result,
+    result: typeof executed.result === 'string' ? executed.result : 'Action completed',
   });
   return executed;
 }
@@ -764,7 +802,7 @@ export async function runAgentLoop({
       where: { conversationId },
       orderBy: { createdAt: 'desc' },
       take: MAX_AGENT_MESSAGES,
-      select: { role: true, content: true },
+      select: { role: true, content: true, metadata: true },
     }),
     listProjectFiles(projectId, artifact.slug),
   ]);
@@ -823,6 +861,16 @@ export async function runAgentLoop({
 
   const lastUserRequest =
     messages.filter((message) => message.role === 'USER').at(-1)?.content ?? '';
+
+  const referenceContext = messages.find(
+    (m) => m.role === 'USER' && (m.metadata as any)?.referenceContext,
+  )?.metadata as any;
+  const referenceContextStr = referenceContext?.referenceContext
+    ? typeof referenceContext.referenceContext === 'string'
+      ? referenceContext.referenceContext
+      : JSON.stringify(referenceContext.referenceContext, null, 2)
+    : null;
+
   const projectMemory = hasExistingFiles
     ? await prepareProjectBrief({
         projectId,
@@ -839,6 +887,7 @@ export async function runAgentLoop({
       planMode,
       attachmentContext: attachmentContext.summary || undefined,
       hasExistingFiles,
+      referenceContext: referenceContextStr,
     }) + memoryBrief;
 
   const chatMessages: Anthropic.MessageParam[] = [];
@@ -886,6 +935,25 @@ export async function runAgentLoop({
     onEvent,
     usage: { inputTokens: 0, outputTokens: 0 },
     memoryGuard: projectMemory?.guard,
+    cloneSession: referenceContextStr
+      ? {
+          refDir: path.join(
+            PROMPT_ATTACHMENTS_DIR,
+            projectId,
+            artifact.slug,
+            'reference',
+          ),
+          diffDir: path.join(
+            PROMPT_ATTACHMENTS_DIR,
+            projectId,
+            artifact.slug,
+            'reference',
+            'diff',
+          ),
+          rounds: 0,
+          lastPassed: false,
+        }
+      : undefined,
   };
 
   onEvent?.({ type: 'status', phase: 'working', actionCount: 0 });
@@ -906,7 +974,7 @@ export async function runAgentLoop({
       client,
       systemPrompt,
       chatMessages,
-      getAgentTools(ctx.planMode),
+      getAgentTools(ctx.planMode, !!referenceContextStr),
       ctx,
       agentLimits,
     );
@@ -970,12 +1038,15 @@ export async function runAgentLoop({
       }
 
       if (toolUse.name === 'ask_plan_question' && shouldStop) {
-        summary = ctx.planQuestion?.question ?? result;
+        summary =
+          ctx.planQuestion?.question ??
+          (typeof result === 'string' ? result : 'Plan question');
         stopForQuestion = true;
       }
 
       if (
         toolUse.name === 'complete_build' &&
+        typeof result === 'string' &&
         !result.startsWith(BUILD_NOT_READY_PREFIX)
       ) {
         summary = result;
