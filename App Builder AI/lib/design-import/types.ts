@@ -36,14 +36,28 @@ export type ReferenceContext = {
     fonts: string[];
     spacing: string[];
     borderRadius: string[];
+    backgroundColors?: string[];
+    textColors?: string[];
+    fontSizes?: string[];
+    fontWeights?: string[];
+    shadows?: string[];
+    cssVariables?: Record<string, string>;
   };
   sections: {
     id: string;
     name: string;
     outline: DesignOutlineNode;
+    rect: { x: number; y: number; width: number; height: number };
     screenshotPath: string;
+    mobileScreenshotPath?: string;
   }[];
   fullPageScreenshotPath?: string;
+  viewports?: Record<string, { pageHeight: number; screenshotPath: string }>;
+  snapshotPath?: string;
+  jobId?: string;
+  hasPassword?: boolean;
+  hasPayment?: boolean;
+  warnings?: string[];
 };
 
 export type DesignSpec = {

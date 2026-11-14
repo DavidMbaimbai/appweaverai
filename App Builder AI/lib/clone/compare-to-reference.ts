@@ -4,9 +4,9 @@
  * Renders the artifact preview at the same viewports as the reference capture,
  * diffs it against the reference screenshots, and reports mismatch per section.
  *
- * Deps: npm i pixelmatch pngjs playwright && npm i -D @types/pngjs
+ * Deps: npm i pixelmatch pngjs puppeteer && npm i -D @types/pngjs
  */
-import { chromium, type Browser } from 'playwright';
+import puppeteer, { type Browser } from 'puppeteer';
 import pixelmatch from 'pixelmatch';
 import { PNG } from 'pngjs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
@@ -63,17 +63,18 @@ async function renderPreview(
   previewUrl: string,
   vp: { width: number; height: number },
 ): Promise<PNG> {
-  const context = await browser.newContext({ viewport: { width: vp.width, height: vp.height } });
+  const context = await browser.createBrowserContext();
   try {
     const page = await context.newPage();
+    await page.setViewport({ width: vp.width, height: vp.height });
     try {
-      await page.goto(previewUrl, { waitUntil: 'networkidle', timeout: 45000 });
+      await page.goto(previewUrl, { waitUntil: 'networkidle2', timeout: 45000 });
     } catch {
-      await page.goto(previewUrl, { waitUntil: 'load', timeout: 45000 });
+      await page.goto(previewUrl, { waitUntil: 'domcontentloaded', timeout: 45000 });
     }
     await autoScroll(page);
-    await freezeAnimations(page);
-    return PNG.sync.read(await page.screenshot({ fullPage: true }));
+    await page.evaluate(freezeAnimations);
+    return PNG.sync.read(Buffer.from(await page.screenshot({ fullPage: true })));
   } finally {
     await context.close();
   }
@@ -92,7 +93,7 @@ export async function compareToReference({
 }): Promise<CompareResult> {
   const manifest = await readManifest(refDir);
   await mkdir(outDir, { recursive: true });
-  const browser = await chromium.launch();
+  const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox', '--disable-setuid-sandbox'] });
   const results: ViewportDiff[] = [];
 
   try {
