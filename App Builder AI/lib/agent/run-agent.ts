@@ -849,14 +849,36 @@ export async function runAgentLoop({
     .then(formatAgentIntegrationContext)
     .catch(() => null);
 
-  const referenceContext = messages.find(
-    (m) => m.role === 'USER' && (m.metadata as any)?.referenceContext,
-  )?.metadata as any;
-  const referenceContextStr = referenceContext?.referenceContext
-    ? typeof referenceContext.referenceContext === 'string'
+  const referenceContext = messages.find((message) => {
+    if (message.role !== 'USER') {
+      return false;
+    }
+
+    const metadata = message.metadata;
+
+    return (
+      typeof metadata === 'object' &&
+      metadata !== null &&
+      !Array.isArray(metadata) &&
+      'referenceContext' in metadata &&
+      metadata.referenceContext !== null &&
+      metadata.referenceContext !== undefined
+    );
+  })?.metadata;
+
+  const referenceContextValue =
+    referenceContext &&
+    typeof referenceContext === 'object' &&
+    !Array.isArray(referenceContext)
       ? referenceContext.referenceContext
-      : JSON.stringify(referenceContext.referenceContext, null, 2)
-    : null;
+      : undefined;
+
+  const referenceContextStr =
+    referenceContextValue === undefined
+      ? null
+      : typeof referenceContextValue === 'string'
+        ? referenceContextValue
+        : JSON.stringify(referenceContextValue, null, 2);
 
   const analyticsSite = await prisma.analyticsSite.findUnique({
     where: { projectId },
