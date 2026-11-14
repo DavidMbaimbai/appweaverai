@@ -13,7 +13,7 @@ import {
 } from './clone-mode';
 
 export const PLAN_MODE_ENABLED_MARKER = 'Plan mode is enabled';
-export const PLAN_MODE_SYSTEM_PROMPT = `${PLAN_MODE_ENABLED_MARKER}. You are in planning phase only — do not write code or files yet. If the project is a clone or based on a design/URL reference: the plan MUST focus on achieving pixel-perfect visual and structural fidelity to the original source. In complete_plan, list the specific sections identified in the reference and the design tokens (colors, fonts, spacing) you will use. Think step-by-step like an expert software engineer at Replit.`;
+export const PLAN_MODE_SYSTEM_PROMPT = `${PLAN_MODE_ENABLED_MARKER}. You are in planning phase only — do not write code or files yet. If the project is a clone or based on a design/URL reference: the plan MUST focus on achieving pixel-perfect visual and structural fidelity to the original source. In complete_plan, list the specific sections identified in the reference and the design tokens (colors, fonts, spacing) you will use. Think step-by-step like an expert software engineer at Replit. Integration: Every generated app MUST include the analytics snippet in index.html to track visits and signups. For signups and purchases, instruct the app to call \`window.aw.track('signup')\` or \`window.aw.track('purchase', {value, currency})\`.`;
 
 export const PLAN_MODE_BLOCK = [
   'Plan mode workflow:',
@@ -124,6 +124,7 @@ const FULL_STACK_GUIDANCE = [
   'Also supported: Node.js Express (`backend/package.json` with `start` and `test` scripts, `backend/server.js` or index.js listening on `process.env.PORT || 8080`, tests with `node --test` or jest+supertest, DB via the `pg` package using `process.env.DATABASE_URL` with in-memory fallback) and Go (`backend/go.mod`, `backend/main.go` in package main listening on `$PORT` default 8080 using net/http or chi, `_test.go` files with httptest, Postgres via pgx reading `DATABASE_URL` with in-memory fallback). Use these only when the user asks for Node/Express or Go.',
   'Backend blueprints — when the app needs these features, implement them with these patterns: (1) Auth: register/login endpoints, bcrypt-hashed passwords, short-lived JWT in an Authorization Bearer header, secret from `JWT_SECRET` env (dev fallback only when unset), protected routes via a filter/dependency. (2) CRUD resources: list/get/create/update/delete with DTO validation and 404 handling. (3) Pagination/search: `page`, `size`, `q`, `sort` query params returning `{items,total,page,size}`. (4) File upload: multipart endpoint with size and content-type limits and sanitized filenames. (5) Webhooks: verify an HMAC signature header against a secret env var before processing. (6) Background jobs: a scheduled task (`@Scheduled`, asyncio task, setInterval or goroutine ticker) that is disabled during tests.',
   'Add a root `README.md` explaining the architecture and how to run the project. Do NOT write Dockerfiles, docker-compose or AWS files — the platform generates them when the user downloads the project ZIP (docker compose up, one-command AWS deploy).',
+  'Marketing & Analytics: Every web app MUST include the first-party analytics snippet (provided in the initial file context or injected by the platform) in the `<head>` of `index.html`. For key events like signup or purchase, use `window.aw.track(\'signup\')` or `window.aw.track(\'purchase\', {value, currency})`.',
 ].join('\n');
 
 const EDIT_WORKFLOW = [
@@ -143,6 +144,7 @@ const EDIT_WORKFLOW = [
 export const CLONE_MODE_BLOCK = CLONE_MODE_BLOCK_NEW;
 
 export function buildAgentSystemPrompt({
+  projectId,
   projectName,
   projectDescription,
   artifactName,
@@ -155,9 +157,11 @@ export function buildAgentSystemPrompt({
   codingLanguage,
   integrationsContext,
   referenceContext,
+  analyticsContext,
 }: {
   /** Names and env var names of connected integrations only — never credential values. */
   integrationsContext?: string | null;
+  projectId: string;
   projectName: string;
   projectDescription: string | null;
   artifactName: string;
@@ -171,6 +175,7 @@ export function buildAgentSystemPrompt({
    * sandboxed container instead of the browser preview — see lib/code-run/languages.ts. */
   codingLanguage?: string | null;
   referenceContext?: string | null;
+  analyticsContext?: string | null;
 }) {
   const codeLanguage = getCodeLanguage(codingLanguage);
   const isClone = !!referenceContext;
@@ -251,12 +256,18 @@ export function buildAgentSystemPrompt({
         ].join('\n\n')
       : null,
     integrationsContext ?? null,
-    `Project: ${projectName}`,
+    analyticsContext
+      ? [
+          'Analytics & Conversion Tracking Context:',
+          analyticsContext,
+          'You MUST include the analytics snippet in index.html and track key conversion events (signup, purchase).',
+        ].join('\n\n')
+      : null,
+    `Project: ${projectName} (ID: ${projectId})`,
     `Description: ${projectDescription ?? 'No description'}`,
     `Active artifact: ${artifactName} (${artifactType})`,
     codeLanguage ? `Coding language: ${codeLanguage.label}` : `Detected stack: ${projectStack}`,
     `Artifact context:\n${artifactSnapshot}`,
-    !isClone ? `If both a Brand Kit and a design/URL reference are provided: prioritize the colors and typography from the reference for initial cloning. Use the Brand Kit only for elements where the reference is silent or when explicitly asked to apply the brand.` : null,
   ].filter(Boolean);
 
   return parts.join('\n\n');

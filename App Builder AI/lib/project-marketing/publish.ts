@@ -212,7 +212,14 @@ export async function publishDueProjectPosts(now = new Date()) {
 
   for (const post of due.slice(0, MAX_PER_RUN)) {
     const platform = post.platform as Platform;
-    const text = composePostText(post.text, post.hashtags);
+    // Inject UTM parameters to all links in the post text
+    const utmText = injectUtmParameters(post.text, {
+      source: platform.toLowerCase(),
+      medium: 'social',
+      campaign: post.campaignId,
+      content: post.id,
+    });
+    const text = composePostText(utmText, post.hashtags);
     if (isDryRun()) {
       console.info(`[project-posts] DRY RUN ${platform} post ${post.id}: ${text.slice(0, 120)}`);
       continue;
@@ -258,6 +265,12 @@ export async function publishDueProjectPosts(now = new Date()) {
           data: { status: 'MANUAL', error: INSTAGRAM_NEEDS_IMAGE },
         });
         summary.manual++;
+        // Manual fallback: refund the held credit slot
+        const h = held.find((x) => x.id === post.id);
+        if (h) {
+          await finishScheduledSlot(h.key, 'publish_post', false).catch(() => null);
+          held.splice(held.indexOf(h), 1);
+        }
         continue;
       }
       const token = connection ? await usableToken(connection) : null;
@@ -267,10 +280,18 @@ export async function publishDueProjectPosts(now = new Date()) {
           where: { id: post.id },
           data: {
             status: 'MANUAL',
-            error: connection ? 'Connection expired. Reconnect, or post manually.' : 'Not connected. Copy and post manually.',
+            error: connection
+              ? 'Connection expired. Reconnect, or post manually.'
+              : 'Not connected. Copy and post manually.',
           },
         });
         summary.manual++;
+        // Manual fallback: refund the held credit slot
+        const h = held.find((x) => x.id === post.id);
+        if (h) {
+          await finishScheduledSlot(h.key, 'publish_post', false).catch(() => null);
+          held.splice(held.indexOf(h), 1);
+        }
         continue;
       }
       let imageUrl = post.imageUrl;
@@ -329,4 +350,23 @@ export async function publishDueProjectPosts(now = new Date()) {
   for (const id of touched) await syncCampaignStatus(id);
   if (summary.failed > 0) await sendAlert('Project posts failed', JSON.stringify(summary));
   return summary;
+}
+
+/** Appends UTM parameters to any absolute URL found in the text. */
+export function injectUtmParameters(
+  text: string,
+  utm: { source: string; medium: string; campaign: string; content?: string },
+) {
+  return text.replace(/https?:\/\/[^\s)]+/g, (url) => {
+    try {
+      const u = new URL(url);
+      u.searchParams.set('utm_source', utm.source);
+      u.searchParams.set('utm_medium', utm.medium);
+      u.searchParams.set('utm_campaign', utm.campaign);
+      if (utm.content) u.searchParams.set('utm_content', utm.content);
+      return u.toString();
+    } catch {
+      return url;
+    }
+  });
 }

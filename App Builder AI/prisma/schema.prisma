@@ -97,6 +97,7 @@ model User {
   brandKitDefault         UserBrandKit?
   savedPages              UserSavedPage[]
   templateFavorites       UserTemplateFavorite[]
+  marketingCampaigns      ProjectCampaign[]
 
   @@index([adminRole])
   @@index([accountStatus])
@@ -1722,7 +1723,9 @@ model ProjectCampaign {
   createdAt DateTime              @default(now()) @map("created_at")
   updatedAt DateTime              @updatedAt @map("updated_at")
 
-  posts ProjectPost[]
+  user        User                       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  posts       ProjectPost[]
+  conversions MarketingConversionEvent[]
 
   @@index([projectId, createdAt])
   @@index([userId])
@@ -1742,15 +1745,112 @@ model ProjectPost {
   status      ProjectPostStatus @default(DRAFT)
   externalId  String?           @map("external_id")
   error       String?           @db.Text
-  publishedAt DateTime?         @map("published_at")
-  createdAt   DateTime          @default(now()) @map("created_at")
+  publishedAt      DateTime?         @map("published_at")
+  metricsSyncedAt  DateTime?         @map("metrics_synced_at")
+  createdAt        DateTime          @default(now()) @map("created_at")
   updatedAt   DateTime          @updatedAt @map("updated_at")
 
   campaign ProjectCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  metrics  MarketingPostMetrics?
+  conversions MarketingConversionEvent[]
 
   @@index([status, scheduledAt])
   @@index([campaignId])
   @@map("project_posts")
+}
+
+model MarketingPostMetrics {
+  id           String   @id @default(cuid())
+  postId       String   @unique @map("post_id")
+  impressions  Int      @default(0)
+  likes        Int      @default(0)
+  shares       Int      @default(0)
+  comments     Int      @default(0)
+  clicks       Int      @default(0)
+  lastSyncedAt DateTime @default(now()) @map("last_synced_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  post ProjectPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@map("marketing_post_metrics")
+}
+
+model MarketingConversionEvent {
+  id          String   @id @default(cuid())
+  projectId   String   @map("project_id")
+  campaignId  String?  @map("campaign_id")
+  postId      String?  @map("post_id")
+  eventType   String   @map("event_type") // e.g., 'visit', 'signup', 'purchase'
+  utmSource   String?  @map("utm_source")
+  utmMedium   String?  @map("utm_medium")
+  utmCampaign String?  @map("utm_campaign")
+  utmContent  String?  @map("utm_content")
+  utmTerm     String?  @map("utm_term")
+  clientIp    String?  @map("client_ip")
+  userAgent   String?  @map("user_agent") @db.Text
+  occurredAt  DateTime @default(now()) @map("occurred_at")
+
+  campaign ProjectCampaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  post     ProjectPost?     @relation(fields: [postId], references: [id], onDelete: SetNull)
+
+  @@index([projectId, occurredAt])
+  @@index([postId, occurredAt])
+  @@index([campaignId, occurredAt])
+  @@map("marketing_conversion_events")
+}
+
+model AnalyticsSite {
+  id             String   @id @default(cuid())
+  projectId      String   @unique @map("project_id")
+  publicKey      String   @unique @map("public_key")
+  allowedOrigins String[] @map("allowed_origins")
+  enabled        Boolean  @default(true)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  events AnalyticsEvent[]
+
+  @@map("analytics_sites")
+}
+
+model AnalyticsEvent {
+  id          String   @id @default(cuid())
+  siteId      String   @map("site_id")
+  name        String // pageview, signup, purchase, etc.
+  visitorId   String   @map("visitor_id")
+  sessionId   String   @map("session_id")
+  path        String?
+  referrer    String?
+  utmSource   String?  @map("utm_source")
+  utmMedium   String?  @map("utm_medium")
+  utmCampaign String?  @map("utm_campaign")
+  utmContent  String?  @map("utm_content")
+  value       Float?
+  currency    String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  site AnalyticsSite @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@index([siteId, createdAt])
+  @@index([utmContent, createdAt])
+  @@map("analytics_events")
+}
+
+model PostMetricSnapshot {
+  id           String   @id @default(cuid())
+  postId       String   @map("post_id")
+  platform     String
+  impressions  Int?
+  reach        Int?
+  likes        Int?
+  comments     Int?
+  shares       Int?
+  clicks       Int?
+  raw          Json?
+  capturedAt   DateTime @default(now()) @map("captured_at")
+
+  @@index([postId, capturedAt])
+  @@map("post_metric_snapshots")
 }
 
 /// Managed subdomain `<subdomain>.<APP_ROOT_DOMAIN>` served from a project's

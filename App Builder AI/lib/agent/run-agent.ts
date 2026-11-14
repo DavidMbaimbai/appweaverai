@@ -849,19 +849,6 @@ export async function runAgentLoop({
     .then(formatAgentIntegrationContext)
     .catch(() => null);
 
-  const promptContext = {
-    integrationsContext,
-    projectName: project.name,
-    projectDescription: project.description,
-    artifactName: artifact.name,
-    artifactType: artifact.type,
-    artifactSnapshot,
-    projectStack: detectProjectStackFromPaths(relativePaths, indexHtml),
-  };
-
-  const lastUserRequest =
-    messages.filter((message) => message.role === 'USER').at(-1)?.content ?? '';
-
   const referenceContext = messages.find(
     (m) => m.role === 'USER' && (m.metadata as any)?.referenceContext,
   )?.metadata as any;
@@ -870,6 +857,32 @@ export async function runAgentLoop({
       ? referenceContext.referenceContext
       : JSON.stringify(referenceContext.referenceContext, null, 2)
     : null;
+
+  const analyticsSite = await prisma.analyticsSite.findUnique({
+    where: { projectId },
+    select: { publicKey: true },
+  });
+  const analyticsContext = analyticsSite
+    ? `Analytics Public Key: ${analyticsSite.publicKey}\nAnalytics Endpoint: /api/analytics/collect`
+    : null;
+
+  const promptContext = {
+    projectId,
+    integrationsContext,
+    projectName: project.name,
+    projectDescription: project.description,
+    artifactName: artifact.name,
+    artifactType: artifact.type,
+    artifactSnapshot,
+    projectStack: detectProjectStackFromPaths(relativePaths, indexHtml),
+    analyticsContext,
+    planMode,
+    hasExistingFiles,
+    referenceContext: referenceContextStr,
+  };
+
+  const lastUserRequest =
+    messages.filter((message) => message.role === 'USER').at(-1)?.content ?? '';
 
   const projectMemory = hasExistingFiles
     ? await prepareProjectBrief({
