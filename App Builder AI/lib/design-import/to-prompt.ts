@@ -36,8 +36,8 @@ export function designSpecToPrompt(spec: DesignSpec, userNotes = ''): string {
         ? 'an existing website'
         : 'a reference screenshot';
   out.push(
-    `Recreate ${origin} ("${spec.name}") faithfully as a working app. Match layout, spacing, typography and colours closely.`,
-    'Build the UI as clean, editable, reusable components (no flattened images of text), make it responsive, and wire it to working functionality: navigation, forms with validation, buttons that do something, and realistic persisted data where the design implies it.',
+    `Recreate ${origin} ("${spec.name}") as a pixel-perfect, highly faithful clone. Match the layout, spacing, typography, and color palette exactly.`,
+    'Build the UI using clean, semantic, and reusable components. Ensure every detail from the original—down to subtle shadows, border radii, and hover effects—is reproduced. Make it fully responsive and wire up all functionality implied by the design: navigation, interactive forms, and realistic data handling.',
   );
   if (spec.sourceUrl) out.push(`Source: ${spec.sourceUrl}`);
 
@@ -81,8 +81,8 @@ export function designSpecToPrompt(spec: DesignSpec, userNotes = ''): string {
 
 export function screenshotPrompt(userNotes = ''): string {
   return [
-    'The attached screenshot is a visual reference. Recreate its look and layout faithfully as a working app, built from clean, editable, reusable components.',
-    'Infer colours, typography, spacing and structure from the image, make it responsive, and wire it to working functionality (navigation, forms, persisted data where implied).',
+    'The attached screenshot is your primary visual source of truth. Recreate its appearance, layout, and style as a pixel-perfect, highly faithful clone using clean, reusable components.',
+    'Carefully extract colors, typography, spacing, and structural hierarchy from the image. Ensure the result is a close imitation of the original while being fully responsive and interactive (navigation, forms, data persistence where implied).',
     userNotes.trim() ? `Additional instructions from the user: ${userNotes.trim()}` : '',
   ]
     .filter(Boolean)

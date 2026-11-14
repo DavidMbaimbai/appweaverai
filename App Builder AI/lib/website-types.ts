@@ -71,5 +71,14 @@ export function withWebsiteTypeGuidance(
   type: WebsiteType | null,
 ) {
   if (!type) return prompt;
-  return `${prompt}\n\nWebsite type: ${type.label}. Build ${type.guidance}.`;
+  const isClone =
+    prompt.toLowerCase().includes('recreate') ||
+    prompt.toLowerCase().includes('clone') ||
+    prompt.toLowerCase().includes('source:');
+
+  const guidance = isClone
+    ? `Apply the structure of ${type.guidance} while strictly adhering to the visual style and layout of the reference provided.`
+    : `a ${type.label}: ${type.guidance}`;
+
+  return `${prompt}\n\nWebsite type: ${type.label}. Build ${guidance}`;
 }

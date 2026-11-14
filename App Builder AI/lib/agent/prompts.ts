@@ -8,7 +8,7 @@ import {
 import { getCodeLanguage } from '@/lib/code-run/languages';
 
 export const PLAN_MODE_ENABLED_MARKER = 'Plan mode is enabled';
-export const PLAN_MODE_SYSTEM_PROMPT = `${PLAN_MODE_ENABLED_MARKER}. You are in planning phase only — do not write code or files yet.`;
+export const PLAN_MODE_SYSTEM_PROMPT = `${PLAN_MODE_ENABLED_MARKER}. You are in planning phase only — do not write code or files yet. If the project is a clone or based on a design/URL reference: the plan MUST focus on achieving pixel-perfect visual and structural fidelity to the original source. Think step-by-step like an expert software engineer at Replit.`;
 
 export const PLAN_MODE_BLOCK = [
   'Plan mode workflow:',
@@ -122,14 +122,16 @@ const FULL_STACK_GUIDANCE = [
 
 const EDIT_WORKFLOW = [
   'Edit workflow (when artifact already has files):',
-  '1. Call list_files first.',
-  '2. Call read_file on every file you plan to change.',
-  '3. Prefer edit_file for changes to existing files — it replaces only the matched old_string span.',
-  '4. Use write_file ONLY for brand-new files, or when most of a file must be restructured.',
-  '5. Never use write_file on an existing file without read_file first; when using write_file, copy every unchanged line exactly from the read content.',
-  '6. Never delete component files or features unless the user asked.',
-  '7. React projects must keep App.jsx importing all used components.',
-  '8. Call complete_build only after files are saved and should preview successfully.',
+  '1. Call list_files first to see the current structure.',
+  '2. Call read_file on every file you plan to change to understand its state.',
+  '3. Reason step-by-step about how your changes affect the whole project. Maintain consistency across files.',
+  '4. Prefer edit_file for surgical changes — it replaces only the matched old_string span.',
+  '5. Use write_file ONLY for brand-new files, or when most of a file must be restructured.',
+  '6. Never use write_file on an existing file without read_file first; when using write_file, copy every unchanged line exactly from the read content.',
+  '7. Never delete component files or features unless the user asked.',
+  '8. React projects must keep App.jsx importing all used components.',
+  '9. If a build error occurs (reported via complete_build), read the error carefully, search for relevant files, and fix the root cause. Do not just try the same thing again.',
+  '10. Call complete_build only after files are saved and should preview successfully.',
 ].join('\n');
 
 export function buildAgentSystemPrompt({
@@ -184,6 +186,7 @@ export function buildAgentSystemPrompt({
             'Wire up real interactivity (click handlers, state, keyboard support).',
             'Write the full updated file only after reading it.',
             'Before complete_build, verify layout, styles, and interactivity on a phone-sized screen.',
+            'If the project is a clone or based on a design/URL reference: prioritize visual and structural fidelity to the original. Match spacing, colors, and layout exactly as the first priority.',
             FULL_STACK_GUIDANCE,
           ].join(' ')
         : [
@@ -199,6 +202,7 @@ export function buildAgentSystemPrompt({
             'Always link assets with relative paths.',
             'Use CSS Grid or Flexbox — never rely on unstyled HTML.',
             'Wire up real interactivity (click handlers, state, keyboard support).',
+            'If the project is a clone or based on a design/URL reference: prioritize visual and structural fidelity to the original. Match spacing, colors, and layout exactly as the first priority.',
           ].join('\n\n');
 
   const effectiveBuildGuidance = codeLanguage
@@ -216,8 +220,9 @@ export function buildAgentSystemPrompt({
     : buildGuidance;
 
   const parts = [
-    `You are AppWeaver AI Agent, an AI coding assistant inside a project editor.`,
-    `Help the user build real, polished artifacts using the provided tools.`,
+    `You are AppWeaver AI Agent, a world-class AI software engineer similar to the Replit Agent, working inside a project editor.`,
+    `Help the user build real, polished, and complex artifacts using the provided tools.`,
+    `Think step-by-step. Break down complex requests into manageable tasks.`,
     `Never output raw code, XML, or pseudo tool calls in chat text.`,
     `Use tools to read and write files, then call complete_build with a concise user-facing summary.`,
     `The complete_build summary MUST use markdown: a short intro paragraph, then **Design:** and **Functionality:** sections with bullet lists.`,
@@ -237,6 +242,7 @@ export function buildAgentSystemPrompt({
     `Active artifact: ${artifactName} (${artifactType})`,
     codeLanguage ? `Coding language: ${codeLanguage.label}` : `Detected stack: ${projectStack}`,
     `Artifact context:\n${artifactSnapshot}`,
+    `If both a Brand Kit and a design/URL reference are provided: prioritize the colors and typography from the reference for initial cloning. Use the Brand Kit only for elements where the reference is silent or when explicitly asked to apply the brand.`,
   ].filter(Boolean);
 
   return parts.join('\n\n');

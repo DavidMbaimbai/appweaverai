@@ -125,7 +125,7 @@ export function DesignHero() {
       const url = window.prompt('Paste the URL of the site you want to recreate:');
       if (!url) return;
       setValue(
-        `Recreate the design and layout of ${url.trim()} as a modern, responsive web app UI.`,
+        `Recreate the design and layout of ${url.trim()} as a pixel-perfect, highly faithful clone. Match layout, spacing, typography, and colors exactly.`,
       );
       return;
     }

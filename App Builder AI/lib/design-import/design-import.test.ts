@@ -56,7 +56,7 @@ describe('figma', () => {
     expect(spec.colors.map((c) => c.hex)).toEqual(expect.arrayContaining(['#FFFFFF', '#000000']));
     expect(spec.textStyles[0]).toMatchObject({ fontFamily: 'Inter', fontSize: 48 });
     expect(spec.components).toEqual(['Button']);
-    expect(designSpecToPrompt(spec)).toContain('editable');
+    expect(designSpecToPrompt(spec)).toContain('pixel-perfect');
   });
 });
 
