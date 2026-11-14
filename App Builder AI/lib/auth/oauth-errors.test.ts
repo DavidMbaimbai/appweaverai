@@ -8,13 +8,19 @@ describe('OAuth error messages', () => {
     );
   });
 
-  it('preserves the invalid-code recovery message', () => {
-    expect(getOAuthErrorMessage('invalid_code')).toContain('expired');
+  it('does not mistake a token-exchange failure for an expired link', () => {
+    expect(getOAuthErrorMessage('invalid_code')).toContain('Social sign-in');
+    expect(getOAuthErrorMessage('invalid_code')).not.toMatch(/expired|already used/);
   });
 
   it('falls back to a generic useful sign-in error', () => {
     expect(getOAuthErrorMessage('some_provider_error')).toBe(
-      'Sign-in could not be completed. Please try again.',
+      'Social sign-in could not be completed. Please try again or use another sign-in method.',
     );
+  });
+
+  it('distinguishes provider configuration and denied consent', () => {
+    expect(getOAuthErrorMessage('invalid_client')).toContain('provider is unavailable');
+    expect(getOAuthErrorMessage('access_denied')).toContain('cancelled');
   });
 });

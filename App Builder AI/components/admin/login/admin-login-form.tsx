@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { authClient } from '@/lib/auth-client';
+import { getPasswordErrorMessage } from '@/lib/auth/password-errors';
 import { TURNSTILE_SITE_KEY, TurnstileWidget } from '@/components/auth/turnstile-widget';
 import { AdminSignOutButton } from './admin-sign-out-button';
 
@@ -41,7 +42,7 @@ export function AdminLoginForm({ forbidden }: AdminLoginFormProps) {
           setIsLoading(false);
           setCaptchaToken(null);
           setCaptchaResetKey((key) => key + 1);
-          setError(ctx.error.message ?? 'Invalid email or password.');
+          setError(getPasswordErrorMessage(ctx.error));
         },
       },
     });
