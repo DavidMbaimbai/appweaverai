@@ -25,6 +25,9 @@ const ALLOWED_EXTENSTIONS = new Set([
   'zip',
   'ppt',
   'pptx',
+  'pages',
+  'numbers',
+  'key',
   'rtf',
   'ts',
   'tsx',
@@ -38,6 +41,9 @@ const ALLOWED_EXTENSTIONS = new Set([
   'rs',
   'yaml',
   'yml',
+  'cer',
+  'crt',
+  'pem',
 ]);
 
 const ALLOWED_MIME_TYPES = new Set([
@@ -49,11 +55,13 @@ const ALLOWED_MIME_TYPES = new Set([
   'application/pdf',
   'application/msword',
   'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.apple.pages',
   'text/plain',
   'text/markdown',
   'text/csv',
   'application/vnd.ms-excel',
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.apple.numbers',
   'application/json',
   'application/xml',
   'text/xml',
@@ -62,6 +70,7 @@ const ALLOWED_MIME_TYPES = new Set([
   'application/x-zip-compressed',
   'application/vnd.ms-powerpoint',
   'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/vnd.apple.keynote',
   'application/rtf',
   'text/javascript',
   'application/javascript',
@@ -70,6 +79,7 @@ const ALLOWED_MIME_TYPES = new Set([
   'text/x-c',
   'text/yaml',
   'application/octet-stream',
+  'application/x-x509-ca-cert',
 ]);
 
 export const PROMPT_ATTACHMENT_ACCEPT = [
@@ -88,6 +98,9 @@ export const PROMPT_ATTACHMENT_ACCEPT = [
   '.zip',
   '.ppt',
   '.pptx',
+  '.pages',
+  '.numbers',
+  '.key',
   '.rtf',
   '.ts',
   '.tsx',
@@ -101,6 +114,9 @@ export const PROMPT_ATTACHMENT_ACCEPT = [
   '.rs',
   '.yaml',
   '.yml',
+  '.cer',
+  '.crt',
+  '.pem',
 ].join(',');
 
 export type PromptAttachment = {
@@ -119,7 +135,7 @@ export function validatePromptAttachment(file: File): string | null {
   }
 
   if (file.size > MAX_PROMPT_ATTACHMENT_BYTES) {
-    return `${file.name} exceeds theh 25 MB limit.`;
+    return `${file.name} exceeds the 25 MB limit.`;
   }
 
   const extension = getExtension(file.name);

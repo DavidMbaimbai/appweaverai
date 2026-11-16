@@ -2,8 +2,13 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { ProjectCategory } from '@/lib/types';
-import { PromptAttachment } from '@/lib/prompt-attachments';
-import { formatFileSize } from '@/lib/prompt-attachments';
+import {
+  createPromptAttachment,
+  formatFileSize,
+  MAX_PROMPT_ATTACHMENTS,
+  PromptAttachment,
+  validatePromptAttachment,
+} from '@/lib/prompt-attachments';
 import { cn } from '@/lib/utils';
 import { CategoryIcon } from '@/components/shared/category-icons';
 import { useSpeechRecognition } from '@/lib/hooks/use-speech-recognition';
@@ -174,6 +179,49 @@ export function AppPromptInput({
     );
   }
 
+  const handlePaste = (event: React.ClipboardEvent) => {
+    const items = event.clipboardData.items;
+    const pastedFiles: File[] = [];
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.kind === 'file') {
+        const file = item.getAsFile();
+        if (file) {
+          pastedFiles.push(file);
+        }
+      }
+    }
+
+    if (pastedFiles.length > 0) {
+      const newAttachments: PromptAttachment[] = [];
+      let errorMessage: string | null = null;
+
+      for (const file of pastedFiles) {
+        if (attachments.length + newAttachments.length >= MAX_PROMPT_ATTACHMENTS) {
+          errorMessage = `Maximum ${MAX_PROMPT_ATTACHMENTS} attachments allowed.`;
+          break;
+        }
+
+        const error = validatePromptAttachment(file);
+        if (error) {
+          errorMessage = error;
+          break;
+        }
+
+        newAttachments.push(createPromptAttachment(file));
+      }
+
+      if (errorMessage) {
+        onError?.(errorMessage);
+      }
+
+      if (newAttachments.length > 0) {
+        onAttachmentsChange?.([...attachments, ...newAttachments]);
+      }
+    }
+  };
+
   return (
     <>
       <PromptAttachmentDialog
@@ -267,6 +315,7 @@ export function AppPromptInput({
                   handleSubmit();
                 }
               }}
+              onPaste={handlePaste}
               placeholder={
                 isLanding
                   ? 'Describe your idea, AppWeaver AI will bring it to life...'
