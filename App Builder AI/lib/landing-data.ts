@@ -146,8 +146,9 @@ export const examplePromptSets: ExamplePrompt[][] = [
 ];
 
 export const heroTaglines = [
-  "Turn ideas into apps in minutes — no coding needed",
-  "You can always make changes later.",
+  "Build. Launch. Market. Grow.",
+  "Turn a plain-language idea into a working product.",
+  "Made in South Africa. Built for creators everywhere.",
   "Your first prompt is free. No credit consumption.",
 ];
 

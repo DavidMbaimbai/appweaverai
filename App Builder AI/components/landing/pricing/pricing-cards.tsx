@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import Link from 'next/link';
 import type { BillingPeriod, PricingPlan } from '@/lib/types';
 import type { PaidPlanId } from '@/lib/stripe';
 import { cn } from '@/lib/utils';
+import { proSeatTiers } from '@/lib/landing-data';
 import { ProSeatSelect } from './pricing-pro-seat-select';
 import { PricingCheckoutButton } from './pricing-checkout-button';
 
@@ -80,7 +82,9 @@ function PriceBlock({
         <span className="line-through text-text-dim">${plan.originalPrice}</span>
       )}
       <span className="font-medium text-text-primary">${price}</span>
-      <span>/ month, billed annually</span>
+      <span>
+        / month, {period === 'yearly' ? 'billed annually' : 'billed monthly'}
+      </span>
     </p>
   );
 }
@@ -116,7 +120,21 @@ export function PricingCard({
   plan: PricingPlan;
   period: BillingPeriod;
 }) {
+  const [selectedSeats, setSelectedSeats] = useState('100');
   const accent = ACCENT_STYLES[plan.accent ?? 'none'];
+
+  let displayedPlan = plan;
+  if (plan.id === 'pro') {
+    const tier = proSeatTiers.find((t) => String(t.seats) === selectedSeats);
+    if (tier) {
+      displayedPlan = {
+        ...plan,
+        monthlyPrice: tier.monthly,
+        yearlyPrice: tier.yearly,
+        originalPrice: tier.monthly,
+      };
+    }
+  }
 
   return (
     <article
@@ -132,7 +150,7 @@ export function PricingCard({
         <PlanIcon icon={plan.icon} className={cn('h-5 w-5', accent.icon)} />
       </div>
 
-      <PriceBlock plan={plan} period={period} />
+      <PriceBlock plan={displayedPlan} period={period} />
 
       {plan.badges && plan.badges.length > 0 && (
         <div className="mt-4 flex flex-wrap gap-2">
@@ -172,13 +190,20 @@ export function PricingCard({
         ))}
       </ul>
 
-      {plan.id === 'pro' && <ProSeatSelect period={period} />}
+      {plan.id === 'pro' && (
+        <ProSeatSelect
+          period={period}
+          value={selectedSeats}
+          onChange={setSelectedSeats}
+        />
+      )}
 
       <div className="mt-6 space-y-2">
         {isPaidPlanId(plan.id) ? (
           <PricingCheckoutButton
             planId={plan.id}
             period={period}
+            seats={plan.id === 'pro' ? Number(selectedSeats) : undefined}
             label={plan.ctaLabel}
             className={cn(
               'flex w-full items-center justify-center gap-2 rounded-full py-3 text-center text-sm font-medium transition-colors',

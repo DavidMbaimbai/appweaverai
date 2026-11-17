@@ -1,5 +1,7 @@
 import Stripe from 'stripe';
 
+import { proSeatTiers } from '@/lib/landing-data';
+
 let stripeClient: Stripe | null = null;
 
 export type ProPlanInfo = {
@@ -15,6 +17,14 @@ export type ProPlanInfo = {
 
 export type PaidPlanId = 'builder' | 'pro' | 'business';
 export type BillingPeriod = 'monthly' | 'yearly';
+
+type ProSeatTierPriceDetails = {
+  active: boolean;
+  unitAmount: number | null;
+  currency: string;
+  interval: string | null;
+  intervalCount: number | null;
+};
 
 const PLAN_PRICE_ENV_VARS: Record<
   PaidPlanId,
@@ -34,17 +44,58 @@ const PLAN_PRICE_ENV_VARS: Record<
   },
 };
 
+function getPlanPriceEnvVar(
+  planId: PaidPlanId,
+  period: BillingPeriod,
+  seats?: number,
+) {
+  if (seats === undefined) {
+    return PLAN_PRICE_ENV_VARS[planId][period];
+  }
+
+  if (
+    planId !== 'pro' ||
+    !proSeatTiers.some((tier) => tier.seats === seats)
+  ) {
+    throw new Error('Choose a supported Pro seat tier before checkout.');
+  }
+
+  return `STRIPE_PRO_${seats}_${period.toUpperCase()}_PRICE_ID`;
+}
+
+export function matchesProSeatTierPrice(
+  price: ProSeatTierPriceDetails,
+  seats: number,
+  period: BillingPeriod,
+) {
+  const tier = proSeatTiers.find((candidate) => candidate.seats === seats);
+  if (!tier) return false;
+
+  const expectedMonthlyEquivalent =
+    period === 'yearly' ? tier.yearly : tier.monthly;
+
+  return (
+    price.active &&
+    price.unitAmount ===
+      expectedMonthlyEquivalent * (period === 'yearly' ? 12 : 1) * 100 &&
+    price.currency.toLowerCase() === 'usd' &&
+    price.interval === (period === 'yearly' ? 'year' : 'month') &&
+    price.intervalCount === 1
+  );
+}
+
 /** Resolves the Checkout price ID for a specific paid plan + billing period. */
 export function resolvePriceIdForPlan(
   planId: PaidPlanId,
   period: BillingPeriod,
+  seats?: number,
 ): string {
-  const envVar = PLAN_PRICE_ENV_VARS[planId][period];
+  const envVar = getPlanPriceEnvVar(planId, period, seats);
   const priceId = process.env[envVar]?.trim();
 
   if (!priceId) {
     throw new Error(
-      `Set ${envVar} (price_...) in your environment to enable checkout for the ${planId} plan.`,
+      `Set ${envVar} (price_...) in your environment to enable checkout for the ${planId}${seats === undefined ? '' : ` ${seats}-seat tier`} plan.`,
     );
   }
 
@@ -54,8 +105,16 @@ export function resolvePriceIdForPlan(
 export function isPlanCheckoutConfigured(
   planId: PaidPlanId,
   period: BillingPeriod,
+  seats?: number,
 ): boolean {
-  const envVar = PLAN_PRICE_ENV_VARS[planId][period];
+  if (
+    seats !== undefined &&
+    (planId !== 'pro' || !proSeatTiers.some((tier) => tier.seats === seats))
+  ) {
+    return false;
+  }
+
+  const envVar = getPlanPriceEnvVar(planId, period, seats);
   return Boolean(process.env[envVar]?.trim());
 }
 
@@ -68,6 +127,16 @@ export function getPlanIdsByPriceId(): Record<string, PaidPlanId> {
       const priceId = process.env[PLAN_PRICE_ENV_VARS[planId][period]]?.trim();
       if (priceId) {
         map[priceId] = planId;
+      }
+    }
+  }
+
+  for (const tier of proSeatTiers) {
+    for (const period of ['monthly', 'yearly'] as BillingPeriod[]) {
+      const envVar = getPlanPriceEnvVar('pro', period, tier.seats);
+      const priceId = process.env[envVar]?.trim();
+      if (priceId) {
+        map[priceId] = 'pro';
       }
     }
   }

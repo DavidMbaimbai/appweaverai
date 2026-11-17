@@ -66,7 +66,9 @@ export default async function AboutPage() {
               experience, software engineering expertise, and artificial
               intelligence, they are building a platform where entrepreneurs,
               businesses, creators, and developers can transform ideas into
-              real applications through natural language.
+              real applications through natural language. The vision is one
+              workspace to design, build, launch, market, and grow digital
+              products.
             </p>
           </div>
         </Container>
@@ -76,8 +78,8 @@ export default async function AboutPage() {
             Our Mission
           </h2>
           <p className="mt-4 font-display text-xl leading-snug text-text-agent-heading">
-            Turn ideas into software, without letting technical complexity
-            stand in the way.
+            Help anyone turn an idea into a digital product, without letting
+            technical complexity stand in the way.
           </p>
           <p className="mt-4 font-display text-lg leading-relaxed text-text-dim">
             From teaching people how to solve equations to building
@@ -86,6 +88,9 @@ export default async function AboutPage() {
             <span className="font-medium text-text-agent-heading">
               Empower people to create.
             </span>
+          </p>
+          <p className="mt-4 font-display text-sm text-text-dim">
+            Proudly made in South Africa.
           </p>
         </Container>
 

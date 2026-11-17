@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils';
 type PricingCheckoutButtonProps = {
   planId: PaidPlanId;
   period: BillingPeriod;
+  seats?: number;
   label: string;
   className: string;
 };
@@ -26,6 +27,7 @@ type PricingCheckoutButtonProps = {
 export function PricingCheckoutButton({
   planId,
   period,
+  seats,
   label,
   className,
 }: PricingCheckoutButtonProps) {
@@ -38,7 +40,10 @@ export function PricingCheckoutButton({
     if (status === 'loading' || isLoading) return;
     setError(null);
 
-    const upgradeCallback = `/app/billing?upgrade=${planId}&period=${period}`;
+    let upgradeCallback = `/app/billing?upgrade=${planId}&period=${period}`;
+    if (seats !== undefined) {
+      upgradeCallback += `&seats=${seats}`;
+    }
 
     if (status === 'unauthenticated' || !session?.user) {
       const params = new URLSearchParams(window.location.search);
@@ -54,7 +59,7 @@ export function PricingCheckoutButton({
     }
 
     setIsLoading(true);
-    void createPlanCheckoutSessionAction(planId, period).then((result) => {
+    void createPlanCheckoutSessionAction(planId, period, seats).then((result) => {
       if (result?.url) {
         window.location.assign(result.url);
         return;

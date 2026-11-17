@@ -10,6 +10,7 @@ import {
   getStripeClient,
   resolveStripeProPriceId,
   resolvePriceIdForPlan,
+  matchesProSeatTierPrice,
   type PaidPlanId,
   type BillingPeriod,
 } from '@/lib/stripe';
@@ -93,6 +94,7 @@ export async function createProCheckoutSessionAction() {
 export async function createPlanCheckoutSessionAction(
   planId: PaidPlanId,
   period: BillingPeriod,
+  seats?: number,
 ) {
   const result = await requireUser(billingUserSelect);
   if (result.error || !result.user) {
@@ -101,19 +103,50 @@ export async function createPlanCheckoutSessionAction(
 
   try {
     const stripe = getStripeClient();
-    const customerId = await getOrCreateStripeCustomer(result.user);
     const baseUrl = getAppBaseUrl();
-    const priceId = resolvePriceIdForPlan(planId, period);
+    const priceId = resolvePriceIdForPlan(planId, period, seats);
 
+    if (planId === 'pro' && seats !== undefined) {
+      const configuredPrice = await stripe.prices.retrieve(priceId);
+      if (
+        !matchesProSeatTierPrice(
+          {
+            active: configuredPrice.active,
+            unitAmount: configuredPrice.unit_amount,
+            currency: configuredPrice.currency,
+            interval: configuredPrice.recurring?.interval ?? null,
+            intervalCount: configuredPrice.recurring?.interval_count ?? null,
+          },
+          seats,
+          period,
+        )
+      ) {
+        throw new Error(
+          `STRIPE_PRO_${seats}_${period.toUpperCase()}_PRICE_ID must point to an active USD recurring price matching the displayed Pro tier total and billing period.`,
+        );
+      }
+    }
+
+    const customerId = await getOrCreateStripeCustomer(result.user);
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       customer: customerId,
       line_items: [{ price: priceId, quantity: 1 }],
       success_url: `${baseUrl}/app/billing?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${baseUrl}/app/billing?checkout=cancel`,
-      metadata: { userId: result.user.id, planId, period },
+      metadata: {
+        userId: result.user.id,
+        planId,
+        period,
+        ...(seats === undefined ? {} : { seats: String(seats) }),
+      },
       subscription_data: {
-        metadata: { userId: result.user.id, planId, period },
+        metadata: {
+          userId: result.user.id,
+          planId,
+          period,
+          ...(seats === undefined ? {} : { seats: String(seats) }),
+        },
       },
     });
 

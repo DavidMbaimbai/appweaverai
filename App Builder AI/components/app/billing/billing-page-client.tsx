@@ -77,6 +77,9 @@ export function BillingPageClient({
 
   const upgradePlanParam = searchParams.get('upgrade');
   const upgradePeriodParam = searchParams.get('period');
+  const upgradeSeatsParam = searchParams.get('seats');
+  const upgradeSeats =
+    upgradeSeatsParam === null ? undefined : Number(upgradeSeatsParam);
 
   // Coming from the marketing pricing page CTAs: once a signed-in user (or a
   // freshly signed-up/logged-in one, redirected here via callbackUrl) lands
@@ -94,7 +97,11 @@ export function BillingPageClient({
 
     hasTriggeredAutoUpgrade.current = true;
 
-    void createPlanCheckoutSessionAction(upgradePlanParam, period).then(
+    void createPlanCheckoutSessionAction(
+      upgradePlanParam,
+      period,
+      upgradePlanParam === 'pro' ? upgradeSeats : undefined,
+    ).then(
       (result) => {
         if (result?.url) {
           window.location.assign(result.url);
@@ -104,7 +111,12 @@ export function BillingPageClient({
         if (result?.error) setError(result.error);
       },
     );
-  }, [isAutoRedirecting, upgradePlanParam, upgradePeriodParam]);
+  }, [
+    isAutoRedirecting,
+    upgradePlanParam,
+    upgradePeriodParam,
+    upgradeSeats,
+  ]);
 
   function handleUpgrade() {
     setError(null);

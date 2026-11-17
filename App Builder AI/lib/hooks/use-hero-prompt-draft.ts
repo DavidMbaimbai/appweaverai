@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { loadHeroPromptDraft } from '../hero-prompt-draft';
+import { loadHeroPromptAttachments } from '../hero-prompt-attachments';
 import { projectCategories } from '../landing-data';
 import type { PromptAttachment } from '../prompt-attachments';
 import type { ProjectCategory } from '../types';
@@ -18,7 +19,7 @@ export function useHeroPromptDraftRestore() {
   useEffect(() => {
     async function restore() {
       const draft = loadHeroPromptDraft();
-      const storedAttachments = await [];
+      const storedAttachments = await loadHeroPromptAttachments();
 
       if (draft) {
         setValue(draft.value);

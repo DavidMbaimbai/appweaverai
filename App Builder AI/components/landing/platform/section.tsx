@@ -7,9 +7,15 @@ export function PlatformSection() {
   return (
     <section className="pb-8 pt-16 desktop:pt-[120px]">
       <Container>
-        <h2 className="text-center font-display text-[32px] leading-[32px] tracking-[-1.92px] text-text-agent-heading tablet-up:text-[40px] tablet-up:leading-[40px] tablet-up:tracking-[-2.4px] desktop:text-[48px] desktop:leading-none desktop:tracking-[-0.06em]">
-          Powered by the AppWeaver AI platform
-        </h2>
+        <div className="text-center">
+          <h2 className="font-display text-[32px] leading-[32px] tracking-[-1.92px] text-text-agent-heading tablet-up:text-[40px] tablet-up:leading-[40px] tablet-up:tracking-[-2.4px] desktop:text-[48px] desktop:leading-none desktop:tracking-[-0.06em]">
+            One workspace to build, launch, market and grow
+          </h2>
+          <p className="mx-auto mt-4 max-w-2xl text-base leading-relaxed text-text-dim tablet-up:text-lg">
+            Bring your idea from first draft to a live product, then keep
+            improving and growing it with AppWeaver AI.
+          </p>
+        </div>
 
         <MobilePlatformSlider />
 

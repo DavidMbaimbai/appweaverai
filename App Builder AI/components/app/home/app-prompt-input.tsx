@@ -319,7 +319,7 @@ export function AppPromptInput({
               placeholder={
                 isLanding
                   ? 'Describe your idea, AppWeaver AI will bring it to life...'
-                  : 'Make an app that...'
+                  : 'Describe your idea or paste a prompt...'
               }
               rows={isLanding ? 1 : 2}
               disabled={disabled}
@@ -344,13 +344,14 @@ export function AppPromptInput({
                 type="button"
                 onClick={() => setAttachmentDialogOpen(true)}
                 className={cn(
-                  'flex h-8 w-8 shrink-0 items-center justify-center transition-colors disabled:opacity-60',
+                  'flex h-8 shrink-0 items-center justify-center gap-1.5 transition-colors disabled:opacity-60',
                   isLanding
-                    ? 'rounded-full bg-[#f3f3f1] text-[#28292c] hover:bg-black/[0.04]'
-                    : 'rounded-lg border border-app-border bg-app-surface text-app-text-secondary hover:bg-app-surface-hover hover:text-app-text',
+                    ? 'w-8 rounded-full bg-[#f3f3f1] text-[#28292c] hover:bg-black/[0.04]'
+                    : 'rounded-lg border border-app-border bg-app-surface px-2.5 text-app-text-secondary hover:bg-app-surface-hover hover:text-app-text',
                 )}
                 disabled={disabled}
-                aria-label="Add attachment">
+                aria-label="Attach a document or file"
+                title="Attach a document or file">
                 <svg
                   width="14"
                   height="14"
@@ -364,6 +365,7 @@ export function AppPromptInput({
                     strokeLinecap="round"
                   />
                 </svg>
+                {!isLanding ? <span className="text-xs">Attach file</span> : null}
               </button>
 
               {planMode ? (

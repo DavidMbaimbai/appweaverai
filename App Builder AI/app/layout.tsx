@@ -9,12 +9,13 @@ import { GrowthTracker } from '@/components/growth-bi/growth-tracker';
 import { getEnabledOAuthProviders } from '@/lib/auth/oauth-config';
 
 export const metadata: Metadata = {
-  title: 'AppWeaver AI - Build apps and sites with AI',
+  title: 'AppWeaver AI | From imagination to implementation',
   description:
-    'turn ideas into apps in minutes. AppWeaver AI agent writes production-ready code, evolves it, and stays out of your way.',
+    'Design, build, launch, market and grow digital products from one AI-powered workspace. Turn your idea into a working product with AppWeaver AI.',
   openGraph: {
-    title: 'AppWeaver AI - Build apps and sites with AI',
-    description: 'Turn ideas into apps in minutes - no coding needed.',
+    title: 'AppWeaver AI | From imagination to implementation',
+    description:
+      'Design, build, launch, market and grow digital products from one AI-powered workspace.',
     type: 'website',
   },
   icons: {
