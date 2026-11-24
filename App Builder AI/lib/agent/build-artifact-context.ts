@@ -23,6 +23,14 @@ function scorePath(relativePath: string) {
   const entryIndex = ENTRY_PRIORITY.indexOf(relativePath);
   if (entryIndex >= 0) return entryIndex;
 
+  if (
+    /^(backend\/)?(migrations?|db|database|src\/main\/java\/.+\/(model|repository)|app\/(models|db)|models|repositories?)\//i.test(
+      relativePath,
+    )
+  ) {
+    return 10;
+  }
+  if (/^backend\//i.test(relativePath)) return 15;
   if (relativePath.startsWith('components/'))
     return 20 + relativePath.length / 100;
   if (relativePath.endsWith('.css')) return 40;
