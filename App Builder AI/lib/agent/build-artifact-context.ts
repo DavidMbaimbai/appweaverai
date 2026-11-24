@@ -24,7 +24,7 @@ function scorePath(relativePath: string) {
   if (entryIndex >= 0) return entryIndex;
 
   if (
-    /^(backend\/)?(migrations?|db|database|src\/main\/java\/.+\/(model|repository)|app\/(models|db)|models|repositories?)\//i.test(
+    /^(backend\/)?(migrations?|db|database|src\/main\/java\/.+\/(model|repository)|app\/(models|db)|models|repository|repositories)\//i.test(
       relativePath,
     )
   ) {
