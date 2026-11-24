@@ -17,6 +17,17 @@ export type ProPlanInfo = {
 
 export type PaidPlanId = 'builder' | 'pro' | 'business';
 export type BillingPeriod = 'monthly' | 'yearly';
+export type ProSeatCheckoutPriceData = {
+  currency: 'usd';
+  unit_amount: number;
+  product_data: {
+    name: string;
+  };
+  recurring: {
+    interval: 'month' | 'year';
+    interval_count: 1;
+  };
+};
 
 type ProSeatTierPriceDetails = {
   active: boolean;
@@ -116,6 +127,39 @@ export function isPlanCheckoutConfigured(
 
   const envVar = getPlanPriceEnvVar(planId, period, seats);
   return Boolean(process.env[envVar]?.trim());
+}
+
+/**
+ * Builds a recurring Checkout price for a published Pro seat tier when a
+ * dedicated Stripe Price ID has not been configured yet. The amount is the
+ * total tier price, not a per-seat quantity.
+ */
+export function getProSeatCheckoutPriceData(
+  seats: number,
+  period: BillingPeriod,
+): ProSeatCheckoutPriceData {
+  const tier = proSeatTiers.find((candidate) => candidate.seats === seats);
+  if (!tier) {
+    throw new Error('Choose a supported Pro seat tier before checkout.');
+  }
+
+  const monthlyEquivalent = period === 'yearly' ? tier.yearly : tier.monthly;
+
+  return {
+    currency: 'usd',
+    unit_amount: monthlyEquivalent * (period === 'yearly' ? 12 : 1) * 100,
+    product_data: {
+      name: `AppWeaver AI Pro - ${seats} seats`,
+    },
+    recurring: {
+      interval: period === 'yearly' ? 'year' : 'month',
+      interval_count: 1,
+    },
+  };
+}
+
+export function isPaidPlanId(value: string | null | undefined): value is PaidPlanId {
+  return value === 'builder' || value === 'pro' || value === 'business';
 }
 
 /** All configured plan price IDs, keyed by price ID, for validating checkout sessions. */

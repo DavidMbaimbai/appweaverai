@@ -10,6 +10,8 @@ import {
   getStripeClient,
   resolveStripeProPriceId,
   resolvePriceIdForPlan,
+  getProSeatCheckoutPriceData,
+  isPlanCheckoutConfigured,
   matchesProSeatTierPrice,
   type PaidPlanId,
   type BillingPeriod,
@@ -64,6 +66,8 @@ export async function createProCheckoutSessionAction() {
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       customer: customerId,
+      payment_method_types: ['card'],
+      payment_method_collection: 'always',
       line_items: [{ price: await resolveStripeProPriceId(), quantity: 1 }],
       success_url: `${baseUrl}/app/billing?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${baseUrl}/app/billing?checkout=cancel`,
@@ -104,10 +108,16 @@ export async function createPlanCheckoutSessionAction(
   try {
     const stripe = getStripeClient();
     const baseUrl = getAppBaseUrl();
-    const priceId = resolvePriceIdForPlan(planId, period, seats);
+    const usesInlineSeatPrice =
+      planId === 'pro' &&
+      seats !== undefined &&
+      !isPlanCheckoutConfigured(planId, period, seats);
+    const configuredPriceId = usesInlineSeatPrice
+      ? undefined
+      : resolvePriceIdForPlan(planId, period, seats);
 
-    if (planId === 'pro' && seats !== undefined) {
-      const configuredPrice = await stripe.prices.retrieve(priceId);
+    if (planId === 'pro' && seats !== undefined && configuredPriceId) {
+      const configuredPrice = await stripe.prices.retrieve(configuredPriceId);
       if (
         !matchesProSeatTierPrice(
           {
@@ -127,11 +137,33 @@ export async function createPlanCheckoutSessionAction(
       }
     }
 
+    const lineItems = usesInlineSeatPrice
+      ? (() => {
+          if (seats === undefined) {
+            throw new Error('Choose a supported Pro seat tier before checkout.');
+          }
+          return [
+            {
+              price_data: getProSeatCheckoutPriceData(seats, period),
+              quantity: 1,
+            },
+          ];
+        })()
+      : [
+          {
+            price:
+              configuredPriceId ?? resolvePriceIdForPlan(planId, period, seats),
+            quantity: 1,
+          },
+        ];
+
     const customerId = await getOrCreateStripeCustomer(result.user);
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       customer: customerId,
-      line_items: [{ price: priceId, quantity: 1 }],
+      payment_method_types: ['card'],
+      payment_method_collection: 'always',
+      line_items: lineItems,
       success_url: `${baseUrl}/app/billing?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${baseUrl}/app/billing?checkout=cancel`,
       metadata: {

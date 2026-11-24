@@ -12,6 +12,7 @@ import {
   getStripeClient,
   resolveStripeProPriceId,
   getPlanIdsByPriceId,
+  isPaidPlanId,
   type PaidPlanId,
 } from '@/lib/stripe';
 
@@ -176,6 +177,13 @@ export async function syncUserFromCheckoutSession(
       }
     } catch {
       // No legacy Pro price configured either — fall through to error below.
+    }
+  }
+
+  if (!matchedPlanId) {
+    const metadataPlanId = session.metadata?.planId;
+    if (isPaidPlanId(metadataPlanId)) {
+      matchedPlanId = metadataPlanId;
     }
   }
 

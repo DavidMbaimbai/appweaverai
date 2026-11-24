@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
   getPlanIdsByPriceId,
+  getProSeatCheckoutPriceData,
   matchesProSeatTierPrice,
   resolvePriceIdForPlan,
 } from './stripe';
@@ -11,6 +12,15 @@ afterEach(() => {
 });
 
 describe('Pro seat-tier checkout prices', () => {
+  it('builds the displayed total as an inline recurring Checkout price', () => {
+    expect(getProSeatCheckoutPriceData(100, 'yearly')).toEqual({
+      currency: 'usd',
+      unit_amount: 108000,
+      product_data: { name: 'AppWeaver AI Pro - 100 seats' },
+      recurring: { interval: 'year', interval_count: 1 },
+    });
+  });
+
   it('resolves the selected tier price instead of the base Pro price', () => {
     vi.stubEnv('STRIPE_PRO_MONTHLY_PRICE_ID', 'price_pro_base');
     vi.stubEnv('STRIPE_PRO_100_MONTHLY_PRICE_ID', 'price_pro_100_monthly');
