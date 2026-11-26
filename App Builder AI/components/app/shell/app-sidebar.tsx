@@ -39,6 +39,7 @@ const mainNav: Array<{
   exact?: boolean;
 }> = [
   { label: 'Home', href: '/app', icon: HomeIcon, exact: true },
+  { label: 'Search', href: '/app/search', icon: SearchIcon, exact: true },
   { label: 'Templates', href: '/app/templates', icon: TemplatesIcon, exact: true },
   { label: 'Import', href: '/import', icon: TemplatesIcon, exact: true },
   { label: 'Studio', href: '/app/studio', icon: PencilIcon, exact: true },
