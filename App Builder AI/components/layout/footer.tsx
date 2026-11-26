@@ -44,9 +44,6 @@ export function Footer() {
               From your first idea to a working product, AppWeaver AI helps you
               build, launch, reach customers and grow.
             </p>
-            <p className="mt-3 text-sm text-text-secondary">
-              <span aria-hidden="true">🇿🇦</span> Made in South Africa
-            </p>
           </div>
 
           {columns.map((column) => (

@@ -149,7 +149,7 @@ export const heroTaglines = [
   "Turn any idea into a working product.",
   "Websites, mobile apps, SaaS, agents, APIs, games and more.",
   "Build. Launch. Market. Grow.",
-  "Made in South Africa. Built for creators everywhere.",
+  "Built for creators everywhere.",
   "Your first prompt is free. No credit consumption.",
 ];
 

@@ -89,9 +89,6 @@ export default async function AboutPage() {
               Empower people to create.
             </span>
           </p>
-          <p className="mt-4 font-display text-sm text-text-dim">
-            Proudly made in South Africa.
-          </p>
         </Container>
 
         <Container className="mt-16 tablet-up:mt-20">

@@ -33,7 +33,6 @@ type AppPromptInputProps = {
 
 const SPEECH_LANGUAGES = [
   ['auto', 'Auto-detect device language'],
-  ['en-ZA', 'English (South Africa)'],
   ['af-ZA', 'Afrikaans'],
   ['zu-ZA', 'isiZulu'],
   ['xh-ZA', 'isiXhosa'],

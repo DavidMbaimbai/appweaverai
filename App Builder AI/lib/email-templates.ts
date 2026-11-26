@@ -85,7 +85,7 @@ export function renderBrandedEmail({
             <tr>
               <td style="padding:20px 40px 28px;border-top:1px solid #f0ece6;">
                 <p style="margin:0;font-family:'IBM Plex Sans',Arial,sans-serif;font-size:12px;color:${TEXT_MUTED};">
-                  Developed by AppWeaver AI in South Africa. &copy; ${new Date().getFullYear()} AppWeaver AI, Inc.
+                  Developed by AppWeaver AI. &copy; ${new Date().getFullYear()} AppWeaver AI, Inc.
                 </p>
               </td>
             </tr>
