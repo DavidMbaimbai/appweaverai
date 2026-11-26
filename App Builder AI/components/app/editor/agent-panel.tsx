@@ -135,6 +135,7 @@ export const AgentPanel = forwardRef<AgentPanelHandle, AgentPanelProps>(
   const [taskBoardOpen, setTaskBoardOpen] = useState(false);
   const [liveRun, setLiveRun] = useState<LiveRunState | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [queuedMessages, setQueuedMessages] = useState<string[]>([]);
   const [planModeActive, setPlanModeActive] = useState(project.planMode);
   const [otherUserRun, setOtherUserRun] = useState<{ name: string } | null>(
     null,
@@ -505,6 +506,8 @@ export const AgentPanel = forwardRef<AgentPanelHandle, AgentPanelProps>(
     setTimeout(() => {
       void runAgentStream({ initialReply: true });
     }, 10);
+    // The initial run intentionally uses the current project snapshot only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeArtifact, messages, project]);
 
   // Poll for messages/replies from other collaborators with this project
@@ -591,7 +594,13 @@ export const AgentPanel = forwardRef<AgentPanelHandle, AgentPanelProps>(
 
   function handleSend(content?: string) {
     const trimmed = (content ?? input).trim();
-    if (!trimmed || isStreaming || !activeArtifact) return;
+    if (
+      !trimmed ||
+      !activeArtifact ||
+      Boolean(otherUserRun) ||
+      (!activeArtifactBuildable && !planModeActive)
+    )
+      return;
 
     if (!content) {
       setInput('');
@@ -606,11 +615,28 @@ export const AgentPanel = forwardRef<AgentPanelHandle, AgentPanelProps>(
       createdAt: new Date().toISOString(),
     };
 
+    if (isStreaming) {
+      setMessages((current) => [...current, optimisticUserMessage]);
+      setQueuedMessages((current) => [...current, trimmed]);
+      return;
+    }
+
     void runAgentStream({
       content: trimmed,
       optimisticUserMessage,
     });
   }
+
+  useEffect(() => {
+    if (isStreaming || queuedMessages.length === 0 || !activeArtifact) return;
+
+    const [nextMessage, ...remainingMessages] = queuedMessages;
+    setQueuedMessages(remainingMessages);
+    void runAgentStream({ content: nextMessage });
+    // runAgentStream is intentionally invoked only after the previous stream
+    // has finished, so queued messages are processed sequentially.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeArtifact, isStreaming, queuedMessages]);
 
   useImperativeHandle(
     ref,
@@ -966,6 +992,8 @@ export const AgentPanel = forwardRef<AgentPanelHandle, AgentPanelProps>(
           placeholder={
             otherUserRun
               ? `Waiting for ${otherUserRun.name} to finish…`
+              : isStreaming
+                ? 'Add another instruction while Agent works...'
               : !activeArtifactBuildable && !planModeActive
                 ? 'Switch to a supported artifact to build...'
                 : planModeActive
@@ -974,7 +1002,6 @@ export const AgentPanel = forwardRef<AgentPanelHandle, AgentPanelProps>(
           }
           rows={3}
           disabled={
-            isStreaming ||
             !activeArtifact ||
             Boolean(otherUserRun) ||
             (!activeArtifactBuildable && !planModeActive)
@@ -1005,14 +1032,19 @@ export const AgentPanel = forwardRef<AgentPanelHandle, AgentPanelProps>(
             disabled={
               !input.trim() ||
               Boolean(otherUserRun) ||
-              isStreaming ||
               !activeArtifact ||
               (!activeArtifactBuildable && !planModeActive)
             }
             className="rounded-lg bg-appweaver-orange px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50">
-            {isStreaming ? 'Working...' : 'Send'}
+            {isStreaming ? 'Queue' : 'Send'}
           </button>
         </div>
+        {queuedMessages.length > 0 ? (
+          <p className="mt-2 text-xs text-app-text-muted">
+            {queuedMessages.length} message
+            {queuedMessages.length === 1 ? '' : 's'} queued for the Agent.
+          </p>
+        ) : null}
       </div>
 
       <TaskBoardDrawer
