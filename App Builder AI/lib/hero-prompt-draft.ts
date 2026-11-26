@@ -12,6 +12,7 @@ export type HeroPromptDraft = {
   planMode: boolean;
   autostart: boolean;
   websiteType?: string | null;
+  codingLanguage?: string | null;
 };
 
 export function saveHeroPromptDraft(draft: HeroPromptDraft) {
@@ -35,6 +36,10 @@ export function loadHeroPromptDraft(): HeroPromptDraft | null {
       autostart: Boolean(parsed.autostart),
       websiteType:
         typeof parsed.websiteType === 'string' ? parsed.websiteType : null,
+      codingLanguage:
+        typeof parsed.codingLanguage === 'string'
+          ? parsed.codingLanguage
+          : null,
     };
   } catch {
     return null;
@@ -53,6 +58,7 @@ export async function persistHeroPromptState({
   attachments,
   autostart = false,
   websiteType = null,
+  codingLanguage = null,
 }: {
   value: string;
   categoryId: string | null;
@@ -60,6 +66,7 @@ export async function persistHeroPromptState({
   attachments: PromptAttachment[];
   autostart?: boolean;
   websiteType?: string | null;
+  codingLanguage?: string | null;
 }) {
   saveHeroPromptDraft({
     value,
@@ -67,6 +74,7 @@ export async function persistHeroPromptState({
     planMode,
     autostart,
     websiteType,
+    codingLanguage,
   });
   await saveHeroPromptAttachments(attachments);
 }
@@ -76,12 +84,14 @@ export function buildProjectFormData({
   planMode,
   categoryId,
   websiteType,
+  codingLanguage,
   attachments,
 }: {
   prompt: string;
   planMode: boolean;
   categoryId?: string | null;
   websiteType?: string | null;
+  codingLanguage?: string | null;
   attachments: PromptAttachment[];
 }) {
   const formData = new FormData();
@@ -93,6 +103,9 @@ export function buildProjectFormData({
   }
   if (websiteType) {
     formData.append('websiteType', websiteType);
+  }
+  if (codingLanguage) {
+    formData.append('codingLanguage', codingLanguage);
   }
 
   attachments.forEach((attachment, index) => {

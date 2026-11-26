@@ -18,6 +18,10 @@ import {
 } from '@/lib/hero-prompt-draft';
 import { createProjectAction, importGithubRepoAction } from '@/lib/actions/projects';
 import {
+  CODE_LANGUAGE_OPTIONS,
+  LANGUAGE_CATALOG,
+} from '@/lib/code-run/languages';
+import {
   GithubRepoPicker,
   type GithubRepoOption,
 } from '@/components/app/editor/github-repo-picker';
@@ -53,6 +57,15 @@ export function AppHome({ user }: AppHomeProps) {
   const autostartedRef = useRef(false);
   const [githubPickerOpen, setGithubPickerOpen] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [codingLanguage, setCodingLanguage] = useState(() => {
+    if (typeof window === 'undefined') return 'auto';
+    return localStorage.getItem('appweaver-coding-language') || 'auto';
+  });
+  const [customCodingLanguage, setCustomCodingLanguage] = useState('');
+
+  useEffect(() => {
+    localStorage.setItem('appweaver-coding-language', codingLanguage);
+  }, [codingLanguage]);
 
   const displayName = getDisplayName(user?.name, user?.email);
 
@@ -63,6 +76,16 @@ export function AppHome({ user }: AppHomeProps) {
     nextCategory: ProjectCategory | null,
   ) {
     setError(null);
+    const selectedLanguage =
+      codingLanguage === 'auto'
+        ? null
+        : codingLanguage === 'custom'
+          ? customCodingLanguage.trim()
+          : (CODE_LANGUAGE_OPTIONS.find(
+              (option) => option.label === codingLanguage,
+            )?.id ?? codingLanguage);
+    const normalizedLanguage =
+      selectedLanguage === 'JavaScript' ? 'javascript' : selectedLanguage;
 
     startTransition(async () => {
       const formData = buildProjectFormData({
@@ -70,6 +93,7 @@ export function AppHome({ user }: AppHomeProps) {
         planMode: nextPlanMode,
         categoryId: nextCategory?.id,
         websiteType,
+        codingLanguage: normalizedLanguage,
         attachments: nextAttachments,
       });
 
@@ -177,6 +201,41 @@ export function AppHome({ user }: AppHomeProps) {
             onChange={setWebsiteType}
             disabled={isPending}
           />
+
+          <label className="mt-3 flex items-center justify-center gap-2 text-sm text-app-text-muted">
+            <span>Programming language</span>
+            <select
+              value={codingLanguage}
+              onChange={(event) => setCodingLanguage(event.target.value)}
+              disabled={isPending}
+              className="rounded-lg border border-app-border bg-app-surface px-2 py-1.5 text-sm text-app-text outline-none disabled:opacity-60"
+              aria-label="Programming language">
+              <option value="auto">Auto-select best language</option>
+              {LANGUAGE_CATALOG.map((group) => (
+                <optgroup key={group.category} label={group.category}>
+                  {group.languages.map((language) => (
+                    <option key={`${group.category}-${language}`} value={language}>
+                      {language}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+              <option value="custom">Other language...</option>
+            </select>
+            {codingLanguage === 'custom' ? (
+              <input
+                value={customCodingLanguage}
+                onChange={(event) => setCustomCodingLanguage(event.target.value)}
+                disabled={isPending}
+                placeholder="e.g. Kotlin, Swift, Lua"
+                aria-label="Custom programming language"
+                className="w-40 rounded-lg border border-app-border bg-app-surface px-2 py-1.5 text-sm text-app-text outline-none placeholder:text-app-text-muted disabled:opacity-60"
+              />
+            ) : null}
+          </label>
+          <p className="mt-1 text-center text-xs text-app-text-muted">
+            Choose a listed language or type any other language you want to use.
+          </p>
 
           {error ? (
             <p className="mt-3 text-center text-sm text-appweaver-orange">

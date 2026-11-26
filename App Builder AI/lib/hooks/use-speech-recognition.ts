@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 type UseSpeechRecognitionOptions = {
   onTranscript: (transcript: string, isFinal: boolean) => void;
   onError?: (message: string) => void;
+  language?: string;
 };
 
 function getSpeechRecognitionConstructor() {
@@ -16,12 +17,14 @@ function getSpeechRecognitionConstructor() {
 export function useSpeechRecognition({
   onTranscript,
   onError,
+  language,
 }: UseSpeechRecognitionOptions) {
   const [isListening, setIsListening] = useState(false);
   const [isSupported] = useState(() =>
     Boolean(getSpeechRecognitionConstructor()),
   );
   const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const startingRef = useRef(false);
   const onTranscriptRef = useRef(onTranscript);
   const onErrorRef = useRef(onError);
 
@@ -36,7 +39,7 @@ export function useSpeechRecognition({
     setIsListening(false);
   }, []);
 
-  const startListening = useCallback(() => {
+  const startListening = useCallback(async () => {
     const SpeechRecognitionCtor = getSpeechRecognitionConstructor();
 
     if (!SpeechRecognitionCtor) {
@@ -46,15 +49,29 @@ export function useSpeechRecognition({
       return;
     }
 
-    if (recognitionRef.current) {
+    if (recognitionRef.current || startingRef.current) {
       stopListening();
       return;
+    }
+
+    startingRef.current = true;
+    if (navigator.mediaDevices?.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach((track) => track.stop());
+      } catch {
+        onErrorRef.current?.(
+          'Microphone access is blocked. Click the lock icon beside the website address, allow Microphone, then try again.',
+        );
+        startingRef.current = false;
+        return;
+      }
     }
 
     const recognition = new SpeechRecognitionCtor();
     recognition.continuous = true;
     recognition.interimResults = true;
-    recognition.lang = 'en-US';
+    recognition.lang = language || navigator.language || 'en-US';
 
     recognition.onresult = (event) => {
       let interim = '';
@@ -86,8 +103,8 @@ export function useSpeechRecognition({
       if (event.error === 'aborted') return;
 
       const message =
-        event.error === 'not-allowed'
-          ? 'Microphone access was denied. Allow microphone permissions to use voice input.'
+        event.error === 'not-allowed' || event.error === 'service-not-allowed'
+          ? 'Microphone access is blocked. Click the lock icon beside the website address, allow Microphone, then try again.'
           : event.error === 'no-speech'
             ? 'No speech detected. Try again.'
             : 'Voice input failed. Try again.';
@@ -95,37 +112,42 @@ export function useSpeechRecognition({
       onErrorRef.current?.(message);
       recognitionRef.current = null;
       setIsListening(false);
+      startingRef.current = false;
     };
 
     recognition.onend = () => {
       recognitionRef.current = null;
       setIsListening(false);
+      startingRef.current = false;
     };
 
     try {
       recognition.start();
       recognitionRef.current = recognition;
       setIsListening(true);
+      startingRef.current = false;
     } catch {
       onErrorRef.current?.('Could not start voice input. Try again.');
       recognitionRef.current = null;
       setIsListening(false);
+      startingRef.current = false;
     }
-  }, [stopListening]);
+  }, [language, stopListening]);
 
-  const toggleListening = useCallback(() => {
+  const toggleListening = useCallback(async () => {
     if (isListening) {
       stopListening();
       return;
     }
 
-    startListening();
+    await startListening();
   }, [isListening, startListening, stopListening]);
 
   useEffect(() => {
     return () => {
       recognitionRef.current?.abort();
       recognitionRef.current = null;
+      startingRef.current = false;
     };
   }, []);
 

@@ -152,6 +152,121 @@ export const CODE_LANGUAGES: Record<CodeLanguageId, CodeLanguageDef> = {
 export const CODE_LANGUAGE_OPTIONS: { id: CodeLanguageId; label: string }[] =
   Object.values(CODE_LANGUAGES).map(({ id, label }) => ({ id, label }));
 
+export type LanguageCatalogGroup = {
+  category: string;
+  languages: string[];
+};
+
+/** User-facing language catalogue. Generation accepts catalogue entries even when
+ * the live runner does not yet have a dedicated compiler image for them. */
+export const LANGUAGE_CATALOG: LanguageCatalogGroup[] = [
+  {
+    category: 'Popular programming languages',
+    languages: [
+      'Python', 'Java', 'JavaScript', 'TypeScript', 'C', 'C++', 'C#',
+      'Go', 'Rust', 'Kotlin', 'Swift', 'PHP', 'Ruby', 'Dart', 'Scala',
+      'R', 'MATLAB', 'Objective-C', 'Perl', 'Lua', 'Groovy', 'Julia',
+      'Elixir', 'Erlang', 'Haskell', 'Clojure', 'F#', 'OCaml', 'Fortran',
+      'COBOL', 'Assembly', 'Visual Basic .NET', 'Delphi (Object Pascal)',
+      'Pascal', 'Ada', 'Prolog', 'Lisp', 'Scheme', 'Smalltalk', 'Crystal',
+      'Nim', 'Zig', 'D', 'V', 'Pony', 'Mojo', 'Apex', 'Solidity', 'Vyper',
+    ],
+  },
+  {
+    category: 'Web development',
+    languages: [
+      'HTML', 'CSS', 'JavaScript', 'TypeScript', 'PHP', 'Python', 'Ruby',
+      'Java', 'C#', 'Go', 'Dart', 'Elm', 'PureScript', 'CoffeeScript',
+      'WebAssembly (WASM)', 'WebGPU Shading Language (WGSL)',
+    ],
+  },
+  {
+    category: 'Mobile app development',
+    languages: [
+      'Kotlin', 'Java', 'Swift', 'Objective-C', 'Dart', 'JavaScript',
+      'TypeScript', 'C#', 'C++', 'Lua',
+    ],
+  },
+  {
+    category: 'Database and query languages',
+    languages: [
+      'SQL', 'PL/SQL', 'T-SQL', 'PL/pgSQL', 'GraphQL', 'SPARQL', 'Cypher',
+      'XQuery', 'LINQ', 'PartiQL', 'MongoDB Query Language (MQL)',
+    ],
+  },
+  {
+    category: 'Data science, AI and machine learning',
+    languages: [
+      'Python', 'R', 'Julia', 'MATLAB', 'Scala', 'Java', 'C++',
+      'JavaScript', 'TypeScript', 'Mojo', 'Wolfram Language', 'SAS', 'Stata',
+    ],
+  },
+  {
+    category: 'Game development',
+    languages: [
+      'C++', 'C#', 'C', 'Java', 'JavaScript', 'TypeScript', 'Lua',
+      'GDScript', 'Python', 'Rust', 'Swift', 'Kotlin',
+    ],
+  },
+  {
+    category: 'Systems and embedded',
+    languages: [
+      'C', 'C++', 'Rust', 'Assembly', 'Zig', 'Ada', 'Embedded C', 'Verilog',
+      'VHDL', 'SystemVerilog', 'eBPF C',
+    ],
+  },
+  {
+    category: 'Functional programming',
+    languages: [
+      'Haskell', 'Elixir', 'Erlang', 'Clojure', 'F#', 'OCaml', 'Lisp',
+      'Scheme', 'Elm', 'PureScript', 'Scala', 'ReasonML', 'Gleam',
+    ],
+  },
+  {
+    category: 'Shell scripting and automation',
+    languages: [
+      'Bash', 'PowerShell', 'Zsh', 'Fish', 'Batch', 'AWK', 'Perl', 'Python',
+      'JavaScript', 'Ruby',
+    ],
+  },
+  {
+    category: 'Smart contracts and blockchain',
+    languages: [
+      'Solidity', 'Vyper', 'Rust', 'Move', 'Cairo', 'Yul', 'Michelson',
+      'Clarity',
+    ],
+  },
+  {
+    category: 'Hardware description',
+    languages: [
+      'Verilog', 'VHDL', 'SystemVerilog', 'Chisel',
+      'Bluespec SystemVerilog', 'SystemC',
+    ],
+  },
+  {
+    category: 'Markup, styling and configuration',
+    languages: [
+      'HTML', 'CSS', 'XML', 'JSON', 'YAML', 'TOML', 'Markdown', 'SVG',
+      'Sass (SCSS)', 'Less', 'Stylus', 'AsciiDoc', 'reStructuredText',
+    ],
+  },
+  {
+    category: 'Infrastructure, DevOps and build',
+    languages: [
+      'HCL', 'Nix', 'Dockerfile', 'Makefile', 'Starlark',
+      'Terraform Configuration Language', 'Cue', 'Jsonnet', 'Dhall',
+    ],
+  },
+  {
+    category: 'Legacy and specialised',
+    languages: [
+      'COBOL', 'FORTRAN', 'RPG', 'ABAP', 'PL/I', 'FoxPro', 'ActionScript',
+      'ColdFusion (CFML)', 'BASIC', 'QBasic', 'Logo', 'Scratch', 'GAMS',
+      'SAS',
+    ],
+  },
+];
+
 export function isCodeLanguageId(
   value: string | null | undefined,
 ): value is CodeLanguageId {

@@ -82,6 +82,12 @@ export async function createProjectAction(formData: FormData) {
   const prompt = String(formData.get('prompt') ?? '').trim();
   const categoryId = formData.get('categoryId');
   const planMode = formData.get('planMode') === 'true';
+  const codingLanguageValue = String(formData.get('codingLanguage') ?? '');
+  const codingLanguage =
+    codingLanguageValue !== 'auto' &&
+    /^[a-zA-Z0-9#+. -]{1,40}$/.test(codingLanguageValue)
+      ? codingLanguageValue
+      : null;
   const referenceContextRaw = formData.get('referenceContext');
   const referenceContext = referenceContextRaw ? JSON.parse(String(referenceContextRaw)) : null;
 
@@ -186,6 +192,7 @@ export async function createProjectAction(formData: FormData) {
           name: 'Main artifact',
           slug: 'main',
           type: artifactType,
+          codingLanguage,
           status: 'DRAFT',
         },
       },

@@ -113,7 +113,7 @@ const STACK_GUIDANCE: Record<ProjectStack, string> = {
 
 const FULL_STACK_GUIDANCE = [
   'Full-stack default: ALWAYS build every app as a real full-stack project with a production-style backend in `backend/` PLUS the browser frontend at the artifact root (index.html, script.js/style.css or the React files). Never skip the backend, even for landing pages, slide decks or calculators (give those a small API, e.g. content/contact/health endpoints or server-side calculation).',
-  'Choose the backend language per request: Java Spring Boot for enterprise/CRUD/transactional/multi-entity apps (default when unsure), or Python FastAPI for data/ML/automation/AI-oriented apps (use Flask only if the user asks).',
+  'Choose the backend language from the user request or explicit project setting. Never default to Java solely because the app is enterprise or CRUD. If the user does not specify a language, prefer the simplest appropriate option (usually TypeScript/Node.js for web products, Python for data/ML/automation, or the project stack already in use) and preserve the option to ask the user.',
   'Spring Boot layout: `backend/pom.xml` (Spring Boot 3.x, Java 21, starters web, validation, data-jpa, h2 or postgresql, actuator), `backend/src/main/java/com/example/app/` with `Application.java`, `controller/`, `service/`, `repository/`, `model/` (entities + DTOs), exception handling via `@RestControllerAdvice`, CORS config, and `backend/src/main/resources/application.properties`. Add at least one JUnit test under `backend/src/test/java/`.',
   'FastAPI layout: `backend/requirements.txt`, `backend/app/main.py`, `app/models.py` (Pydantic), `app/routes/`, `app/services/`, `app/db.py` (SQLite via SQLAlchemy), CORS middleware, and `backend/tests/` with pytest tests.',
   'Backend rules: REST JSON endpoints under `/api/...`, input validation, proper HTTP status codes, no hard-coded secrets (read from environment variables), and a `backend/README.md` with exact run commands (`mvn spring-boot:run` or `uvicorn app.main:app --reload`) and the endpoint list.',
@@ -180,6 +180,7 @@ export function buildAgentSystemPrompt({
   analyticsContext?: string | null;
 }) {
   const codeLanguage = getCodeLanguage(codingLanguage);
+  const requestedLanguage = codingLanguage?.trim() || null;
   const isClone = !!referenceContext;
 
   const stackRules = [
@@ -204,7 +205,14 @@ export function buildAgentSystemPrompt({
             ].join('\n')
           : EDIT_WORKFLOW,
       ].join('\n\n')
-    : isClone
+    : requestedLanguage
+      ? [
+          `The user selected ${requestedLanguage} as the programming language. Generate the requested application or program in that language; do not silently substitute Java, Python, or another language.`,
+          'Use the standard project structure and entry point for the selected language. Keep dependencies minimal and document exact run/build commands in README.md.',
+          'If the selected language is not available in the live runner, still generate complete source code and clearly explain the required runtime in the build summary.',
+          EDIT_WORKFLOW,
+        ].join('\n\n')
+      : isClone
       ? [CLONE_MODE_BLOCK, EDIT_WORKFLOW].join('\n\n')
       : artifactType === 'DESIGN'
         ? 'Build static HTML/CSS wireframes and mockups. No backend or JavaScript unless needed for layout demos.'
@@ -241,7 +249,7 @@ export function buildAgentSystemPrompt({
     `Never output raw code, XML, or pseudo tool calls in chat text.`,
     `Use tools to read and write files, then call complete_build with a concise user-facing summary.`,
     `The complete_build summary MUST use markdown: a short intro paragraph, then **Design:** and **Functionality:** sections with bullet lists.`,
-    `Language: detect the human language the user is writing their request in and use that SAME language for all user-facing UI text you generate (labels, buttons, headings, placeholders, messages) as well as for your complete_build summary. Code (variable names, comments, technical identifiers) stays in English as usual — only user-visible copy follows the user's language. If the user explicitly asks for a different UI language than the one they're chatting in, follow their explicit instruction instead.`,
+    `Multilingual behavior: understand requests written or dictated in any language supported by the selected model. Do not require the user to translate into English. Detect the user's language, preserve the meaning and intent exactly, and ask clarifying questions in that language. When building an app, use the requested language for user-facing UI text, labels, buttons, headings, placeholders, validation messages, sample content, and the complete_build summary unless the user explicitly requests another language. Keep code identifiers and technical syntax in English unless the user explicitly asks otherwise. If the request mixes languages, understand the full context and use the language most appropriate for the app's audience.`,
     buildGuidance,
     isClone && referenceContext
       ? [
@@ -268,7 +276,11 @@ export function buildAgentSystemPrompt({
     `Project: ${projectName} (ID: ${projectId})`,
     `Description: ${projectDescription ?? 'No description'}`,
     `Active artifact: ${artifactName} (${artifactType})`,
-    codeLanguage ? `Coding language: ${codeLanguage.label}` : `Detected stack: ${projectStack}`,
+    requestedLanguage
+      ? `Requested coding language: ${requestedLanguage}`
+      : codeLanguage
+        ? `Coding language: ${codeLanguage.label}`
+        : `Detected stack: ${projectStack}`,
     `Artifact context:\n${artifactSnapshot}`,
   ].filter(Boolean);
 

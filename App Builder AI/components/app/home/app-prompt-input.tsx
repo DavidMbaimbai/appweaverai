@@ -31,6 +31,28 @@ type AppPromptInputProps = {
   openAttachmentDialogSignal?: number;
 };
 
+const SPEECH_LANGUAGES = [
+  ['auto', 'Auto-detect device language'],
+  ['en-ZA', 'English (South Africa)'],
+  ['af-ZA', 'Afrikaans'],
+  ['zu-ZA', 'isiZulu'],
+  ['xh-ZA', 'isiXhosa'],
+  ['st-ZA', 'Sesotho'],
+  ['tn-ZA', 'Setswana'],
+  ['nso-ZA', 'Sepedi'],
+  ['ts-ZA', 'XiTsonga'],
+  ['ss-ZA', 'siSwati'],
+  ['ve-ZA', 'Tshivenda'],
+  ['nr-ZA', 'isiNdebele'],
+  ['en-US', 'English (United States)'],
+  ['fr-FR', 'Français'],
+  ['pt-BR', 'Português'],
+  ['es-ES', 'Español'],
+  ['ar-SA', 'العربية'],
+  ['hi-IN', 'हिन्दी'],
+  ['zh-CN', '中文'],
+] as const;
+
 function CategoryTag({
   category,
   onRemove,
@@ -100,6 +122,11 @@ export function AppPromptInput({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const speechPrefixRef = useRef(value);
   const [attachmentDialogOpen, setAttachmentDialogOpen] = useState(false);
+  const [speechLanguage, setSpeechLanguage] = useState(() => {
+    if (typeof window === 'undefined') return 'auto';
+    return localStorage.getItem('appweaver-speech-language') || 'auto';
+  });
+  const [voiceError, setVoiceError] = useState('');
   const hasValue = Boolean(value.trim());
   const hasAttachments = attachments.length > 0;
   const canSubmit = hasValue || hasAttachments;
@@ -112,6 +139,7 @@ export function AppPromptInput({
 
   const { isListening, isSupported, toggleListening, stopListening } =
     useSpeechRecognition({
+      language: speechLanguage === 'auto' ? undefined : speechLanguage,
       onTranscript: (transcript, isFinal) => {
         const trimmed = transcript.trim();
         if (!trimmed) return;
@@ -129,7 +157,10 @@ export function AppPromptInput({
         const separator = prefix && !/\s$/.test(prefix) ? ' ' : '';
         onChange(`${prefix}${separator}${transcript}`);
       },
-      onError: (message) => onError?.(message),
+      onError: (message) => {
+        setVoiceError(message);
+        onError?.(message);
+      },
     });
 
   useEffect(() => {
@@ -159,6 +190,7 @@ export function AppPromptInput({
   }
 
   function handleMicClick() {
+    setVoiceError('');
     if (!isSupported) {
       onError?.(
         'Voice input is not supported in this browser. Try Chrome or Edge.',
@@ -170,7 +202,13 @@ export function AppPromptInput({
       speechPrefixRef.current = value;
     }
 
-    toggleListening();
+    void toggleListening();
+  }
+
+  function handleSpeechLanguageChange(language: string) {
+    setSpeechLanguage(language);
+    localStorage.setItem('appweaver-speech-language', language);
+    setVoiceError('');
   }
 
   function handleRemoveAttachment(id: string) {
@@ -441,6 +479,33 @@ export function AppPromptInput({
                 <MicIcon active={isListening} />
               </button>
 
+              {isListening ? (
+                <span
+                  className="text-xs text-appweaver-orange"
+                  aria-live="polite">
+                  Listening — your words will appear above
+                </span>
+              ) : null}
+
+              <select
+                value={speechLanguage}
+                onChange={(event) => handleSpeechLanguageChange(event.target.value)}
+                disabled={disabled || isListening}
+                aria-label="Speech language"
+                title="Speech language"
+                className={cn(
+                  'h-8 max-w-28 rounded-lg border bg-transparent px-1.5 text-[11px] outline-none disabled:opacity-60',
+                  isLanding
+                    ? 'border-[#dfded8] text-[#696c74]'
+                    : 'border-app-border text-app-text-muted',
+                )}>
+                {SPEECH_LANGUAGES.map(([code, label]) => (
+                  <option key={code} value={code}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+
               {isLanding ? (
                 <button
                   type="button"
@@ -500,6 +565,11 @@ export function AppPromptInput({
           </div>
         </div>
       </div>
+      {voiceError ? (
+        <p role="alert" className="mt-2 text-xs text-appweaver-orange">
+          {voiceError}
+        </p>
+      ) : null}
     </>
   );
 }
