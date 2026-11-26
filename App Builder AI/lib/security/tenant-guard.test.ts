@@ -26,6 +26,9 @@ const ALLOWLIST: Record<string, string> = {
   'app/api/projects/[projectId]/leads/widget/route.ts': 'public: widget script for one project, embeds only its id',
   'app/api/projects/[projectId]/reviews/widget/route.ts': 'public: widget script for one project, embeds only its id',
   'app/api/growth/track/route.ts': 'public: first-party visit beacon, consent and DNT/GPC gated, rate limited, stores no IP and returns no data',
+  'app/api/analytics/collect/route.ts': 'public: analytics beacon, validated by public site key and origin allowlist, rate limited, returns no data',
+  'app/api/marketing/events/route.ts': 'public: marketing conversion beacon, validates required event fields and returns no tenant data',
+  'app/api/marketing/events/snippet.js/route.ts': 'public: analytics snippet loader, returns only generated client JavaScript',
   'app/api/integrations/proxy/[connectionId]/route.ts': 'public by design: called by generated apps; authenticated by a per-project secret token (timing-safe), rate limited and quota-capped in lib/integrations/proxy.ts',
   'app/api/webhooks/inbound/[publicId]/route.ts': 'public by design: HMAC-signed, replay-protected and idempotent inbound webhooks (lib/integrations/webhooks.ts)',
 };

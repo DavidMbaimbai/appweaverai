@@ -25,7 +25,7 @@ export async function getCampaignReport(projectId: string, opts: { days?: number
   const since = new Date(Date.now() - days * 86_400_000);
 
   const posts = await prisma.projectPost.findMany({
-    where: { projectId, status: 'PUBLISHED', publishedAt: { gte: since } },
+    where: { campaign: { projectId }, status: 'PUBLISHED', publishedAt: { gte: since } },
     select: { id: true, platform: true, publishedAt: true },
     orderBy: { publishedAt: 'desc' },
   });

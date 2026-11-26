@@ -70,7 +70,14 @@ export async function syncPostInsights(
     // Never-synced posts first (Postgres sorts NULLs last on ASC by default).
     orderBy: { metricsSyncedAt: { sort: 'asc', nulls: 'first' } },
     take: batch,
-    select: { id: true, projectId: true, platform: true, externalId: true, publishedAt: true, metricsSyncedAt: true },
+    select: {
+      id: true,
+      campaign: { select: { projectId: true } },
+      platform: true,
+      externalId: true,
+      publishedAt: true,
+      metricsSyncedAt: true,
+    },
   });
 
   const blocked = new Set<string>(); // `${projectId}:${platform}` after an auth failure this run
@@ -91,7 +98,8 @@ export async function syncPostInsights(
       }
       summary.checked++;
       const platform = String(post.platform).toLowerCase();
-      const blockKey = `${post.projectId}:${platform}`;
+      const projectId = post.campaign.projectId;
+      const blockKey = `${projectId}:${platform}`;
       const adapter = deps.adapters[platform];
       if (!adapter) {
         summary.noAdapter++;
@@ -99,7 +107,7 @@ export async function syncPostInsights(
       }
       if (blocked.has(blockKey)) continue;
       try {
-        const conn = await deps.getConnection(post.projectId, platform);
+        const conn = await deps.getConnection(projectId, platform);
         if (!conn) {
           summary.noConnection++;
           continue;
@@ -117,7 +125,7 @@ export async function syncPostInsights(
         if (error instanceof InsightsAuthError) {
           blocked.add(blockKey);
           summary.authErrors++;
-          await deps.onAuthError?.(post.projectId, platform).catch(() => undefined);
+          await deps.onAuthError?.(projectId, platform).catch(() => undefined);
         } else {
           summary.failed++; // one bad post must never stop the batch
         }

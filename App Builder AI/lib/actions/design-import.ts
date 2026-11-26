@@ -120,3 +120,25 @@ async function runImport(
     return { error: error instanceof Error ? error.message : 'Import failed.' };
   }
 }
+
+export async function importDesignAction(
+  formData: FormData,
+): Promise<DesignImportResult | undefined> {
+  const auth = await requireUser();
+  if (auth.error) return { error: auth.error };
+
+  const kind = String(formData.get('kind') ?? '');
+  const notes = String(formData.get('notes') ?? '').trim().slice(0, MAX_NOTES_LENGTH);
+  const planMode = formData.get('planMode') === 'true';
+  const result = await withCredits(
+    auth.userId,
+    'design_import',
+    () => runImport(formData, kind, notes, planMode),
+    {
+      refType: 'DesignImport',
+      isFailure: (value) => Boolean(value?.error),
+    },
+  );
+  if (!result.ok) return { error: result.error };
+  return result.value;
+}

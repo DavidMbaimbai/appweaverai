@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { defaultAdapters, syncPostInsights, type PlatformConnection } from '@/lib/marketing/insights-sync';
 import { decryptSecret } from '@/lib/crypto/secret-box';
+import { hasBearerSecret } from '@/lib/rate-limit';
 
 /** WIRE THIS to wherever publishDueProjectPosts reads social tokens (decrypting them). */
 async function getConnection(projectId: string, platform: string): Promise<PlatformConnection | null> {
@@ -49,8 +50,7 @@ async function markConnectionNeedsReauth(projectId: string, platform: string) {
 }
 
 export async function GET(req: Request) {
-  const secret = process.env.CRON_SECRET;
-  if (secret && req.headers.get('authorization') !== `Bearer ${secret}`) {
+  if (!hasBearerSecret(req, process.env.CRON_SECRET)) {
     return new Response('Unauthorized', { status: 401 });
   }
   const summary = await syncPostInsights({
