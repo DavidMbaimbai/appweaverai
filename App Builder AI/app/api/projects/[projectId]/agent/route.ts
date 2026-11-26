@@ -106,6 +106,7 @@ export async function POST(
   const agentLimits = {
     ...getAgentLimits(getAppTier(billingUser)),
     model: modelOption.bedrockModelId,
+    provider: modelOption.provider,
   };
 
   const stream = new ReadableStream<Uint8Array>({

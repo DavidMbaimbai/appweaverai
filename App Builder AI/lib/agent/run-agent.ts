@@ -4,6 +4,7 @@ import path from 'node:path';
 import type Anthropic from '@anthropic-ai/sdk';
 
 import { getAnthropicClient } from '@/lib/anthropic';
+import { runBedrockConverseTurn } from '@/lib/agent/bedrock-converse';
 import { applyFileEdit } from '@/lib/agent/apply-file-edit';
 import { buildArtifactContextSnapshot } from '@/lib/agent/build-artifact-context';
 import { getArtifactForProject } from '@/lib/agent/access';
@@ -682,13 +683,28 @@ async function runToolWithApprovalGate(
 }
 
 async function streamAssistantTurn(
-  client: Anthropic,
+  client: Anthropic | null,
   systemPrompt: string,
   chatMessages: Anthropic.MessageParam[],
   tools: Anthropic.Tool[],
   ctx: ToolContext,
   limits: AgentLimits,
 ) {
+  if (limits.provider === 'bedrock-converse') {
+    return runBedrockConverseTurn({
+      model: limits.model,
+      system: systemPrompt,
+      messages: chatMessages,
+      tools,
+      maxTokens: limits.maxTokens,
+      onText: (text) => ctx.onEvent?.({ type: 'text_delta', content: text }),
+    });
+  }
+
+  if (!client) {
+    throw new Error('Anthropic client is not available for this model.');
+  }
+
   const stream = client.messages.stream({
     model: limits.model,
     max_tokens: limits.maxTokens,
@@ -776,6 +792,7 @@ export async function runAgentLoop({
     maxTurns: MAX_AGENT_TURNS,
     maxTokens: ANTHROPIC_MAX_TOKENS,
     model: getAnthropicModel(),
+    provider: 'anthropic',
   };
 
   const artifact = await getArtifactForProject(projectId, artifactId);
@@ -993,7 +1010,8 @@ export async function runAgentLoop({
 
   onEvent?.({ type: 'status', phase: 'working', actionCount: 0 });
 
-  const client = getAnthropicClient();
+  const client =
+    agentLimits.provider === 'bedrock-converse' ? null : getAnthropicClient();
   const runStartedAt = Date.now();
   let summary = '';
   let turn = 0;

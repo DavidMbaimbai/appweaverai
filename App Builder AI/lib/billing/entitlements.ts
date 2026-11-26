@@ -3,6 +3,7 @@ import {
   MAX_AGENT_TURNS,
   getAnthropicModel,
 } from '@/lib/agent/constants';
+import type { AgentModelProvider } from '@/lib/agent/model-catalog';
 
 import { PublishVisibility } from '../publish/visibility';
 import { PLAN_DEFINITIONS, resolvePlanId } from './plans';
@@ -18,6 +19,7 @@ export type AgentLimits = {
   maxTurns: number;
   maxTokens: number;
   model: string;
+  provider?: AgentModelProvider;
 };
 
 export const FREE_PROJECT_LIMIT = PLAN_DEFINITIONS.free.limits.projects ?? 3;
