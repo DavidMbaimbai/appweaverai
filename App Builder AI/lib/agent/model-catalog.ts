@@ -28,6 +28,8 @@ function readModelEnv(value: string | undefined, fallback: string) {
 
 export const DEFAULT_AGENT_MODEL_ID: AgentModelId = 'claude-sonnet';
 
+let rotationIndex = 0;
+
 export const AGENT_MODEL_OPTIONS: AgentModelOption[] = [
   {
     id: 'claude-sonnet',
@@ -77,6 +79,12 @@ export const AGENT_MODEL_OPTIONS: AgentModelOption[] = [
     provider: 'bedrock-converse',
   },
 ];
+
+export function getNextAgentModelOption() {
+  const option = AGENT_MODEL_OPTIONS[rotationIndex % AGENT_MODEL_OPTIONS.length];
+  rotationIndex += 1;
+  return option;
+}
 
 export function resolveAgentModelId(
   value: string | null | undefined,

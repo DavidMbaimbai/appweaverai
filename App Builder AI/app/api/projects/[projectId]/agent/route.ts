@@ -14,8 +14,7 @@ import { runMemoryPostRun } from '@/lib/project-memory/post-run';
 import type { AgentMessageMetadata, AgentStreamEvent } from '@/lib/agent/types';
 import { getAgentLimits, getAppTier } from '@/lib/billing/entitlements';
 import {
-  getAgentModelOption,
-  resolveAgentModelId,
+  getNextAgentModelOption,
 } from '@/lib/agent/model-catalog';
 import { getUserBillingFields } from '@/lib/queries/billing';
 import { prisma } from '@/lib/prisma';
@@ -28,7 +27,6 @@ const bodySchema = z.object({
   artifactId: z.string().min(1),
   conversationId: z.string().min(1).optional(),
   initialReply: z.boolean().optional(),
-  modelId: z.string().min(1).optional(),
 });
 
 function encodeSse(event: AgentStreamEvent) {
@@ -100,9 +98,7 @@ export async function POST(
     (await ensureConversation(projectId, userId));
 
   const billingUser = await getUserBillingFields(userId);
-  const modelOption = getAgentModelOption(
-    resolveAgentModelId(parsed.data.modelId),
-  );
+  const modelOption = getNextAgentModelOption();
   const agentLimits = {
     ...getAgentLimits(getAppTier(billingUser)),
     model: modelOption.bedrockModelId,

@@ -135,10 +135,12 @@ export async function runBedrockConverseTurn({
   const response = await getClient().send(
     new ConverseCommand({
       modelId: model,
-      system: [{ text: system }],
+      system: system ? [{ text: system }] : undefined,
       messages: toConverseMessages(messages),
       inferenceConfig: { maxTokens },
-      toolConfig: { tools: toConverseTools(tools) },
+      ...(tools.length > 0
+        ? { toolConfig: { tools: toConverseTools(tools) } }
+        : {}),
     }),
   );
   const content = toAnthropicContent(response.output?.message?.content);

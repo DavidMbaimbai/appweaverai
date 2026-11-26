@@ -40,18 +40,9 @@ import { AgentActionSteps } from './agent-action-steps';
 import { AgentWorkingBadge } from './agent-activity-indicator';
 import { AgentFileWriteStream } from './agent-file-write-stream';
 import { AgentMessageContent } from './agent-message-content';
-import { AgentModelPicker } from './agent-model-picker';
 import { AgentPlanQuestion } from './agent-plan-question';
 import { AgentToolApproval } from './agent-tool-approval';
 import { TaskBoardDrawer, WorkingIndicator } from './task-board-drawer';
-import {
-  DEFAULT_AGENT_MODEL_ID,
-  resolveAgentModelId,
-  type AgentModelId,
-} from '@/lib/agent/model-catalog';
-
-const AGENT_MODEL_STORAGE_KEY = 'appweaver:agent-model';
-
 type AgentPanelProps = {
   project: AppProjectDetail;
   activeArtifactId: string | null;
@@ -145,23 +136,10 @@ export const AgentPanel = forwardRef<AgentPanelHandle, AgentPanelProps>(
   const [liveRun, setLiveRun] = useState<LiveRunState | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const [planModeActive, setPlanModeActive] = useState(project.planMode);
-  const [selectedModelId, setSelectedModelId] = useState<AgentModelId>(
-    DEFAULT_AGENT_MODEL_ID,
-  );
   const [otherUserRun, setOtherUserRun] = useState<{ name: string } | null>(
     null,
   );
 
-  // Remember the user's last-picked model across sessions, like Cursor does.
-  useEffect(() => {
-    const stored = window.localStorage.getItem(AGENT_MODEL_STORAGE_KEY);
-    if (stored) setSelectedModelId(resolveAgentModelId(stored));
-  }, []);
-
-  function handleModelChange(modelId: AgentModelId) {
-    setSelectedModelId(modelId);
-    window.localStorage.setItem(AGENT_MODEL_STORAGE_KEY, modelId);
-  }
   const [otherTypingUsers, setOtherTypingUsers] = useState<
     { name: string }[]
   >([]);
@@ -256,7 +234,6 @@ export const AgentPanel = forwardRef<AgentPanelHandle, AgentPanelProps>(
         content: options.content,
         conversationId: project.conversationId,
         initialReply: options.initialReply,
-        modelId: options.initialReply ? undefined : selectedModelId,
         onEvent: (event: AgentStreamEvent) => {
           if (event.type === 'status') {
             setLiveRun((current) =>
@@ -1013,11 +990,9 @@ export const AgentPanel = forwardRef<AgentPanelHandle, AgentPanelProps>(
         {!isStreaming ? <CreditEstimateHint operation="agent_run" workspaceId={project.workspaceId} className="mt-1 text-xs text-app-text-muted" /> : null}
         <div className="mt-3 flex items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2">
-            <AgentModelPicker
-              value={selectedModelId}
-              onChange={handleModelChange}
-              disabled={isStreaming}
-            />
+            <span className="rounded-lg border border-app-border-subtle px-2.5 py-1.5 text-xs font-medium text-app-text-secondary">
+              Auto model rotation
+            </span>
             {buildStatusLabel ? (
               <p className="text-xs font-medium text-emerald-400">
                 {buildStatusLabel}

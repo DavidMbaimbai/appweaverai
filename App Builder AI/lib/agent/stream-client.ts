@@ -6,7 +6,6 @@ type StreamAgentOptions = {
   content?: string;
   conversationId?: string | null;
   initialReply?: boolean;
-  modelId?: string;
   onEvent: (event: AgentStreamEvent) => void;
 };
 
@@ -16,7 +15,6 @@ export async function streamAgentRequest({
   content,
   conversationId,
   initialReply,
-  modelId,
   onEvent,
 }: StreamAgentOptions) {
   const response = await fetch(`/api/projects/${projectId}/agent`, {
@@ -27,7 +25,6 @@ export async function streamAgentRequest({
       content,
       conversationId: conversationId ?? undefined,
       initialReply: initialReply ?? false,
-      modelId: modelId ?? undefined,
     }),
   });
 
