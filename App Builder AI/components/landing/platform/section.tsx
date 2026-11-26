@@ -13,8 +13,9 @@ export function PlatformSection() {
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-base leading-relaxed text-text-dim tablet-up:text-lg">
             Build websites, mobile apps, SaaS platforms, AI agents, APIs,
-            dashboards, games, automations, and experiences that do not fit
-            inside a template.
+            dashboards, games, desktop tools, browser extensions, automations,
+            blockchain products, and experiences that do not fit inside a
+            template.
           </p>
         </div>
 
