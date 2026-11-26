@@ -1,0 +1,62 @@
+{
+  "name": "appweaver-ai",
+  "displayName": "AppWeaver AI",
+  "description": "Open, edit, sync, and ask AppWeaver AI to change projects from VS Code.",
+  "version": "0.1.0",
+  "publisher": "appweaver-ai",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other",
+    "Machine Learning"
+  ],
+  "activationEvents": [
+    "onUri",
+    "onCommand:appweaver.open",
+    "onCommand:appweaver.authenticate",
+    "onCommand:appweaver.ask",
+    "workspaceContains:.appweaver/state.json"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "appweaver.open",
+        "title": "AppWeaver: Open Project"
+      },
+      {
+        "command": "appweaver.authenticate",
+        "title": "AppWeaver: Sign In"
+      },
+      {
+        "command": "appweaver.ask",
+        "title": "AppWeaver: Ask AI About Selection"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "appweaver.ask",
+          "when": "editorHasSelection"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "npm run compile",
+    "package:vsix": "npm run compile && vsce package"
+  },
+  "dependencies": {
+    "fflate": "^0.8.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.90.0",
+    "typescript": "^5.0.0",
+    "@vscode/vsce": "^3.6.1"
+  }
+}

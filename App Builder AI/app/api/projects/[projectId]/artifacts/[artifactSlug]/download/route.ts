@@ -5,6 +5,7 @@ import { headers } from 'next/headers';
 import { NextResponse } from 'next/server';
 
 import { auth } from '@/lib/auth';
+import { getCliSessionUser } from '@/lib/cli-auth';
 import { prisma } from '@/lib/prisma';
 import { hasProjectAccess } from '@/lib/projects/access';
 import { buildProjectZip } from '@/lib/export/project-bundle';
@@ -15,13 +16,24 @@ import {
 import { resolveProjectStack } from '@/lib/preview/detect-preview-mode';
 import { artifactWorkspaceDir } from '@/lib/preview/list-workspace-paths';
 import { stripPreviewBaseHref } from '@/lib/project-files';
+import { clientIp, limitOrResponse } from '@/lib/rate-limit';
 
 export async function GET(
-  _request: Request,
+  request: Request,
   context: { params: Promise<{ projectId: string; artifactSlug: string }> },
 ) {
+  const limited = await limitOrResponse(
+    `artifact-download:${clientIp(request)}`,
+    20,
+    60_000,
+  );
+  if (limited) return limited;
+
   const session = await auth.api.getSession({ headers: await headers() });
-  const userId = session?.user?.id;
+  const cliUser = await getCliSessionUser(
+    request.headers.get('authorization'),
+  );
+  const userId = session?.user?.id ?? cliUser?.id;
   const { projectId, artifactSlug } = await context.params;
 
   if (!userId || !(await hasProjectAccess(projectId, userId))) {

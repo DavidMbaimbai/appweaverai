@@ -43,6 +43,21 @@ export function IdeIntegrationPanel({
     } catch {
       toastError('Could not copy the download command.');
     }
+
+  }
+
+  function openInVsCode() {
+    if (!artifactSlug) {
+      toastError('Build the project first to open it in VS Code.');
+      return;
+    }
+
+    const params = new URLSearchParams({
+      projectId,
+      artifactSlug,
+      appUrl: window.location.origin,
+    });
+    window.location.href = `vscode://appweaver-ai.appweaver-ai/open?${params.toString()}`;
   }
 
   return (
@@ -79,11 +94,20 @@ export function IdeIntegrationPanel({
               your preferred IDE. The project keeps its generated source files
               and README instructions.
             </p>
+            <Button
+              type="button"
+              variant="primary"
+              theme="app"
+              className="mt-3"
+              onClick={openInVsCode}
+              disabled={!downloadHref}>
+              Open in VS Code
+            </Button>
             {downloadHref ? (
               <a
                 href={downloadHref}
                 download
-                className="mt-3 inline-flex h-9 items-center rounded-lg bg-appweaver-orange px-3 text-sm font-medium text-white hover:bg-appweaver-orange/90">
+                className="ml-2 mt-3 inline-flex h-9 items-center rounded-lg border border-app-border px-3 text-sm font-medium text-app-text-secondary hover:bg-app-surface-hover hover:text-app-text">
                 Download project ZIP
               </a>
             ) : (

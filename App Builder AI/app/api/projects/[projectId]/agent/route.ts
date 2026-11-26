@@ -2,6 +2,7 @@ import { headers } from 'next/headers';
 import { z } from 'zod';
 
 import { auth } from '@/lib/auth';
+import { getCliSessionUser } from '@/lib/cli-auth';
 import {
   ensureConversation,
   getArtifactForProject,
@@ -38,7 +39,9 @@ export async function POST(
   context: { params: Promise<{ projectId: string }> },
 ) {
   const session = await auth.api.getSession({ headers: await headers() });
-  const userId = session?.user?.id;
+  const cliUser = await getCliSessionUser(request.headers.get('authorization'));
+  const userId = session?.user?.id ?? cliUser?.id;
+  const currentUser = session?.user ?? cliUser;
 
   if (!userId) {
     return new Response(JSON.stringify({ error: 'Unauthorized' }), {
@@ -143,7 +146,7 @@ export async function POST(
         } else if (parsed.data.content) {
           const userMessageMetadata: AgentMessageMetadata = {
             authorId: userId,
-            authorName: session.user.name || session.user.email || 'Someone',
+            authorName: currentUser?.name || currentUser?.email || 'Someone',
           };
           await prisma.agentMessage.create({
             data: {
@@ -165,7 +168,7 @@ export async function POST(
           async () => {
             startAgentRun(projectId, {
               userId,
-              name: session.user.name || session.user.email || 'Someone',
+              name: currentUser?.name || currentUser?.email || 'Someone',
             });
             try {
               return await runAgentLoop({

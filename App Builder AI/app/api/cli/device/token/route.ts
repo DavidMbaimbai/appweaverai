@@ -23,6 +23,8 @@ export async function POST(request: Request) {
   if (result.status === 'approved') {
     return Response.json({
       access_token: result.accessToken,
+      refresh_token: result.refreshToken,
+      expires_in: result.expiresIn,
       token_type: result.tokenType,
       user: result.user,
     });

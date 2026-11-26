@@ -7,6 +7,8 @@ import { generateRawToken, hashToken } from '@/lib/crypto/token-hash';
 const DEVICE_CODE_TTL_MS = 15 * 60 * 1000; // 15 minutes
 /** Minimum seconds the CLI should wait between polls, per RFC 8628. */
 const POLL_INTERVAL_SECONDS = 5;
+const ACCESS_TOKEN_TTL_MS = 15 * 60 * 1000;
+const REFRESH_TOKEN_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 // Unambiguous charset (no 0/O/1/I) for user-facing codes.
 const USER_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -155,6 +157,8 @@ export type DeviceTokenResult =
   | {
       status: 'approved';
       accessToken: string;
+      refreshToken: string;
+      expiresIn: number;
       tokenType: 'Bearer';
       user: { id: string; name: string | null; email: string | null };
     };
@@ -208,12 +212,25 @@ export async function exchangeDeviceCodeForToken(
   }
 
   const rawToken = generateRawToken();
+  const rawRefreshToken = generateRawToken();
+  const accessExpiresAt = new Date(Date.now() + ACCESS_TOKEN_TTL_MS);
+  const refreshExpiresAt = new Date(Date.now() + REFRESH_TOKEN_TTL_MS);
+  const familyId = randomBytes(16).toString('hex');
   await prisma.$transaction([
     prisma.cliToken.create({
       data: {
         userId: user.id,
         tokenHash: hashToken(rawToken),
         name: record.clientName ?? undefined,
+        expiresAt: accessExpiresAt,
+      },
+    }),
+    prisma.cliRefreshToken.create({
+      data: {
+        userId: user.id,
+        tokenHash: hashToken(rawRefreshToken),
+        familyId,
+        expiresAt: refreshExpiresAt,
       },
     }),
     prisma.cliDeviceAuthorization.update({
@@ -225,6 +242,8 @@ export async function exchangeDeviceCodeForToken(
   return {
     status: 'approved',
     accessToken: rawToken,
+    refreshToken: rawRefreshToken,
+    expiresIn: Math.floor(ACCESS_TOKEN_TTL_MS / 1000),
     tokenType: 'Bearer',
     user,
   };
@@ -248,7 +267,7 @@ export async function getCliSessionUser(
     include: { user: { select: { id: true, name: true, email: true } } },
   });
 
-  if (!token || token.revokedAt) {
+  if (!token || token.revokedAt || (token.expiresAt && token.expiresAt < new Date())) {
     return null;
   }
 
@@ -258,6 +277,80 @@ export async function getCliSessionUser(
     .catch(() => undefined);
 
   return token.user;
+}
+
+export type RefreshTokenResult =
+  | {
+      status: 'approved';
+      accessToken: string;
+      refreshToken: string;
+      expiresIn: number;
+      tokenType: 'Bearer';
+      user: { id: string; name: string | null; email: string | null };
+    }
+  | { status: 'invalid_grant' };
+
+/** Rotates a refresh token and invalidates the token that was presented. */
+export async function rotateCliRefreshToken(
+  rawRefreshToken: string,
+): Promise<RefreshTokenResult> {
+  const stored = await prisma.cliRefreshToken.findUnique({
+    where: { tokenHash: hashToken(rawRefreshToken) },
+    include: { user: { select: { id: true, name: true, email: true } } },
+  });
+
+  if (
+    !stored ||
+    stored.revokedAt ||
+    stored.replacedAt ||
+    stored.expiresAt < new Date()
+  ) {
+    if (stored?.replacedAt) {
+      await prisma.cliRefreshToken.updateMany({
+        where: { familyId: stored.familyId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+    }
+    return { status: 'invalid_grant' };
+  }
+
+  const accessToken = generateRawToken();
+  const refreshToken = generateRawToken();
+  const now = new Date();
+  const accessExpiresAt = new Date(now.getTime() + ACCESS_TOKEN_TTL_MS);
+  const refreshExpiresAt = new Date(now.getTime() + REFRESH_TOKEN_TTL_MS);
+
+  await prisma.$transaction([
+    prisma.cliToken.create({
+      data: {
+        userId: stored.userId,
+        tokenHash: hashToken(accessToken),
+        name: 'IDE companion',
+        expiresAt: accessExpiresAt,
+      },
+    }),
+    prisma.cliRefreshToken.create({
+      data: {
+        userId: stored.userId,
+        tokenHash: hashToken(refreshToken),
+        familyId: stored.familyId,
+        expiresAt: refreshExpiresAt,
+      },
+    }),
+    prisma.cliRefreshToken.update({
+      where: { id: stored.id },
+      data: { replacedAt: now, revokedAt: now },
+    }),
+  ]);
+
+  return {
+    status: 'approved',
+    accessToken,
+    refreshToken,
+    expiresIn: Math.floor(ACCESS_TOKEN_TTL_MS / 1000),
+    tokenType: 'Bearer',
+    user: stored.user,
+  };
 }
 
 /** Revokes a CLI token belonging to the given user (e.g. from account settings). */
