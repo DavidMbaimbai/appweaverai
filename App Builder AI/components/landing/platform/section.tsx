@@ -9,11 +9,12 @@ export function PlatformSection() {
       <Container>
         <div className="text-center">
           <h2 className="font-display text-[32px] leading-[32px] tracking-[-1.92px] text-text-agent-heading tablet-up:text-[40px] tablet-up:leading-[40px] tablet-up:tracking-[-2.4px] desktop:text-[48px] desktop:leading-none desktop:tracking-[-0.06em]">
-            One workspace to build, launch, market and grow
+            One workspace for every idea
           </h2>
           <p className="mx-auto mt-4 max-w-2xl text-base leading-relaxed text-text-dim tablet-up:text-lg">
-            Bring your idea from first draft to a live product, then keep
-            improving and growing it with AppWeaver AI.
+            Build websites, mobile apps, SaaS platforms, AI agents, APIs,
+            dashboards, games, automations, and experiences that do not fit
+            inside a template.
           </p>
         </div>
 

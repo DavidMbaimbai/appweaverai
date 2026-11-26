@@ -22,7 +22,7 @@ export function Footer() {
             </h2>
             <p className="mt-2 text-sm text-text-muted">
               Build the product, publish it, market it, support your customers and
-              find investors without leaving AppWeaver AI.
+              grow the business without leaving AppWeaver AI.
             </p>
           </div>
           <Link
@@ -38,11 +38,11 @@ export function Footer() {
               <AppWeaverLogo />
             </Link>
             <p className="mt-4 text-base font-semibold text-text-primary">
-              Build. Launch. Market. Grow. All with AI.
+              Build anything you can imagine.
             </p>
             <p className="mt-2 max-w-xs text-sm text-text-muted">
-              From your first idea to your next big opportunity, AppWeaver AI helps you build
-              products, reach customers and grow your business.
+              From your first idea to a working product, AppWeaver AI helps you
+              build, launch, reach customers and grow.
             </p>
             <p className="mt-3 text-sm text-text-secondary">
               <span aria-hidden="true">🇿🇦</span> Made in South Africa

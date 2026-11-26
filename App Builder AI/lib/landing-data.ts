@@ -146,8 +146,9 @@ export const examplePromptSets: ExamplePrompt[][] = [
 ];
 
 export const heroTaglines = [
+  "Turn any idea into a working product.",
+  "Websites, mobile apps, SaaS, agents, APIs, games and more.",
   "Build. Launch. Market. Grow.",
-  "Turn a plain-language idea into a working product.",
   "Made in South Africa. Built for creators everywhere.",
   "Your first prompt is free. No credit consumption.",
 ];
@@ -193,17 +194,17 @@ export const platformFeatures: PlatformFeature[] = [
   {
     id: "agent",
     eyebrow: "Agent chat",
-    title: "Describe it. Publish it.",
+    title: "Describe it. Bring it to life.",
     description:
-      "Describe and publish your project. The Agent writes production-ready code, evolves it, and stays out of your way.",
+      "Describe what you imagine. The Agent turns it into a working product, writes production-ready code, and keeps evolving it with you.",
     variant: "agent",
   },
   {
     id: "infrastructure",
     eyebrow: "Full stack infrastructure",
-    title: "Build & scale your apps easily.",
+    title: "From prototypes to real systems.",
     description:
-      "Built-in services with zero setup- Authentication, Database, Hosting, and Monitoring, enabling you to build fully scalable apps easily and securely from day one.",
+      "Authentication, databases, hosting, and monitoring are ready when you need them—whether you are building a website, SaaS platform, internal tool, or something entirely new.",
     variant: "infrastructure",
   },
   {

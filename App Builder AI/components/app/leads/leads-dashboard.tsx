@@ -8,6 +8,7 @@ import {
   addSlotsAction,
   cancelDraftAction,
   completeFollowUpAction,
+  discoverBuyersAction,
   deleteLeadAction,
   deleteSlotAction,
   draftEmailAction,
@@ -205,6 +206,7 @@ export function LeadsDashboard({
   const [slotInput, setSlotInput] = useState('');
   const [duration, setDuration] = useState(30);
   const [origin] = useState(() => (typeof window === 'undefined' ? '' : window.location.origin));
+  const [buyerTarget, setBuyerTarget] = useState('');
 
   const sources = useMemo(() => [...new Set(leads.map((l) => l.source))], [leads]);
   const filtered = useMemo(() => {
@@ -258,6 +260,27 @@ export function LeadsDashboard({
           <button className={btn} onClick={() => void download()}>Export CSV</button>
         </div>
         {message ? <p className="mt-2 text-sm text-app-text-muted">{message}</p> : null}
+      </section>
+
+      <section className={card}>
+        <h2 className="mb-2 font-display text-lg text-app-text">Find potential buyers</h2>
+        <p className="mb-3 text-xs text-app-text-muted">
+          AppWeaver searches public business pages, identifies plausible buyers, and adds them to your pipeline with AI-written drafts. Nothing is emailed automatically; consent and your approval are still required.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <input
+            className={field + ' min-w-64 flex-1'}
+            placeholder="Ideal customer, e.g. independent gyms in London"
+            value={buyerTarget}
+            onChange={(event) => setBuyerTarget(event.target.value)}
+          />
+          <button
+            className={btn}
+            disabled={pending || buyerTarget.trim().length < 3}
+            onClick={() => run(() => discoverBuyersAction(projectId, buyerTarget))}>
+            Find buyers
+          </button>
+        </div>
       </section>
 
       <section className={card}>

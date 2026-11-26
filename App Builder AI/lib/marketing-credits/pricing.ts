@@ -20,6 +20,7 @@ export type MarketingOperation =
   | 'engagement_reply'
   | 'growth_draft'
   | 'lead_followup'
+  | 'buyer_discovery'
   | 'sms'
   | 'whatsapp'
   | 'voice_minute'
@@ -72,6 +73,7 @@ export const DEFAULT_MARKETING_PRICES: MarketingPriceDefinition[] = [
   { operation: 'engagement_reply', name: 'Engagement reply', description: 'AI reply to a comment or DM', creditCost: 1, maxFactor: 1, billable: true, planRestrictions: [], provider: 'bedrock', costCents: 0.3 },
   { operation: 'growth_draft', name: 'Growth experiments', description: 'Growth agent campaign drafts', creditCost: 6, maxFactor: 1, billable: true, planRestrictions: [], provider: 'bedrock', costCents: 1.5 },
   { operation: 'lead_followup', name: 'Lead follow-up draft', description: 'AI follow-up email', creditCost: 2, maxFactor: 1, billable: true, planRestrictions: [], provider: 'bedrock', costCents: 0.5 },
+  { operation: 'buyer_discovery', name: 'Buyer discovery', description: 'Find and draft outreach to potential buyers', creditCost: 8, maxFactor: 1, billable: true, planRestrictions: [], provider: 'brave-bedrock', costCents: 2 },
   { operation: 'sms', name: 'SMS', description: 'Passthrough: carrier cost plus margin, per message', creditCost: passthrough(1), unit: 'message', maxFactor: 1.25, provider: 'twilio', costCents: 1, billable: true, planRestrictions: [] },
   { operation: 'whatsapp', name: 'WhatsApp message', description: 'Passthrough: provider cost plus margin, per message', creditCost: passthrough(1.5), unit: 'message', maxFactor: 1.25, provider: 'twilio', costCents: 1.5, billable: true, planRestrictions: [] },
   { operation: 'voice_minute', name: 'Voice call', description: 'Passthrough: provider cost plus margin, per minute', creditCost: passthrough(2), unit: 'minute', maxFactor: 1.25, provider: 'twilio', costCents: 2, billable: true, planRestrictions: [] },

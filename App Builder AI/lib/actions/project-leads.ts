@@ -5,6 +5,7 @@ import { z } from 'zod';
 
 import { getCachedSession } from '../auth/cached';
 import { draftFollowUp, qualifyLead } from '../leads/ai';
+import { discoverBuyers, saveDiscoveredBuyers } from '../leads/discover';
 import { sendLeadDraft } from '../leads/email';
 import { BOOKING_DURATIONS, isLeadStatus } from '../leads/logic';
 import { addFollowUp, addSlots, exportLeadsCsv, importFormSubmissions, importLeadsCsv, logActivity, setLeadStatus } from '../leads/service';
@@ -39,6 +40,44 @@ export async function importSubmissionsAction(projectId: string): Promise<Result
   const r = await importFormSubmissions(projectId);
   refresh();
   return { ok: true, message: `Imported ${r.imported} new, merged ${r.merged} duplicate, skipped ${r.skipped} without contact details.` };
+}
+
+export async function discoverBuyersAction(
+  projectId: string,
+  target: string,
+): Promise<Result<{ message: string }>> {
+  const userId = await requireUser();
+  const project = userId ? await ownedProject(projectId, userId) : null;
+  if (!userId || !project) return UNAUTHORIZED;
+  const cleanTarget = String(target ?? '').trim().slice(0, 200);
+  if (cleanTarget.length < 3) return { ok: false, error: 'Tell us who your ideal customer is first.' };
+  const limit = await rateLimit(`buyer-discovery:${userId}`, 6, 60 * 60_000);
+  if (!limit.ok) return { ok: false, error: `Buyer discovery limit reached. Try again in ${limit.retryAfter}s.` };
+
+  const paid = await withMarketingCredits(
+    {
+      userId,
+      projectId,
+      operation: 'buyer_discovery',
+      refType: 'Project',
+      refId: projectId,
+      isFailure: (value) => value.pages === 0,
+    },
+    async () => {
+      const result = await discoverBuyers({
+        business: { name: project.name, description: project.description },
+        target: cleanTarget,
+      });
+      const saved = await saveDiscoveredBuyers(projectId, { name: project.name, description: project.description }, result.candidates);
+      return { ...result, saved: saved.found, drafted: saved.drafted };
+    },
+  );
+  if (!paid.ok) return { ok: false, error: paid.error };
+  refresh();
+  return {
+    ok: true,
+    message: `Found ${paid.value.saved} potential buyers and drafted ${paid.value.drafted} emails across ${paid.value.pages} public pages. Review leads and approve emails before sending.${paid.value.errors.length ? ` ${paid.value.errors.length} pages could not be processed.` : ''}`,
+  };
 }
 
 export async function importCsvAction(projectId: string, text: string): Promise<Result<{ message: string }>> {
