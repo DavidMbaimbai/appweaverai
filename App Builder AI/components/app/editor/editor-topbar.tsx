@@ -35,6 +35,7 @@ import { AltTextPanel } from './alt-text-panel';
 import { BrandKitPanel } from './brand-kit-panel';
 import { SeoPanel } from './seo-panel';
 import { FormSubmissionsPanel } from './form-submissions-panel';
+import { IdeIntegrationPanel } from './ide-integration-panel';
 
 export type SaveStatus = 'saving' | 'saved' | 'error';
 
@@ -87,6 +88,7 @@ export function EditorTopBar({
   const [unpublishDialogOpen, setUnpublishDialogOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [githubOpen, setGithubOpen] = useState(false);
+  const [ideOpen, setIdeOpen] = useState(false);
   const [domainOpen, setDomainOpen] = useState(false);
   const [hostingOpen, setHostingOpen] = useState(false);
   const [activityOpen, setActivityOpen] = useState(false);
@@ -433,6 +435,17 @@ export function EditorTopBar({
                   role="menuitem"
                   onClick={() => {
                     setMenuOpen(false);
+                    setIdeOpen(true);
+                  }}
+                  className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-app-text-secondary transition-colors hover:bg-app-surface-hover hover:text-app-text">
+                  <CodeIcon className="h-3.5 w-3.5 shrink-0" />
+                  Continue in an IDE
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={() => {
+                    setMenuOpen(false);
                     setDomainOpen(true);
                   }}
                   className="flex w-full items-center gap-2.5 px-3 py-2 text-sm text-app-text-secondary transition-colors hover:bg-app-surface-hover hover:text-app-text">
@@ -590,6 +603,21 @@ export function EditorTopBar({
         activeArtifactId={
           project.lastActiveArtifactId ?? project.artifacts[0]?.id ?? null
         }
+      />
+
+      <IdeIntegrationPanel
+        open={ideOpen}
+        onClose={() => setIdeOpen(false)}
+        projectId={project.id}
+        projectName={project.name}
+        artifactSlug={
+          project.artifacts.find(
+            (artifact) => artifact.id === project.lastActiveArtifactId,
+          )?.slug ??
+          project.artifacts[0]?.slug ??
+          null
+        }
+        onOpenGithub={() => setGithubOpen(true)}
       />
 
       <CustomDomainPanel
@@ -924,6 +952,20 @@ function TerminalMenuIcon({ className }: { className?: string }) {
         strokeLinecap="round"
         strokeLinejoin="round"
       />
+    </svg>
+  );
+}
+
+function CodeIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      aria-hidden="true">
+      <path d="m8 9-3 3 3 3M16 9l3 3-3 3M14 5l-4 14" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
