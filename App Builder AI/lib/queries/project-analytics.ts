@@ -3,12 +3,16 @@ import { prisma } from '@/lib/prisma';
 export type ProjectAnalyticsSummary = {
   totalViews: number;
   uniqueVisitors: number;
-  viewsLast7Days: { date: string; count: number }[];
+  activeUsers: number;
+  sessions: number;
+  keyEvents: number;
+  newUsers: number;
+  viewsLast30Days: { date: string; count: number }[];
   topPaths: { path: string; count: number }[];
   topReferrers: { referrer: string; count: number }[];
 };
 
-const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 /**
  * Owner-facing analytics for a published project, aggregated from
@@ -20,14 +24,32 @@ const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 export async function getProjectAnalyticsSummary(
   projectId: string,
 ): Promise<ProjectAnalyticsSummary> {
-  const since = new Date(Date.now() - SEVEN_DAYS_MS);
+  const since = new Date(Date.now() - THIRTY_DAYS_MS);
 
-  const [totalViews, visitorGroups, dailyRows, pathGroups, referrerGroups] =
+  const [
+    totalViews,
+    visitorGroups,
+    recentRows,
+    newVisitorGroups,
+    dailyRows,
+    pathGroups,
+    referrerGroups,
+    analyticsSite,
+  ] =
     await Promise.all([
       prisma.projectPageView.count({ where: { projectId } }),
       prisma.projectPageView.groupBy({
         by: ['visitorId'],
         where: { projectId },
+      }),
+      prisma.projectPageView.findMany({
+        where: { projectId, createdAt: { gte: since } },
+        select: { visitorId: true, createdAt: true },
+      }),
+      prisma.projectPageView.groupBy({
+        by: ['visitorId'],
+        where: { projectId },
+        _min: { createdAt: true },
       }),
       prisma.projectPageView.findMany({
         where: { projectId, createdAt: { gte: since } },
@@ -47,10 +69,14 @@ export async function getProjectAnalyticsSummary(
         orderBy: { _count: { referrer: 'desc' } },
         take: 5,
       }),
+      prisma.analyticsSite.findUnique({
+        where: { projectId },
+        select: { id: true },
+      }),
     ]);
 
   const buckets = new Map<string, number>();
-  for (let i = 6; i >= 0; i -= 1) {
+  for (let i = 29; i >= 0; i -= 1) {
     const date = new Date(Date.now() - i * 24 * 60 * 60 * 1000)
       .toISOString()
       .slice(0, 10);
@@ -66,7 +92,21 @@ export async function getProjectAnalyticsSummary(
   return {
     totalViews,
     uniqueVisitors: visitorGroups.length,
-    viewsLast7Days: Array.from(buckets.entries()).map(([date, count]) => ({
+    activeUsers: new Set(recentRows.map((row) => row.visitorId)).size,
+    sessions: recentRows.length,
+    keyEvents: analyticsSite
+      ? await prisma.analyticsEvent.count({
+          where: {
+            siteId: analyticsSite.id,
+            name: { not: 'pageview' },
+            createdAt: { gte: since },
+          },
+        })
+      : 0,
+    newUsers: newVisitorGroups.filter(
+      (row) => row._min.createdAt && row._min.createdAt >= since,
+    ).length,
+    viewsLast30Days: Array.from(buckets.entries()).map(([date, count]) => ({
       date,
       count,
     })),

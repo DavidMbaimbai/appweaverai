@@ -64,6 +64,16 @@ export async function listProjects(filters: ProjectListFilters) {
         slug: true,
         adminStatus: true,
         createdAt: true,
+        deployments: {
+          where: { isCurrent: true },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          select: {
+            domain: true,
+            customDomain: true,
+            status: true,
+          },
+        },
         createdBy: {
           select: {
             id: true,

@@ -72,6 +72,7 @@ export default async function Page({
             <thead className="bg-app-surface text-left text-xs text-app-text-muted">
               <tr>
                 <th className="px-4 py-2.5 font-medium">Project</th>
+                <th className="px-4 py-2.5 font-medium">Project URL</th>
                 <th className="px-4 py-2.5 font-medium">Owner</th>
                 <th className="px-4 py-2.5 font-medium">Status</th>
                 <th className="px-4 py-2.5 font-medium">AI cost</th>
@@ -92,6 +93,23 @@ export default async function Page({
                     <p className="font-mono text-xs text-app-text-muted">
                       {project.id}
                     </p>
+                  </td>
+                  <td className="max-w-xs px-4 py-2.5">
+                    {(() => {
+                      const url = getProjectUrl(project);
+                      return url ? (
+                        <a
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="block truncate text-app-accent-blue hover:underline"
+                          title={url}>
+                          {url}
+                        </a>
+                      ) : (
+                        <span className="text-app-text-muted">Not published</span>
+                      );
+                    })()}
                   </td>
                   <td className="px-4 py-2.5">
                     <Link
@@ -153,6 +171,26 @@ export default async function Page({
       ) : null}
     </div>
   );
+}
+
+function getProjectUrl(project: {
+  deployments: Array<{
+    domain: string;
+    customDomain: string | null;
+  }>;
+}) {
+  const deployment = project.deployments[0];
+  const value = deployment?.customDomain || deployment?.domain;
+  if (!value) return null;
+
+  if (/^https?:\/\//i.test(value)) return value;
+
+  const base = (
+    process.env.NEXT_PUBLIC_APP_URL ||
+    'https://appweaverai.com'
+  ).replace(/\/+$/, '');
+
+  return value.startsWith('/') ? `${base}${value}` : `https://${value}`;
 }
 
 function buildPageHref(
