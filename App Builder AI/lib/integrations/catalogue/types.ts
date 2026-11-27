@@ -5,6 +5,7 @@ export const INTEGRATION_CATEGORIES = [
   'Email',
   'CRM',
   'Analytics',
+  'CMS',
   'AI models',
   'Media generation',
   'Communication',

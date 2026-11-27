@@ -764,6 +764,282 @@ export const externalDb = new Pool({ connectionString: process.env.EXTERNAL_DATA
     },
   },
   {
+    id: 'wordpress',
+    name: 'WordPress',
+    category: 'CMS',
+    description: 'Create and maintain WordPress content, media and site data through the WordPress REST API.',
+    status: 'available',
+    authType: 'api_key',
+    mark: 'W',
+    color: '#21759b',
+    userDefinedUrl: true,
+    fields: [
+      {
+        key: 'siteUrl',
+        label: 'WordPress site URL',
+        secret: false,
+        required: true,
+        placeholder: 'https://example.com',
+        pattern: /^https:\/\/[^\s/$.?#].[^\s]*$/i,
+        patternMessage: 'Enter the full https:// URL of the WordPress site.',
+        envVar: 'WORDPRESS_SITE_URL',
+        maxLength: 512,
+      },
+      {
+        key: 'apiVersion',
+        label: 'Admin API version',
+        secret: false,
+        required: false,
+        placeholder: '2025-01',
+        help: 'Use a Shopify version supported by your app. Defaults to 2025-01.',
+        envVar: 'SHOPIFY_API_VERSION',
+        pattern: /^\d{4}-\d{2}$/,
+        patternMessage: 'Use the Shopify version format YYYY-MM, for example 2025-01.',
+        maxLength: 7,
+      },
+      {
+        key: 'username',
+        label: 'WordPress username',
+        secret: false,
+        required: true,
+        placeholder: 'admin',
+        envVar: 'WORDPRESS_USERNAME',
+        maxLength: 255,
+      },
+      {
+        key: 'applicationPassword',
+        label: 'Application password',
+        secret: true,
+        required: true,
+        placeholder: 'xxxx xxxx xxxx xxxx xxxx xxxx',
+        help: 'Create this under WordPress Users → Profile → Application Passwords. Do not use the account password.',
+        envVar: 'WORDPRESS_APPLICATION_PASSWORD',
+        maxLength: 255,
+      },
+    ],
+    scopes: [
+      'Read and manage the WordPress content and media allowed by the connected user.',
+      'Use a dedicated WordPress user with the minimum role required for the project.',
+    ],
+    warnings: [
+      'Application passwords grant access as the connected WordPress user. Store them only in server-side code and rotate them when access is no longer needed.',
+      'The connection test uses the WordPress REST API and does not change site content.',
+    ],
+    docsUrl: 'https://developer.wordpress.org/rest-api/using-the-rest-api/authentication/',
+    costNote: 'WordPress hosting and plugins are billed by your WordPress provider. AppWeaver adds no WordPress fee.',
+    validate: (values) => {
+      const target = validateOutboundUrl(values.siteUrl ?? '');
+      if (!target.ok) return target.reason;
+      if (!values.username?.trim()) return 'Enter the WordPress username.';
+      if (!values.applicationPassword?.trim()) return 'Enter a WordPress application password.';
+      return null;
+    },
+    test: async (credentials, ctx) => {
+      const siteUrl = credentials.siteUrl.replace(/\/+$/, '');
+      const token = Buffer.from(
+        `${credentials.username}:${credentials.applicationPassword}`,
+      ).toString('base64');
+
+      return probe({
+        fetch: ctx.safeFetch,
+        url: `${siteUrl}/wp-json/wp/v2/users/me?context=edit`,
+        init: {
+          headers: {
+            authorization: `Basic ${token}`,
+            accept: 'application/json',
+          },
+        },
+        service: 'WordPress',
+        successMessage: 'WordPress accepted the application password.',
+      });
+    },
+    setup: {
+      note: 'Use only from server-side code. WordPress application passwords must never be exposed to browser code.',
+      snippet: `const WORDPRESS_SITE_URL = process.env.WORDPRESS_SITE_URL!.replace(/\\/+$/, '');
+const WORDPRESS_AUTH = Buffer.from(
+  \`\${process.env.WORDPRESS_USERNAME}:\${process.env.WORDPRESS_APPLICATION_PASSWORD}\`,
+).toString('base64');
+
+export async function createWordPressPost(title: string, content: string) {
+  const response = await fetch(\`\${WORDPRESS_SITE_URL}/wp-json/wp/v2/posts\`, {
+    method: 'POST',
+    headers: {
+      authorization: \`Basic \${WORDPRESS_AUTH}\`,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ title, content, status: 'draft' }),
+  });
+  if (!response.ok) throw new Error(\`WordPress request failed: \${response.status}\`);
+  return response.json();
+}`,
+    },
+  },
+  {
+    id: 'magento',
+    name: 'Magento',
+    category: 'CMS',
+    description: 'Build and maintain Magento storefront content, catalogues and store data through the Magento REST API.',
+    status: 'available',
+    authType: 'api_key',
+    mark: 'M',
+    color: '#f26322',
+    userDefinedUrl: true,
+    fields: [
+{
+  key: 'siteUrl',
+  label: 'Magento site URL',
+  secret: false,
+  required: true,
+  placeholder: 'https://shop.example.com',
+  pattern: /^https:\/\/[^\s/$.?#].[^\s]*$/i,
+  patternMessage: 'Enter the full https:// URL of the Magento site.',
+  envVar: 'MAGENTO_SITE_URL',
+  maxLength: 512,
+},
+{
+  key: 'accessToken',
+  label: 'Integration access token',
+  secret: true,
+  required: true,
+  placeholder: 'Magento access token',
+  help: 'Create a least-privilege integration token in System → Integrations.',
+  envVar: 'MAGENTO_ACCESS_TOKEN',
+  maxLength: 4_096,
+},
+    ],
+    scopes: [
+'Use a Magento integration with only the catalogue, content and store permissions required by the project.',
+    ],
+    warnings: [
+'Magento tokens can modify store data. Use a dedicated least-privilege integration and rotate the token regularly.',
+'The connection test is read-only and only requests store configuration.',
+    ],
+    docsUrl: 'https://developer.adobe.com/commerce/webapi/rest/',
+    costNote: 'Magento hosting, extensions and commerce services are billed by your provider. AppWeaver adds no Magento fee.',
+    validate: (values) => {
+const target = validateOutboundUrl(values.siteUrl ?? '');
+if (!target.ok) return target.reason;
+if (!values.accessToken?.trim()) return 'Enter a Magento integration access token.';
+return null;
+    },
+    test: async (credentials, ctx) => {
+const siteUrl = credentials.siteUrl.replace(/\/+$/, '');
+return probe({
+  fetch: ctx.safeFetch,
+  url: `${siteUrl}/rest/V1/store/storeConfigs`,
+  init: {
+    headers: {
+      authorization: `Bearer ${credentials.accessToken}`,
+      accept: 'application/json',
+    },
+  },
+  service: 'Magento',
+  successMessage: 'Magento accepted the integration access token.',
+});
+    },
+    setup: {
+note: 'Use only from server-side code. Magento integration tokens must never be exposed to browser code.',
+snippet: `const MAGENTO_SITE_URL = process.env.MAGENTO_SITE_URL!.replace(/\\/+$/, '');
+
+export async function listMagentoProducts() {
+  const response = await fetch(
+    \`\${MAGENTO_SITE_URL}/rest/V1/products?searchCriteria[pageSize]=20\`,
+    {
+headers: {
+  authorization: \`Bearer \${process.env.MAGENTO_ACCESS_TOKEN}\`,
+  accept: 'application/json',
+},
+    },
+  );
+  if (!response.ok) throw new Error(\`Magento request failed: \${response.status}\`);
+  return response.json();
+}`,
+    },
+  },
+  {
+    id: 'shopify',
+    name: 'Shopify',
+    category: 'CMS',
+    description: 'Create and maintain Shopify products, content and storefront data through the Admin API.',
+    status: 'available',
+    authType: 'api_key',
+    mark: 'S',
+    color: '#96bf48',
+    userDefinedUrl: true,
+    fields: [
+{
+  key: 'shopDomain',
+  label: 'Shop domain',
+  secret: false,
+  required: true,
+  placeholder: 'my-store.myshopify.com',
+  pattern: /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.myshopify\.com$/i,
+  patternMessage: 'Use your *.myshopify.com shop domain.',
+  envVar: 'SHOPIFY_SHOP_DOMAIN',
+  maxLength: 255,
+},
+{
+  key: 'accessToken',
+  label: 'Admin API access token',
+  secret: true,
+  required: true,
+  placeholder: 'shpat_…',
+  help: 'Create a custom app in Shopify Admin and grant only the scopes required by the project.',
+  envVar: 'SHOPIFY_ADMIN_ACCESS_TOKEN',
+  maxLength: 512,
+},
+    ],
+    scopes: [
+'Choose only the read/write product, content and theme scopes needed by the project.',
+    ],
+    warnings: [
+'Shopify Admin API tokens can modify store data. Use a dedicated custom app and least-privilege scopes.',
+'The connection test is read-only and requests shop metadata only.',
+    ],
+    docsUrl: 'https://shopify.dev/docs/api/admin-rest',
+    costNote: 'Shopify subscription and app charges are billed by Shopify. AppWeaver adds no Shopify fee.',
+    validate: (values) => {
+if (!values.shopDomain || !/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.myshopify\.com$/i.test(values.shopDomain)) {
+  return 'Enter a valid *.myshopify.com shop domain.';
+}
+if (!values.accessToken?.trim()) return 'Enter a Shopify Admin API access token.';
+return null;
+    },
+    test: async (credentials, ctx) => {
+const shopDomain = credentials.shopDomain.toLowerCase();
+const apiVersion = credentials.apiVersion || '2025-01';
+return probe({
+  fetch: ctx.safeFetch,
+  url: `https://${shopDomain}/admin/api/${apiVersion}/shop.json`,
+  init: {
+    headers: {
+      'x-shopify-access-token': credentials.accessToken,
+      accept: 'application/json',
+    },
+  },
+  service: 'Shopify',
+  successMessage: 'Shopify accepted the Admin API access token.',
+});
+    },
+    setup: {
+note: 'Use only from server-side code. Shopify Admin API tokens must never be exposed to browser code.',
+snippet: `const SHOPIFY_SHOP_DOMAIN = process.env.SHOPIFY_SHOP_DOMAIN!;
+const SHOPIFY_API_VERSION = process.env.SHOPIFY_API_VERSION || '2025-01';
+const SHOPIFY_API_URL = \`https://\${SHOPIFY_SHOP_DOMAIN}/admin/api/\${SHOPIFY_API_VERSION}\`;
+
+export async function listShopifyProducts() {
+  const response = await fetch(\`\${SHOPIFY_API_URL}/products.json?limit=20\`, {
+    headers: {
+'x-shopify-access-token': process.env.SHOPIFY_ADMIN_ACCESS_TOKEN!,
+accept: 'application/json',
+    },
+  });
+  if (!response.ok) throw new Error(\`Shopify request failed: \${response.status}\`);
+  return response.json();
+}`,
+    },
+  },
+  {
     id: 'rest-api',
     name: 'REST API',
     category: 'APIs',
