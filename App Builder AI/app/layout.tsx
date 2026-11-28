@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Script from 'next/script';
 import './globals.css';
 import { RootProviders } from '@/components/root-providers';
 import { AuthSessionProvider } from '@/components/auth/session-provider';
@@ -48,6 +49,12 @@ export default function RootLayout({
           </AuthModalProvider>
         </AuthSessionProvider>
       </body>
+      <Script
+        defer
+        src="https://www.ship-or-die.com/hackathon/verify.js"
+        data-site="b2696ac66de69d6355131287c1b6efc47d1ee31e"
+        strategy="afterInteractive"
+      />
     </html>
   );
 }
